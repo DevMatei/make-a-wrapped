@@ -24,6 +24,10 @@ https://wrapped.devmatei.com/
 * there’s a live counter of total wraps ever generated (don't ask why it seemed cool tbh)
 * officially listed on the [ListenBrainz Enabled Applications](https://wiki.musicbrainz.org/ListenBrainz_Enabled_Applications) page :D 
 
+## wanna make me slightly richer? (im broke)
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/F1F016B4WM)
+
 ## ⚡ quickstart
 
 ```bash

@@ -201,6 +201,44 @@ function getServiceLabel(key) {
   }
   return key ? `${key.charAt(0).toUpperCase()}${key.slice(1)}` : 'Make a Wrapped';
 }
+
+function isLikelyNetworkError(error) {
+  if (!error) {
+    return false;
+  }
+  if (error.__networkError) {
+    return true;
+  }
+  const message = (error.message || '').toLowerCase();
+  if (!message) {
+    return false;
+  }
+  return message.includes('networkerror') || message.includes('network error') || message.includes('failed to fetch');
+}
+
+function recordSectionWarning(section, details) {
+  state.sectionWarnings.push({ section, details });
+}
+
+function handleSectionNetworkFailure(section, fallbackMessage) {
+  recordSectionWarning(section, fallbackMessage || 'Network error');
+  switch (section) {
+    case 'Top artists':
+      topArtistsEl.textContent = 'Unable to load (network error).';
+      break;
+    case 'Top tracks':
+      topTracksEl.textContent = 'Unable to load (network error).';
+      break;
+    case 'Minutes listened':
+      listenTimeEl.textContent = '0';
+      break;
+    case 'Top genre':
+      topGenreEl.textContent = 'No data (network error).';
+      break;
+    default:
+      break;
+  }
+}
 const state = {
   coverObjectUrl: null,
   generatedData: null,
@@ -217,6 +255,8 @@ const state = {
   turnstileTokenExpiry: null,
   navidromeClient: null,
   navidromeStats: null,
+  sectionWarnings: [],
+  imageWarningMessage: '',
 };
 
 const serviceSelector = createServiceSelector();
@@ -641,8 +681,11 @@ async function turnstileFetch(path, options = {}, { forceRefreshToken = false } 
   const mergedOptions = await applyTurnstileHeadersAsync(options, { forceRefreshToken });
   try {
     // Add timeout to fetch - be generous with timeouts for local/slow environments
-    // Image endpoints can be slow due to external API calls, JSON endpoints are typically faster
-    const timeoutMs = path.includes('/top/img/') ? 120000 : 60000;
+    // Image endpoints can take longer due to external API calls.
+    let timeoutMs = 60000;
+    if (path.includes('/top/img/')) {
+      timeoutMs = 120000;
+    }
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
     
@@ -690,6 +733,14 @@ async function fetchWithTurnstileRetry(fetcher) {
       const message = (error && error.message) || '';
       const expired = Boolean(error && (error.__turnstileExpired || message.toLowerCase().includes('verification')));
       if (!expired || retried || !isTurnstileEnabled()) {
+        if (isLikelyNetworkError(error) || (error && error.name === 'TypeError')) {
+          const baseMessage = 'Network error while contacting the selected service. Check your connection and try again.';
+          const extra = error && error.message ? ` (${error.message})` : '';
+          const netErr = new Error(`${baseMessage}${extra}`);
+          netErr.__networkError = true;
+          netErr.__networkErrorOriginal = error;
+          throw netErr;
+        }
         throw error;
       }
       retried = true;
@@ -1128,6 +1179,7 @@ async function generateWrapped(event) {
     state.generatedData.username = username;
     state.generatedData.service = selectedService;
 
+    state.sectionWarnings = [];
     await updateSections(username, sectionsToRefresh);
 
     drawCanvas();
@@ -1135,10 +1187,15 @@ async function generateWrapped(event) {
     if (sectionsToRefresh.length === ALL_SECTIONS.length) {
       await recordWrappedGenerated();
     }
-    const statusLabel = sectionsToRefresh.length === ALL_SECTIONS.length
+    const baseLabel = sectionsToRefresh.length === ALL_SECTIONS.length
       ? `Wrapped refreshed for ${username}.`
       : `Updated ${formatSectionListForStatus(sectionsToRefresh)}.`;
-    setStatus(statusLabel);
+    if (state.sectionWarnings.length) {
+      const affected = state.sectionWarnings.map((entry) => entry.section).join(', ');
+      setStatus(`${baseLabel} Some sections could not load (${affected}).`, 'error');
+    } else {
+      setStatus(baseLabel);
+    }
   } catch (error) {
     console.error(error);
     setStatus(error.message || 'Something went wrong. Try again in a moment.', 'error');
@@ -1257,57 +1314,93 @@ async function loadCoverArt(username) {
     state.coverObjectUrl = null;
   }
 
-  try {
+  state.imageWarningMessage = '';
+  const requestArtistImage = async (source) => {
     const imageParams = new URLSearchParams();
-    if (state.artworkSource === 'release') {
+    if (source === 'release') {
       imageParams.set('source', 'release');
     }
     const imagePath = `/top/img/${encodeURIComponent(username)}${imageParams.toString() ? `?${imageParams.toString()}` : ''}`;
     const { response, blob } = await fetchWithTurnstileRetry(async () => {
       const res = await turnstileFetch(imagePath, { cache: 'no-store' });
       if (res.status === 429) {
-        const err = new Error(await parseError(res));
-        err.__turnstileExpired = false;
-        throw err;
+        const err429 = new Error(await parseError(res));
+        err429.__turnstileExpired = false;
+        throw err429;
       }
       if (!res.ok) {
         const errorMessage = await parseError(res);
         if (handleTurnstileFailure(errorMessage, res.status)) {
-          const err = new Error('Verification expired. Please complete the challenge again.');
-          err.__turnstileExpired = true;
-          throw err;
+          const errTurn = new Error('Verification expired. Please complete the challenge again.');
+          errTurn.__turnstileExpired = true;
+          throw errTurn;
         }
-        const err = new Error('Artist image unavailable');
-        err.__turnstileExpired = false;
-        throw err;
+        const unavailable = new Error(errorMessage || 'Artist image unavailable');
+        unavailable.__turnstileExpired = false;
+        throw unavailable;
       }
       const blobResult = await res.blob();
       return { response: res, blob: blobResult };
     });
+    return { response, blob, source };
+  };
 
-    const queuePosition = Number(response.headers.get('X-Image-Queue-Position'));
-    if (Number.isFinite(queuePosition) && queuePosition > 0) {
-      setStatus(`Image queue is busy (position ${queuePosition}). Hang tight, we’ll grab the art asap.`);
-      state.queueMessageVisible = true;
-    } else if (state.queueMessageVisible) {
-      setStatus('');
-      state.queueMessageVisible = false;
+  const preferredSources = state.artworkSource === 'release' ? ['release', 'artist'] : ['artist', 'release'];
+  const triedSources = new Set();
+  const failedSources = [];
+
+  for (const sourceOption of preferredSources) {
+    if (triedSources.has(sourceOption)) {
+      continue;
     }
-    state.coverObjectUrl = URL.createObjectURL(blob);
-    const loaded = await loadImage(artistImg, state.coverObjectUrl);
-    if (!loaded) {
-      throw new Error('Artist image failed to load');
+    triedSources.add(sourceOption);
+    const maxAttempts = 2;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        const { response, blob } = await requestArtistImage(sourceOption);
+        const queuePosition = Number(response.headers.get('X-Image-Queue-Position'));
+        if (Number.isFinite(queuePosition) && queuePosition > 0) {
+          setStatus(`Image queue is busy (position ${queuePosition}). Hang tight, we’ll grab the art asap.`);
+          state.queueMessageVisible = true;
+        } else if (state.queueMessageVisible) {
+          setStatus('');
+          state.queueMessageVisible = false;
+        }
+        state.coverObjectUrl = URL.createObjectURL(blob);
+        const loaded = await loadImage(artistImg, state.coverObjectUrl);
+        if (!loaded) {
+          throw new Error('Artist image failed to load');
+        }
+        if (sourceOption !== state.artworkSource) {
+          console.info(`Artist image loaded via ${sourceOption} fallback.`);
+        }
+        state.imageWarningMessage = '';
+        return true;
+      } catch (error) {
+        const networkIssue = isLikelyNetworkError(error);
+        const timeoutIssue = (error?.message || '').toLowerCase().includes('timeout');
+        const shouldRetry = attempt < maxAttempts && (networkIssue || timeoutIssue);
+        if (!shouldRetry) {
+          failedSources.push(`${sourceOption}: ${error?.message || 'unavailable'}`);
+          break;
+        }
+        // brief delay before retrying the same source
+        await new Promise((resolve) => setTimeout(resolve, 700));
+      }
     }
-    return true;
-  } catch (error) {
-    console.info('Artist image unavailable, using theme background instead.', error);
-    const errorMessage = error?.message || 'Unknown error';
-    if (errorMessage.includes('timeout') || errorMessage.includes('NetworkError')) {
-      console.warn('Image fetch timed out or had network issues. This may be due to slow external services.');
-    }
-    await loadImage(artistImg, BACKGROUND_SOURCES.black);
-    return false;
   }
+
+  if (state.queueMessageVisible) {
+    setStatus('');
+    state.queueMessageVisible = false;
+  }
+  if (failedSources.length) {
+    state.imageWarningMessage = failedSources.join(' | ');
+  } else {
+    state.imageWarningMessage = 'Artist image unavailable';
+  }
+  await loadImage(artistImg, BACKGROUND_SOURCES.black);
+  return false;
 }
 
 async function loadNavidromeCoverArt() {
@@ -1364,52 +1457,79 @@ async function updateListenBrainzSections(username, sections) {
   const queue = [];
 
   if (sections.includes('artists')) {
-    queue.push(async () => {
-      const artists = sanitiseRankedArray(await fetchJson(`/top/artists/${encodeURIComponent(username)}/5`));
-      state.generatedData.artists = artists;
-      topArtistsEl.textContent = formatRankedList(artists);
+    queue.push({
+      section: 'Top artists',
+      run: async () => {
+        const artists = sanitiseRankedArray(await fetchJson(`/top/artists/${encodeURIComponent(username)}/5`));
+        state.generatedData.artists = artists;
+        topArtistsEl.textContent = formatRankedList(artists);
+      },
     });
   }
 
   if (sections.includes('tracks')) {
-    queue.push(async () => {
-      const tracks = sanitiseRankedArray(await fetchJson(`/top/tracks/${encodeURIComponent(username)}/5`));
-      state.generatedData.tracks = tracks;
-      topTracksEl.textContent = formatRankedList(tracks);
+    queue.push({
+      section: 'Top tracks',
+      run: async () => {
+        const tracks = sanitiseRankedArray(await fetchJson(`/top/tracks/${encodeURIComponent(username)}/5`));
+        state.generatedData.tracks = tracks;
+        topTracksEl.textContent = formatRankedList(tracks);
+      },
     });
   }
 
   if (sections.includes('time')) {
-    queue.push(async () => {
-      const minutes = ensureMinutesLabel(await fetchText(`/time/total/${encodeURIComponent(username)}`));
-      state.generatedData.minutes = minutes;
-      listenTimeEl.textContent = minutes;
+    queue.push({
+      section: 'Minutes listened',
+      run: async () => {
+        const minutes = ensureMinutesLabel(await fetchText(`/time/total/${encodeURIComponent(username)}`));
+        state.generatedData.minutes = minutes;
+        listenTimeEl.textContent = minutes;
+      },
     });
   }
 
   if (sections.includes('genre')) {
-    queue.push(async () => {
-      const genre = await fetchText(`/top/genre/user/${encodeURIComponent(username)}`);
-      const normalised = normaliseGenreLabel(genre);
-      state.generatedData.genre = normalised;
-      topGenreEl.textContent = normalised;
+    queue.push({
+      section: 'Top genre',
+      run: async () => {
+        const genre = await fetchText(`/top/genre/user/${encodeURIComponent(username)}`);
+        const normalised = normaliseGenreLabel(genre);
+        state.generatedData.genre = normalised;
+        topGenreEl.textContent = normalised;
+      },
     });
   }
 
   if (sections.includes('image')) {
-    queue.push(async () => {
-      if (state.customArtworkActive && state.customArtworkUrl) {
-        state.isCoverReady = await applyCustomArtwork();
-      } else {
-        state.isCoverReady = await loadCoverArt(username);
-      }
+    queue.push({
+      section: 'Artist image',
+      run: async () => {
+        if (state.customArtworkActive && state.customArtworkUrl) {
+          state.isCoverReady = await applyCustomArtwork();
+        } else {
+          state.isCoverReady = await loadCoverArt(username);
+        }
+        if (!state.isCoverReady) {
+          recordSectionWarning('Artist image', state.imageWarningMessage || 'Fallback background used');
+        }
+      },
     });
   }
 
   // Run sequentially to avoid reusing a single Turnstile token across parallel requests.
   /* eslint-disable no-await-in-loop */
   for (const task of queue) {
-    await task();
+    try {
+      await task.run();
+    } catch (error) {
+      if (isLikelyNetworkError(error)) {
+        console.warn(`Network error loading ${task.section}`, error);
+        handleSectionNetworkFailure(task.section, error.message);
+        continue;
+      }
+      throw error;
+    }
   }
   /* eslint-enable no-await-in-loop */
 

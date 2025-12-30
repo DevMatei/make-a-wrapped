@@ -86,20 +86,27 @@ lastfm_session.headers.update(
 )
 _configure_session(lastfm_session)
 
+deezer_session = requests.Session()
+deezer_session.headers.update(
+    {"User-Agent": LASTFM_USER_AGENT, "Accept": "application/json"}
+)
+_configure_session(deezer_session)
+
 
 def request_with_handling(
     session: requests.Session,
     url: str,
     *,
     params: Optional[Dict[str, str]] = None,
+    timeout: Optional[float] = None,
 ) -> RequestsResponse:
     """Perform a GET request with shared retry and error handling."""
     last_exc: Optional[Exception] = None
     for attempt in range(3):
         try:
-            response = session.get(url, params=params, timeout=HTTP_TIMEOUT)
+            response = session.get(url, params=params, timeout=timeout or HTTP_TIMEOUT)
             return response
-        except RequestException as exc:  
+        except RequestException as exc:
             last_exc = exc
             time.sleep(0.3 * (attempt + 1))
     abort(502, description=f"Upstream request failed: {last_exc}")

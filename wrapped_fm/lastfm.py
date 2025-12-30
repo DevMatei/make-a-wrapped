@@ -12,16 +12,17 @@ from flask import abort
 
 from .config import (
     AVERAGE_TRACK_LENGTH_MINUTES,
+    DEEZER_API,
     IGNORED_TAGS,
     LASTFM_API,
     LASTFM_API_KEY,
     POPULAR_GENRES,
 )
-from .http import lastfm_session, request_with_handling
+from .http import deezer_session, lastfm_session, request_with_handling
 
 LASTFM_PERIOD = "12month"
 SECONDS_PER_YEAR = 31_557_600  # 365.25 days
-MAX_DURATION_TRACKS = 200
+LASTFM_AVERAGE_SAMPLE_LIMIT = 150
 MAX_TAG_RESULTS = 25
 
 
@@ -51,6 +52,19 @@ def _call_lastfm(method: str, params: Optional[Dict[str, str]] = None) -> Dict:
             abort(404, description=message)
         abort(502, description=message)
     return data
+
+
+def _call_deezer(path: str, params: Optional[Dict[str, str]] = None) -> Dict:
+    response = request_with_handling(
+        deezer_session,
+        f"{DEEZER_API.rstrip('/')}/{path.lstrip('/')}",
+        params=params,
+        timeout=8,
+    )
+    try:
+        return response.json()
+    except ValueError:
+        return {}
 
 
 def _extract_names(payload: Dict, path: Sequence[str]) -> List[str]:
@@ -124,7 +138,7 @@ def _normalise_duration(value: Optional[str]) -> int:
     return duration
 
 
-@lru_cache(maxsize=1024)
+@lru_cache(maxsize=2048)
 def _fetch_track_duration(artist_name: str, track_name: str) -> int:
     payload = _call_lastfm(
         "track.getInfo",
@@ -137,10 +151,93 @@ def _fetch_track_duration(artist_name: str, track_name: str) -> int:
     duration = None
     if isinstance(track_info, dict):
         duration = track_info.get("duration")
-    return _normalise_duration(duration if isinstance(duration, str) else str(duration or ""))
+    resolved = _normalise_duration(duration if isinstance(duration, str) else str(duration or ""))
+    if resolved and resolved != int(AVERAGE_TRACK_LENGTH_MINUTES * 60000):
+        return resolved
+    query = _call_deezer(
+        "search",
+        {
+            "q": f'artist:"{artist_name}" track:"{track_name}"',
+            "limit": "1",
+        },
+    )
+    data = query.get("data")
+    if isinstance(data, dict):
+        data = [data]
+    if isinstance(data, list) and data:
+        entry = data[0]
+        try:
+            seconds = int(entry.get("duration", 0))
+        except (TypeError, ValueError):
+            seconds = 0
+        if seconds > 0:
+            return seconds * 1000
+    return resolved
 
 
-def estimate_lastfm_listen_minutes(username: str) -> str:
+def _calculate_lastfm_average_track_minutes(username: str) -> float:
+    payload = _call_lastfm(
+        "user.gettoptracks",
+        {
+            "user": username,
+            "period": LASTFM_PERIOD,
+            "limit": str(LASTFM_AVERAGE_SAMPLE_LIMIT),
+        },
+    )
+    tracks = (payload.get("toptracks") or {}).get("track") or []
+    if isinstance(tracks, dict):
+        tracks = [tracks]
+    total_length_ms = 0
+    total_listens = 0
+    missing_duration_keys: List[Tuple[str, str]] = []
+    provided_durations: Dict[Tuple[str, str], int] = {}
+    plays_by_key: Dict[Tuple[str, str], int] = {}
+
+    for entry in tracks[:LASTFM_AVERAGE_SAMPLE_LIMIT]:
+        if not isinstance(entry, dict):
+            continue
+        track_name = entry.get("name")
+        artist_info = entry.get("artist") or {}
+        artist_name = None
+        if isinstance(artist_info, dict):
+            artist_name = artist_info.get("name")
+        if not artist_name or not track_name:
+            continue
+        try:
+            plays = int(entry.get("playcount", 0))
+        except (TypeError, ValueError):
+            plays = 0
+        if plays <= 0:
+            continue
+        duration = entry.get("duration")
+        key = (artist_name, track_name)
+        plays_by_key[key] = plays
+        if duration not in {None, "", "0"}:
+            provided_durations[key] = _normalise_duration(str(duration))
+        else:
+            missing_duration_keys.append(key)
+        total_listens += plays
+
+    if missing_duration_keys:
+        def _lookup(args: Tuple[str, str]) -> int:
+            return _fetch_track_duration(args[0], args[1])
+
+        with ThreadPoolExecutor(max_workers=6) as pool:
+            for key, duration in zip(missing_duration_keys, pool.map(_lookup, missing_duration_keys)):
+                provided_durations[key] = duration
+
+    for key, duration in provided_durations.items():
+        plays = plays_by_key.get(key, 0)
+        if plays <= 0:
+            continue
+        total_length_ms += duration * plays
+
+    if total_listens <= 0 or total_length_ms <= 0:
+        return AVERAGE_TRACK_LENGTH_MINUTES
+    return (total_length_ms / total_listens) / 60000.0
+
+
+def _fetch_lastfm_total_listens(username: str) -> int:
     now = int(time.time())
     start = now - SECONDS_PER_YEAR
     payload = _call_lastfm(
@@ -153,59 +250,31 @@ def estimate_lastfm_listen_minutes(username: str) -> str:
     )
     chart = payload.get("weeklytrackchart", {})
     tracks = chart.get("track") or []
+    if isinstance(tracks, dict):
+        tracks = [tracks]
     if not isinstance(tracks, list):
-        return "0"
-
-    track_entries: List[Tuple[str, str, int]] = []
-    for entry in tracks[:MAX_DURATION_TRACKS]:
+        return 0
+    total_listens = 0
+    for entry in tracks:
         if not isinstance(entry, dict):
             continue
-        playcount = entry.get("playcount")
         try:
-            plays = int(playcount)
+            plays = int(entry.get("playcount", 0))
         except (TypeError, ValueError):
-            continue
-        if plays <= 0:
-            continue
-        artist_info = entry.get("artist") or {}
-        artist_name = None
-        if isinstance(artist_info, dict):
-            artist_name = artist_info.get("#text") or artist_info.get("name")
-        track_name = entry.get("name")
-        if not artist_name or not track_name:
-            continue
-        track_entries.append((artist_name, track_name, plays))
+            plays = 0
+        if plays > 0:
+            total_listens += plays
+    return total_listens
 
-    if not track_entries:
+
+def estimate_lastfm_listen_minutes(username: str) -> str:
+    total_listens = _fetch_lastfm_total_listens(username)
+    if total_listens <= 0:
         return "0"
 
-    durations: Dict[Tuple[str, str], int] = {}
-    keys = [(artist, track) for artist, track, _ in track_entries]
-    unique_keys: List[Tuple[str, str]] = []
-    seen = set()
-    for key in keys:
-        if key in seen:
-            continue
-        seen.add(key)
-        unique_keys.append(key)
-
-    def _lookup(args: Tuple[str, str]) -> int:
-        return _fetch_track_duration(args[0], args[1])
-
-    with ThreadPoolExecutor(max_workers=6) as pool:
-        for key, duration in zip(unique_keys, pool.map(_lookup, unique_keys)):
-            durations[key] = duration
-
-    total_ms = 0
-    for artist_name, track_name, plays in track_entries:
-        duration = durations.get((artist_name, track_name))
-        if not duration:
-            duration = int(AVERAGE_TRACK_LENGTH_MINUTES * 60000)
-        total_ms += plays * duration
-
-    if total_ms <= 0:
-        return "0"
-    minutes = max(0, int(total_ms / 60000))
+    average_minutes = _calculate_lastfm_average_track_minutes(username)
+    total_minutes = max(0, int(round(total_listens * average_minutes)))
+    minutes = max(0, total_minutes)
     return f"{minutes:,}"
 
 

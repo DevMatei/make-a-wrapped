@@ -6,12 +6,50 @@ import {
 } from './constants.js';
 import { delay } from './helpers.js';
 
+function getCurrentYearRange(referenceDate = new Date()) {
+  const year = referenceDate.getUTCFullYear();
+  const start = Date.UTC(year, 0, 1);
+  const end = Date.UTC(year + 1, 0, 1);
+  return { year, start, end };
+}
+
+function parsePlayDate(value) {
+  if (!value && value !== 0) {
+    return null;
+  }
+  if (value instanceof Date) {
+    const time = value.getTime();
+    return Number.isFinite(time) ? time : null;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value > 1e12 ? value : value * 1000;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const parsed = Date.parse(trimmed);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function isWithinRange(timestamp, start, end) {
+  if (!Number.isFinite(timestamp)) {
+    return false;
+  }
+  return timestamp >= start && timestamp < end;
+}
+
 export async function collectNavidromeStats(api, progressCallback = () => {}) {
   const albums = [];
   const songs = [];
   const artistPlays = new Map();
   const artistIdToName = new Map();
   const genrePlayCounts = Object.create(null);
+  const albumPlayCounts = new Map();
+  const { start: rangeStartMs, end: rangeEndMs } = getCurrentYearRange();
   let offset = 0;
   let totalSec = 0;
 
@@ -51,8 +89,16 @@ export async function collectNavidromeStats(api, progressCallback = () => {}) {
     }
 
     for (const song of album.song || []) {
-      const playCount = song.playCount || 0;
-      const duration = song.duration || 0;
+      const playCount = Number(song.playCount) || 0;
+      if (!playCount) {
+        continue; // eslint-disable-line no-continue
+      }
+      const playDateRaw = song.playDate || song.played || song.lastPlayed || null;
+      const playedAt = parsePlayDate(playDateRaw);
+      if (!isWithinRange(playedAt, rangeStartMs, rangeEndMs)) {
+        continue; // eslint-disable-line no-continue
+      }
+      const duration = Number(song.duration) || 0;
       const artistName = song.displayArtist || song.artist || album.artist || '';
       const genre = (song.genre || album.genre || '').trim();
       const coverArt = song.coverArt || album.coverArt;
@@ -83,6 +129,20 @@ export async function collectNavidromeStats(api, progressCallback = () => {}) {
         albumId: album.id,
         coverArtId: coverArt,
       });
+
+      const albumEntry = albumPlayCounts.get(album.id) || {
+        plays: 0,
+        name: album.name || '',
+        coverArtId: coverArt || album.coverArt || null,
+      };
+      albumEntry.plays += playCount;
+      if (!albumEntry.coverArtId && (coverArt || album.coverArt)) {
+        albumEntry.coverArtId = coverArt || album.coverArt || null;
+      }
+      if (!albumEntry.name && album.name) {
+        albumEntry.name = album.name;
+      }
+      albumPlayCounts.set(album.id, albumEntry);
 
       if (genre) {
         genrePlayCounts[genre] = (genrePlayCounts[genre] || 0) + playCount;
@@ -121,15 +181,13 @@ export async function collectNavidromeStats(api, progressCallback = () => {}) {
       albumId: song.albumId || null,
     }));
 
-  const topAlbums = albums
-    .slice(0, albumsToProcess)
-    .filter((album) => album.playCount)
-    .sort((a, b) => b.playCount - a.playCount)
+  const topAlbums = [...albumPlayCounts.entries()]
+    .sort((a, b) => b[1].plays - a[1].plays)
     .slice(0, 10)
-    .map((album) => ({
-      name: album.name,
-      id: album.id,
-      coverArtId: album.coverArt,
+    .map(([id, entry]) => ({
+      name: entry.name || 'Unknown album',
+      id,
+      coverArtId: entry.coverArtId || null,
     }));
 
   const topGenresByPlays = Object.entries(genrePlayCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
