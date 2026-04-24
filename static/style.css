@@ -66,8 +66,7 @@ body::after {
   height: 40vw;
   max-width: 620px;
   max-height: 620px;
-  background: radial-gradient(circle, rgba(124, 93, 255, 0.35), transparent 60%);
-  filter: blur(40px);
+  background: radial-gradient(circle, rgba(124, 93, 255, 0.25) 0%, rgba(124, 93, 255, 0.1) 40%, transparent 70%);
   top: -10%;
   right: -5%;
   z-index: 0;
@@ -90,7 +89,7 @@ body::after {
   border: 1px solid var(--card-border);
   border-radius: 16px;
   box-shadow: 0 20px 45px rgba(4, 7, 14, 0.35);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(8px);
 }
 
 .card__body {

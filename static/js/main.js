@@ -392,7 +392,7 @@ themeSelect.addEventListener('change', () => drawCanvas());
 
 downloadBtn.addEventListener('click', () => {
   const link = document.createElement('a');
-  link.download = 'listenbrainz-wrapped.png';
+  link.download = 'make-a-wrapped.png';
   link.href = canvas.toDataURL('image/png');
   link.click();
 });
@@ -1607,7 +1607,7 @@ function refreshSectionDisplays() {
   }
 }
 
-console.log('%c👋 Howdy developer! \n\n%cThis is an open-source project by DevMatei\n\n%cGitHub:%chttps://github.com/devmatei/listenbrainz-wrapped',
+console.log('%c👋 Howdy developer! \n\n%cThis is an open-source project by DevMatei\n\n%cGitHub:%chttps://github.com/devmatei/make-a-wrapped',
   'font-size: 16px; font-weight: bold; color: #6366f1;',
   'font-size: 14px; color: #4b5563;',
   'font-size: 15px; color: #4b5563;',

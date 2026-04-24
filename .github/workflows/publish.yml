@@ -29,4 +29,4 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/devmatei/listenbrainz-wrapped:latest
+            ghcr.io/devmatei/make-a-wrapped:latest

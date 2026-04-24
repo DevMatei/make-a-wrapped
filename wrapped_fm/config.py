@@ -21,7 +21,7 @@ LISTENBRAINZ_API = os.getenv("LISTENBRAINZ_API", "https://api.listenbrainz.org/1
 MUSICBRAINZ_API = os.getenv("MUSICBRAINZ_API", "https://musicbrainz.org/ws/2")
 COVER_ART_API = os.getenv("COVER_ART_API", "https://coverartarchive.org/release")
 DEEZER_API = os.getenv("DEEZER_API", "https://api.deezer.com")
-LISTEN_RANGE = os.getenv("LISTENBRAINZ_RANGE", "year")
+LISTEN_RANGE = os.getenv("LISTENBRAINZ_RANGE", "this_year")
 AVERAGE_TRACK_LENGTH_MINUTES = float(os.getenv("AVERAGE_TRACK_LENGTH_MINUTES", "3.5"))
 # HTTP_TIMEOUT split: 5s connect, 5s read (per retry); default bumped for slower APIs
 HTTP_TIMEOUT = float(os.getenv("HTTP_TIMEOUT", "10"))
@@ -44,7 +44,7 @@ LASTFM_API = os.getenv("LASTFM_API", "https://ws.audioscrobbler.com/2.0/")
 LASTFM_API_KEY = os.getenv("LASTFM_API_KEY")
 LASTFM_USER_AGENT = os.getenv(
     "LASTFM_USER_AGENT",
-    "spotify-wrapped-listenbrainz/1.0 (+https://github.com/devmatei/spotify-wrapped)",
+    "make-a-wrapped/1.0 (+https://github.com/devmatei/make-a-wrapped)",
 )
 DEFAULT_RATE_LIMIT = os.getenv("APP_RATE_LIMIT", "90 per minute")
 STATS_RATE_LIMIT = os.getenv("APP_STATS_RATE_LIMIT", "45 per minute")
@@ -65,11 +65,11 @@ TURNSTILE_ENABLED = bool(TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY)
 
 LISTENBRAINZ_USER_AGENT = os.getenv(
     "LISTENBRAINZ_USER_AGENT",
-    "spotify-wrapped-listenbrainz/1.0 (+https://github.com/devmatei/spotify-wrapped)",
+    "make-a-wrapped/1.0 (+https://github.com/devmatei/make-a-wrapped)",
 )
 MUSICBRAINZ_USER_AGENT = os.getenv(
     "MUSICBRAINZ_USER_AGENT",
-    "spotify-wrapped-listenbrainz/1.0 (+https://github.com/devmatei/spotify-wrapped)",
+    "make-a-wrapped/1.0 (+https://github.com/devmatei/make-a-wrapped)",
 )
 WRAPPED_COUNT_SINCE = os.getenv("WRAPPED_COUNT_SINCE", "2025-10-26")
 

@@ -23,7 +23,7 @@ function init404Page() {
 // Make sure the DOM is loaded before initializing 
 document.addEventListener('DOMContentLoaded', init404Page);
 
-console.log('%c👋 Howdy developer! \n\n%cThis is an open-source project by DevMatei\n\n%cGitHub:%chttps://github.com/devmatei/listenbrainz-wrapped',
+console.log('%c👋 Howdy developer! \n\n%cThis is an open-source project by DevMatei\n\n%cGitHub:%chttps://github.com/devmatei/make-a-wrapped',
   'font-size: 16px; font-weight: bold; color: #6366f1;',
   'font-size: 14px; color: #4b5563;',
   'font-size: 15px; color: #4b5563;',

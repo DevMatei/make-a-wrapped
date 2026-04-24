@@ -1,4 +1,4 @@
-"""Legacy entrypoint for running the Spotify Wrapped Flask application."""
+"""Legacy entrypoint for running the Make a Wrapped Flask application."""
 
 from __future__ import annotations
 

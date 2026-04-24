@@ -1,4 +1,4 @@
-# Contributing to ListenBrainz Wrapped
+# Contributing to Make a Wrapped
 
 First off — thanks for taking the time to contribute! :D  
 This project is open to improvements, bug fixes, and cool ideas from the community.  
@@ -7,7 +7,7 @@ Before you start, please take a moment to read through this guide.
 ---
 
 ## 🧠 What’s this project?
-**ListenBrainz Wrapped** is a small web service that generates a Spotify-style “Wrapped” using data from [ListenBrainz](https://listenbrainz.org/), [MusicBrainz](https://musicbrainz.org/), and a few related APIs — all public, no tokens.
+**Make a Wrapped** is a small web service that generates a Spotify-style “Wrapped” using data from [ListenBrainz](https://listenbrainz.org/), [MusicBrainz](https://musicbrainz.org/), and a few related APIs — all public, no tokens.
 
 ---
 
@@ -15,8 +15,8 @@ Before you start, please take a moment to read through this guide.
 
 1. **Clone the repo**
    ```bash
-   git clone https://github.com/DevMatei/listenbrainz-wrapped.git
-   cd listenbrainz-wrapped
+   git clone https://github.com/DevMatei/make-a-wrapped.git
+   cd make-a-wrapped
 
 2. **Create and activate a virtual environment**
 
@@ -80,7 +80,7 @@ By contributing, you agree that your contributions will be licensed under the sa
 This project exists because Spotify Wrapped doesn’t care about self-hosters.
 If you like it, share it — but please don’t resell, rebrand, or abuse the API rate limits.
 
-Thanks for helping make ListenBrainz more fun 💜
+Thanks for helping make "Make a Wrapped" more fun 💜
 — **</DevMatei>**
 
 

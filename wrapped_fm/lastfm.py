@@ -238,32 +238,30 @@ def _calculate_lastfm_average_track_minutes(username: str) -> float:
 
 
 def _fetch_lastfm_total_listens(username: str) -> int:
+    import datetime
+    now_dt = datetime.datetime.now(datetime.timezone.utc)
+    start_dt = datetime.datetime(now_dt.year, 1, 1, tzinfo=datetime.timezone.utc)
     now = int(time.time())
-    start = now - SECONDS_PER_YEAR
+    start = int(start_dt.timestamp())
     payload = _call_lastfm(
-        "user.getweeklytrackchart",
+        "user.getrecenttracks",
         {
             "user": username,
             "from": str(start),
             "to": str(now),
+            "limit": "1",
         },
     )
-    chart = payload.get("weeklytrackchart", {})
-    tracks = chart.get("track") or []
-    if isinstance(tracks, dict):
-        tracks = [tracks]
-    if not isinstance(tracks, list):
+    recenttracks = payload.get("recenttracks", {})
+    if not isinstance(recenttracks, dict):
         return 0
-    total_listens = 0
-    for entry in tracks:
-        if not isinstance(entry, dict):
-            continue
-        try:
-            plays = int(entry.get("playcount", 0))
-        except (TypeError, ValueError):
-            plays = 0
-        if plays > 0:
-            total_listens += plays
+    attr = recenttracks.get("@attr", {})
+    if not isinstance(attr, dict):
+        return 0
+    try:
+        total_listens = int(attr.get("total", 0))
+    except (TypeError, ValueError):
+        total_listens = 0
     return total_listens
 
 

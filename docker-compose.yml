@@ -1,6 +1,6 @@
 services:
-  listenbrainz-wrapped:
-    image: ghcr.io/devmatei/listenbrainz-wrapped:latest
+  make-a-wrapped:
+    image: ghcr.io/devmatei/make-a-wrapped:latest
     restart: unless-stopped
     ports:
       - "8000:8000"
