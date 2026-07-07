@@ -34,6 +34,7 @@ import {
   writeSession,
   removeSession,
 } from './storage.js';
+import { initThemeSwitcher } from './theme-switcher.js';
 
 const canvas = document.getElementById('canvas');
 const themeSelect = document.getElementById('color');
@@ -49,11 +50,11 @@ const downloadBtn = document.getElementById('download');
 const loadingIndicator = document.getElementById('loading');
 const statusMessage = document.getElementById('status-message');
 const downloadError = document.getElementById('download-error');
-const resultsCard = document.querySelector('.results');
-const topArtistsEl = document.getElementById('top-artists');
-const topTracksEl = document.getElementById('top-tracks');
-const listenTimeEl = document.getElementById('listen-time');
-const topGenreEl = document.getElementById('top-genre');
+const resultsCard = document.querySelector('.results') || null;
+const topArtistsEl = document.getElementById('top-artists') || null;
+const topTracksEl = document.getElementById('top-tracks') || null;
+const listenTimeEl = document.getElementById('listen-time') || null;
+const topGenreEl = document.getElementById('top-genre') || null;
 const artistImg = document.getElementById('artist-img');
 const artworkUploadInput = document.getElementById('artwork-upload');
 const artworkUploadBtn = document.getElementById('artwork-upload-btn');
@@ -222,18 +223,19 @@ function recordSectionWarning(section, details) {
 
 function handleSectionNetworkFailure(section, fallbackMessage) {
   recordSectionWarning(section, fallbackMessage || 'Network error');
+  const helpText = 'check your connection and try again';
   switch (section) {
     case 'Top artists':
-      topArtistsEl.textContent = 'Unable to load (network error).';
+      if (topArtistsEl) topArtistsEl.textContent = `couldn't load artists - ${helpText}`;
       break;
     case 'Top tracks':
-      topTracksEl.textContent = 'Unable to load (network error).';
+      if (topTracksEl) topTracksEl.textContent = `couldn't load tracks - ${helpText}`;
       break;
     case 'Minutes listened':
-      listenTimeEl.textContent = '0';
+      if (listenTimeEl) listenTimeEl.textContent = '0';
       break;
     case 'Top genre':
-      topGenreEl.textContent = 'No data (network error).';
+      if (topGenreEl) topGenreEl.textContent = `couldn't load genre - ${helpText}`;
       break;
     default:
       break;
@@ -433,6 +435,7 @@ setArtworkEditorEnabled(state.customArtworkActive);
 restoreTurnstileTokenFromSession();
 
 window.addEventListener('load', () => {
+  initThemeSwitcher();
   toggleDownload(false);
   const paint = () => window.requestAnimationFrame(drawCanvas);
   if (document.fonts && document.fonts.ready) {
@@ -500,15 +503,57 @@ function setLoading(isLoading) {
   }
 }
 
+const GITHUB_ISSUES_URL = 'https://github.com/DevMatei/make-a-wrapped/issues/new';
+
 function setStatus(message, type = 'info') {
   if (!message) {
     statusMessage.hidden = true;
-    statusMessage.textContent = '';
+    statusMessage.innerHTML = '';
     return;
   }
   statusMessage.hidden = false;
-  statusMessage.textContent = message;
   statusMessage.classList.toggle('error', type === 'error');
+
+  if (type === 'error' && message.includes('GitHub issue')) {
+    statusMessage.innerHTML = message;
+  } else {
+    statusMessage.textContent = message;
+  }
+}
+
+function formatErrorWithGuidance(error, context = '') {
+  const baseMessage = error.message || 'Something went wrong.';
+  const lowerMessage = baseMessage.toLowerCase();
+
+  if (lowerMessage.includes('network') || lowerMessage.includes('failed to fetch') || lowerMessage.includes('networkerror')) {
+    return `Couldn't reach the server. Check your internet connection and try again. If it keeps happening, the service might be temporarily down.`;
+  }
+
+  if (lowerMessage.includes('timeout') || lowerMessage.includes('timed out')) {
+    return `The request took too long. This usually means the service is slow right now. Try again in a bit.`;
+  }
+
+  if (lowerMessage.includes('404') || lowerMessage.includes('not found')) {
+    return `Couldn't find that username. Double-check the spelling and make sure you picked the right service.`;
+  }
+
+  if (lowerMessage.includes('429') || lowerMessage.includes('rate limit')) {
+    return `Too many requests at once. Wait a minute and try again.`;
+  }
+
+  if (lowerMessage.includes('503') || lowerMessage.includes('not configured')) {
+    return `This service isn't set up on the server right now. Try a different one, or check back later.`;
+  }
+
+  if (lowerMessage.includes('502') || lowerMessage.includes('bad gateway')) {
+    return `The server got a bad response from the music service. This is usually temporary, try again in a moment.`;
+  }
+
+  if (context) {
+    return `${context}: ${baseMessage} If this keeps happening, <a href="${GITHUB_ISSUES_URL}" target="_blank" rel="noopener noreferrer">open an issue on GitHub</a> and include what you were doing.`;
+  }
+
+  return `${baseMessage} If this keeps happening, <a href="${GITHUB_ISSUES_URL}" target="_blank" rel="noopener noreferrer">open an issue on GitHub</a> and include what you were doing.`;
 }
 
 async function loadClientConfig() {
@@ -1123,11 +1168,11 @@ async function generateWrapped(event) {
     }
     const choice = choiceRaw.trim().toLowerCase();
     if (choice === 'keep' || choice === 'old' || choice === 'current') {
-      resultsCard.hidden = false;
+      if (resultsCard) resultsCard.hidden = false;
       drawCanvas();
       downloadError.hidden = state.isCoverReady;
       toggleDownload(state.isCoverReady);
-      setStatus('Keeping your current wrapped.');
+      setStatus('keeping your current wrapped.');
       return;
     }
     if (choice && choice !== 'new') {
@@ -1150,15 +1195,15 @@ async function generateWrapped(event) {
   }
 
   if (selectedService !== 'navidrome' && !ensureTurnstileTokenAvailable()) {
-    setStatus('Complete the verification challenge before generating.', 'error');
+    setStatus('please complete the verification challenge first.', 'error');
     return;
   }
 
   const refreshImage = sectionsToRefresh.includes('image');
 
-  setStatus('');
+  setStatus('starting up...');
   setLoading(true);
-  if (!hasExisting || sectionsToRefresh.length === ALL_SECTIONS.length) {
+  if ((!hasExisting || sectionsToRefresh.length === ALL_SECTIONS.length) && resultsCard) {
     resultsCard.hidden = true;
   }
   if (refreshImage) {
@@ -1180,25 +1225,30 @@ async function generateWrapped(event) {
     state.generatedData.service = selectedService;
 
     state.sectionWarnings = [];
+
+    if (sectionsToRefresh.includes('artists')) {
+      setStatus('fetching your top artists...');
+    }
     await updateSections(username, sectionsToRefresh);
 
+    setStatus('building your poster...');
     drawCanvas();
-    resultsCard.hidden = false;
+    if (resultsCard) resultsCard.hidden = false;
     if (sectionsToRefresh.length === ALL_SECTIONS.length) {
       await recordWrappedGenerated();
     }
     const baseLabel = sectionsToRefresh.length === ALL_SECTIONS.length
-      ? `Wrapped refreshed for ${username}.`
-      : `Updated ${formatSectionListForStatus(sectionsToRefresh)}.`;
+      ? `done! wrapped generated for ${username}.`
+      : `updated ${formatSectionListForStatus(sectionsToRefresh)}.`;
     if (state.sectionWarnings.length) {
       const affected = state.sectionWarnings.map((entry) => entry.section).join(', ');
-      setStatus(`${baseLabel} Some sections could not load (${affected}).`, 'error');
+      setStatus(`${baseLabel} some sections couldn't load (${affected}). try refreshing those sections.`, 'error');
     } else {
       setStatus(baseLabel);
     }
   } catch (error) {
     console.error(error);
-    setStatus(error.message || 'Something went wrong. Try again in a moment.', 'error');
+    setStatus(formatErrorWithGuidance(error), 'error');
   } finally {
     downloadError.hidden = state.isCoverReady;
     toggleDownload(state.isCoverReady);
@@ -1462,7 +1512,7 @@ async function updateListenBrainzSections(username, sections) {
       run: async () => {
         const artists = sanitiseRankedArray(await fetchJson(`/top/artists/${encodeURIComponent(username)}/5`));
         state.generatedData.artists = artists;
-        topArtistsEl.textContent = formatRankedList(artists);
+        if (topArtistsEl) topArtistsEl.textContent = formatRankedList(artists);
       },
     });
   }
@@ -1473,7 +1523,7 @@ async function updateListenBrainzSections(username, sections) {
       run: async () => {
         const tracks = sanitiseRankedArray(await fetchJson(`/top/tracks/${encodeURIComponent(username)}/5`));
         state.generatedData.tracks = tracks;
-        topTracksEl.textContent = formatRankedList(tracks);
+        if (topTracksEl) topTracksEl.textContent = formatRankedList(tracks);
       },
     });
   }
@@ -1484,7 +1534,7 @@ async function updateListenBrainzSections(username, sections) {
       run: async () => {
         const minutes = ensureMinutesLabel(await fetchText(`/time/total/${encodeURIComponent(username)}`));
         state.generatedData.minutes = minutes;
-        listenTimeEl.textContent = minutes;
+        if (listenTimeEl) listenTimeEl.textContent = minutes;
       },
     });
   }
@@ -1496,7 +1546,7 @@ async function updateListenBrainzSections(username, sections) {
         const genre = await fetchText(`/top/genre/user/${encodeURIComponent(username)}`);
         const normalised = normaliseGenreLabel(genre);
         state.generatedData.genre = normalised;
-        topGenreEl.textContent = normalised;
+        if (topGenreEl) topGenreEl.textContent = normalised;
       },
     });
   }
@@ -1534,16 +1584,16 @@ async function updateListenBrainzSections(username, sections) {
   /* eslint-enable no-await-in-loop */
 
   if (!sections.includes('artists') && Array.isArray(state.generatedData.artists)) {
-    topArtistsEl.textContent = formatRankedList(state.generatedData.artists);
+    if (topArtistsEl) topArtistsEl.textContent = formatRankedList(state.generatedData.artists);
   }
   if (!sections.includes('tracks') && Array.isArray(state.generatedData.tracks)) {
-    topTracksEl.textContent = formatRankedList(state.generatedData.tracks);
+    if (topTracksEl) topTracksEl.textContent = formatRankedList(state.generatedData.tracks);
   }
   if (!sections.includes('time') && typeof state.generatedData.minutes === 'string') {
-    listenTimeEl.textContent = ensureMinutesLabel(state.generatedData.minutes);
+    if (listenTimeEl) listenTimeEl.textContent = ensureMinutesLabel(state.generatedData.minutes);
   }
   if (!sections.includes('genre') && typeof state.generatedData.genre === 'string') {
-    topGenreEl.textContent = normaliseGenreLabel(state.generatedData.genre);
+    if (topGenreEl) topGenreEl.textContent = normaliseGenreLabel(state.generatedData.genre);
   }
 }
 
@@ -1594,16 +1644,16 @@ async function updateNavidromeSections(sections) {
 
 function refreshSectionDisplays() {
   if (Array.isArray(state.generatedData.artists)) {
-    topArtistsEl.textContent = formatRankedList(state.generatedData.artists);
+    if (topArtistsEl) topArtistsEl.textContent = formatRankedList(state.generatedData.artists);
   }
   if (Array.isArray(state.generatedData.tracks)) {
-    topTracksEl.textContent = formatRankedList(state.generatedData.tracks);
+    if (topTracksEl) topTracksEl.textContent = formatRankedList(state.generatedData.tracks);
   }
   if (typeof state.generatedData.minutes === 'string') {
-    listenTimeEl.textContent = ensureMinutesLabel(state.generatedData.minutes);
+    if (listenTimeEl) listenTimeEl.textContent = ensureMinutesLabel(state.generatedData.minutes);
   }
   if (typeof state.generatedData.genre === 'string') {
-    topGenreEl.textContent = normaliseGenreLabel(state.generatedData.genre);
+    if (topGenreEl) topGenreEl.textContent = normaliseGenreLabel(state.generatedData.genre);
   }
 }
 

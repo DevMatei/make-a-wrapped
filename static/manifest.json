@@ -1,0 +1,27 @@
+{
+  "name": "Make a Wrapped",
+  "short_name": "Wrapped",
+  "description": "Generate Spotify Wrapped style recaps from ListenBrainz, Last.fm, or Navidrome",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e1b2e",
+  "theme_color": "#c084fc",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "favicon-lavender-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "favicon-lavender-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["music", "entertainment"],
+  "lang": "en",
+  "dir": "ltr"
+}

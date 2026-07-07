@@ -8,11 +8,11 @@ Spotify Wrapped-style recap generator for ListenBrainz, Last.fm, and Navidrome. 
 >
 > New 2025 templates are out!
 
-<img width="1857" height="983" alt="Make a Wrapped — shareable stats for your scrobbles" src="https://github.com/user-attachments/assets/56c0dcd2-b111-4978-ac1f-2ae802f00237" />
+<img width="3241" height="1362" alt="Make a Wrapped — shareable stats for your scrobbles" src="image.png" />
 
 ## 🌐 website
 
-https://wrapped.devmatei.com/
+[wrapped.devmatei.com](https://wrapped.devmatei.com/) - built by [devmatei.com](https://devmatei.com)
 
 ## 💡 why it's cool
 
@@ -92,7 +92,7 @@ go flex your scrobbles at [wrapped.devmatei.com](https://wrapped.devmatei.com) :
 
 ### about me
 
-I'm Matei ([DevMatei](https://devmatei.com)) - full-stack dev from Moldova, I build random web tools, run a homelab full of self-hosted stuff, and care way too much about my music library. hit me up on socials or via the email on my site if you wanna talk projects or self-hosting.
+I'm Matei ([DevMatei](https://devmatei.com)) - full-stack dev from Moldova. I build random web tools, run a homelab full of self-hosted stuff, and care way too much about my music library. Check out my other projects at [devmatei.com](https://devmatei.com) or hit me up on socials if you wanna talk projects or self-hosting.
 
 ## 🤝 contributing
 

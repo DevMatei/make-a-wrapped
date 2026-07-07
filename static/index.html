@@ -5,34 +5,126 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="referrer" content="no-referrer">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title>Make a Wrapped — shareable stats from ListenBrainz, Last.fm, or Navidrome</title>
+    <title>Make a Wrapped - shareable stats from ListenBrainz, Last.fm, or Navidrome</title>
     <meta name="description" content="Make a Wrapped generates Spotify Wrapped style posters from ListenBrainz, Last.fm, or Navidrome libraries. Free, open source, and runnable on any homelab.">
-    <meta name="keywords" content="Make a Wrapped, ListenBrainz, Last.fm, Navidrome, Spotify Wrapped alternative, music stats, open source, scrobbles, devmatei">
-    <meta name="robots" content="index, follow">
+    <meta name="keywords" content="Make a Wrapped, ListenBrainz, Last.fm, Navidrome, Spotify Wrapped alternative, music stats, open source, scrobbles, devmatei, music statistics, listening history, shareable poster">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    <meta name="author" content="DevMatei">
     <link rel="canonical" href="https://wrapped.devmatei.com/">
     <meta property="og:type" content="website">
     <meta property="og:title" content="Make a Wrapped">
     <meta property="og:description" content="Create a beautiful poster of your top artists, tracks, genres, and listening time across ListenBrainz, Last.fm, or Navidrome.">
     <meta property="og:url" content="https://wrapped.devmatei.com/">
     <meta property="og:image" content="https://github.com/user-attachments/assets/56c0dcd2-b111-4978-ac1f-2ae802f00237">
+    <meta property="og:image:width" content="1857">
+    <meta property="og:image:height" content="983">
+    <meta property="og:image:alt" content="Make a Wrapped - shareable stats for your scrobbles">
+    <meta property="og:site_name" content="Make a Wrapped">
+    <meta property="og:locale" content="en_US">
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="Make a Wrapped">
     <meta name="twitter:description" content="Open-source Wrapped generator for ListenBrainz, Last.fm, and Navidrome with Last.fm artwork and custom uploads.">
     <meta name="twitter:image" content="https://github.com/user-attachments/assets/56c0dcd2-b111-4978-ac1f-2ae802f00237">
-    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <meta name="twitter:image:alt" content="Make a Wrapped - shareable stats for your scrobbles">
+    <meta name="twitter:site" content="@devmatei">
+    <meta name="twitter:creator" content="@devmatei">
+    <meta name="theme-color" content="#c084fc">
+    <meta name="color-scheme" content="dark">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Make a Wrapped">
+    <meta name="application-name" content="Make a Wrapped">
+    <meta name="msapplication-TileColor" content="#c084fc">
+    <meta name="msapplication-config" content="browserconfig.xml">
+    <link rel="icon" type="image/svg+xml" href="favicon-lavender.svg">
+    <link rel="icon" type="image/png" sizes="16x16" href="favicon-lavender-16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="favicon-lavender-32.png">
+    <link rel="icon" type="image/png" sizes="48x48" href="favicon-lavender-48.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="favicon-lavender-180.png">
+    <link rel="manifest" href="manifest.json">
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
+        "@type": "WebApplication",
         "name": "Make a Wrapped",
-        "applicationCategory": "MusicApplication",
-        "operatingSystem": "Cross-platform",
+        "alternateName": "Wrapped FM",
+        "applicationCategory": "MultimediaApplication",
+        "operatingSystem": "Web Browser",
         "url": "https://wrapped.devmatei.com/",
         "description": "Generate Spotify Wrapped style recaps from ListenBrainz, Last.fm, or Navidrome with custom artwork and Last.fm imagery.",
         "creator": {
           "@type": "Person",
-          "name": "Matei"
+          "name": "Matei",
+          "url": "https://devmatei.com",
+          "sameAs": [
+            "https://github.com/devmatei",
+            "https://devmatei.com"
+          ]
+        },
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        },
+        "featureList": [
+          "ListenBrainz integration",
+          "Last.fm integration",
+          "Navidrome integration",
+          "Custom artwork upload",
+          "Multiple themes",
+          "Shareable posters"
+        ],
+        "screenshot": "https://wrapped.devmatei.com/image.png",
+        "softwareHelp": {
+          "@type": "CreativeWork",
+          "url": "https://github.com/DevMatei/make-a-wrapped"
         }
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "Organization",
+        "name": "Make a Wrapped",
+        "url": "https://wrapped.devmatei.com/",
+        "logo": "https://wrapped.devmatei.com/favicon-lavender.svg",
+        "sameAs": [
+          "https://github.com/DevMatei/make-a-wrapped",
+          "https://devmatei.com"
+        ]
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "What is Make a Wrapped?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Make a Wrapped is a free, open-source tool that generates Spotify Wrapped style posters from ListenBrainz, Last.fm, or Navidrome listening history."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is Make a Wrapped free to use?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes, Make a Wrapped is completely free and open source under the AGPL-3.0 license."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What music services are supported?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Make a Wrapped supports ListenBrainz, Last.fm, and Navidrome (via Subsonic API)."
+            }
+          }
+        ]
       }
     </script>
     <link rel="stylesheet" href="style.css">
@@ -42,329 +134,305 @@
     <script defer src="https://analytics.devmatei.com/script.js" data-website-id="a24ad413-b9c9-4ade-95a0-2c0f6dea6db7"></script>
   </head>
   <body>
-    <!-- hi this is matei i made this thing its very cool and we were mentioned in the docs wowie!!! -->
     <main class="page">
-      <section class="card card--intro">
-        <div class="card__body">
-          <h1>Make a Wrapped</h1>
-          <p class="intro-copy">
-            Turn your ListenBrainz, Last.fm, or Navidrome listening history into a shareable poster with your top artists,
-            tracks, listening time, and favourite genre from the last 12 months.
-          </p>
-          <form id="wrapped-form" class="form" autocomplete="off" novalidate>
-            <label class="form__label" id="username-label" for="username">Music username</label>
-            <div class="form__field-group">
-              <input
-                id="username"
-                name="username"
-                type="text"
-                placeholder="e.g. devmatei"
-                required
-                minlength="2"
-                autocomplete="off"
-              >
-              <input
-                id="navidrome-username"
-                name="navidrome-username"
-                type="text"
-                placeholder="e.g. alice"
-                autocomplete="username"
-                minlength="2"
-                hidden
-              >
-              <button id="submit" type="submit" class="btn">Generate</button>
-            </div>
-            <p id="status-message" class="status-message" role="status" aria-live="polite" hidden></p>
-            <div id="turnstile-wrapper" class="form__turnstile" hidden>
-              <label class="form__label" id="turnstile-label">Verification</label>
-              <div
-                id="turnstile-container"
-                class="turnstile-container"
-                role="group"
-                aria-labelledby="turnstile-label"
-              ></div>
-              <p
-                id="turnstile-status"
-                class="turnstile-status"
-                role="status"
-                aria-live="polite"
-                hidden
-              ></p>
-            </div>
-          </form>
-          <div class="form__secondary-grid">
-            <div class="form__secondary">
-              <label class="form__label" for="color">Card theme</label>
-              <select id="color" name="color">
-                <option value="black">Midnight</option>
-                <option value="black_new">Midnight (New)</option>
-                <option value="white_new">Daylight (New)</option>
-                <option value="purple">Twilight</option>
-                <option value="yellow">Sunrise</option>
-                <option value="pink">Bloom</option>
-              </select>
-            </div>
-            <div class="form__secondary">
-              <label class="form__label" for="service-select">Wrapped service</label>
-              <div class="service-select" data-service-dropdown>
-                <button
-                  type="button"
-                  id="service-select"
-                  class="service-select__toggle"
-                  aria-haspopup="listbox"
-                  aria-expanded="false"
-                  data-dropdown-toggle
+      <div class="dashboard-grid">
+        <section class="card card--intro">
+          <div class="card__body">
+            <h1>make a wrapped</h1>
+            <p class="intro-copy">
+              your friends post spotify wrapped every year and you're sitting there with your listenbrainz/last.fm/navidrome stats like "i have taste too". now you can prove it. drop your username, pick a service, and get a poster with your top artists, tracks, listening time, and genre.
+            </p>
+            <form id="wrapped-form" class="form" autocomplete="off" novalidate>
+              <label class="form__label" id="username-label" for="username">music username</label>
+              <div class="form__field-group">
+                <input
+                  id="username"
+                  name="username"
+                  type="text"
+                  placeholder="e.g. devmatei"
+                  required
+                  minlength="2"
+                  autocomplete="off"
                 >
-                  <span class="service-select__current">ListenBrainz</span>
-                  <svg
-                    class="service-select__chevron"
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    aria-hidden="true"
+                <input
+                  id="navidrome-username"
+                  name="navidrome-username"
+                  type="text"
+                  placeholder="e.g. alice"
+                  autocomplete="username"
+                  minlength="2"
+                  hidden
+                >
+                <button id="submit" type="submit" class="btn">generate</button>
+              </div>
+              <p id="status-message" class="status-message" role="status" aria-live="polite" hidden></p>
+              <div id="turnstile-wrapper" class="form__turnstile" hidden>
+                <label class="form__label" id="turnstile-label">verification</label>
+                <div
+                  id="turnstile-container"
+                  class="turnstile-container"
+                  role="group"
+                  aria-labelledby="turnstile-label"
+                ></div>
+                <p
+                  id="turnstile-status"
+                  class="turnstile-status"
+                  role="status"
+                  aria-live="polite"
+                  hidden
+                ></p>
+              </div>
+            </form>
+            <div class="form__secondary-grid">
+              <div class="form__secondary">
+                <label class="form__label" for="color">card theme</label>
+                <select id="color" name="color">
+                  <option value="black">midnight</option>
+                  <option value="black_new">midnight (new)</option>
+                  <option value="white_new">daylight (new)</option>
+                  <option value="purple">twilight</option>
+                  <option value="yellow">sunrise</option>
+                  <option value="pink">bloom</option>
+                </select>
+              </div>
+              <div class="form__secondary">
+                <label class="form__label" for="service-select">wrapped service</label>
+                <div class="service-select" data-service-dropdown>
+                  <button
+                    type="button"
+                    id="service-select"
+                    class="service-select__toggle"
+                    aria-haspopup="listbox"
+                    aria-expanded="false"
+                    data-dropdown-toggle
                   >
-                    <path
-                      d="M6.5 9l5.5 5 5.5-5"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                    />
-                  </svg>
-                </button>
-                <ul
-                  class="service-select__menu"
-                  role="listbox"
-                  aria-labelledby="service-select"
-                  data-dropdown-menu
-                >
-                  <li>
-                    <button
-                      type="button"
-                      class="service-select__option"
-                      role="option"
-                      aria-selected="true"
-                      data-value="listenbrainz"
-                      data-label="ListenBrainz"
-                      data-dropdown-option
+                    <span class="service-select__current">ListenBrainz</span>
+                    <svg
+                      class="service-select__chevron"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
                     >
-                      ListenBrainz
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      class="service-select__option"
-                      role="option"
-                      data-value="lastfm"
-                      data-label="Last.fm"
-                      data-dropdown-option
-                    >
-                      Last.fm
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      type="button"
-                      class="service-select__option"
-                      role="option"
-                      data-value="navidrome"
-                      data-label="Navidrome"
-                      data-dropdown-option
-                    >
-                      Navidrome
-                    </button>
-                  </li>
-                </ul>
-                <input type="hidden" id="service" name="service" value="listenbrainz">
+                      <path
+                        d="M6.5 9l5.5 5 5.5-5"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </button>
+                  <ul
+                    class="service-select__menu"
+                    role="listbox"
+                    aria-labelledby="service-select"
+                    data-dropdown-menu
+                  >
+                    <li>
+                      <button
+                        type="button"
+                        class="service-select__option"
+                        role="option"
+                        aria-selected="true"
+                        data-value="listenbrainz"
+                        data-label="ListenBrainz"
+                        data-dropdown-option
+                      >
+                        ListenBrainz
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        type="button"
+                        class="service-select__option"
+                        role="option"
+                        data-value="lastfm"
+                        data-label="Last.fm"
+                        data-dropdown-option
+                      >
+                        Last.fm
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        type="button"
+                        class="service-select__option"
+                        role="option"
+                        data-value="navidrome"
+                        data-label="Navidrome"
+                        data-dropdown-option
+                      >
+                        Navidrome
+                      </button>
+                    </li>
+                  </ul>
+                  <input type="hidden" id="service" name="service" value="listenbrainz">
+                </div>
               </div>
             </div>
-          </div>
-          <div id="navidrome-fields" class="service-fields service-fields--navidrome" hidden>
-            <p class="service-fields__description">
-              Connect directly to your Navidrome server. Everything runs in your browser; credentials never leave this page.
-            </p>
-            <label class="form__label" for="navidrome-server">Navidrome server URL</label>
-            <div class="form__field-group">
-              <input
-                id="navidrome-server"
-                name="navidrome-server"
-                type="url"
-                placeholder="https://navidrome.example.com"
-                autocomplete="url"
-                inputmode="url"
-              >
-            </div>
-            <label class="form__label" for="navidrome-password">Navidrome password or app token</label>
-            <div class="form__field-group">
-              <input
-                id="navidrome-password"
-                name="navidrome-password"
-                type="password"
-                placeholder="Stored locally — never shared"
-                autocomplete="current-password"
-              >
-            </div>
-            <p class="service-fields__hint">
-              Use the same credentials you log in with, or create an app-specific token. Requests are sent via the Subsonic API to your server.
-            </p>
-          </div>
-          <div class="actions">
-            <button id="download" type="button" class="btn btn--secondary" aria-disabled="true">
-              Download image
-            </button>
-            <span id="loading" class="loading" hidden>Preparing your wrapped...</span>
-            <span id="download-error" class="error" hidden>
-              Download unavailable: artist image could not be loaded.
-            </span>
-          </div>
-          <section class="support-banner" aria-label="Project support message">
-            <div class="support-banner__text">
-              <p>
-                Keeping this running for the community isn’t free. I’m a teen hacking on this between classes,
-                so If you could <a href="https://ko-fi.com/devmatei">donate</a> some money to help me out 
-                I'd appreciate it.
+            <div id="navidrome-fields" class="service-fields service-fields--navidrome" hidden>
+              <p class="service-fields__description">
+                connect to your navidrome server directly. everything runs in your browser, credentials never leave this page.
               </p>
-          </section>
-          <div class="artwork-controls">
-            <label class="form__label">Artwork options</label>
-            <div class="artwork-controls__buttons">
-              <button type="button" class="btn btn--ghost" id="artwork-upload-btn">Upload artwork</button>
-              <button type="button" class="btn btn--ghost" id="artwork-reset-btn" aria-disabled="true" disabled>Reset to auto</button>
+              <label class="form__label" for="navidrome-server">navidrome server url</label>
+              <div class="form__field-group">
+                <input
+                  id="navidrome-server"
+                  name="navidrome-server"
+                  type="url"
+                  placeholder="https://navidrome.example.com"
+                  autocomplete="url"
+                  inputmode="url"
+                >
+              </div>
+              <label class="form__label" for="navidrome-password">password or app token</label>
+              <div class="form__field-group">
+                <input
+                  id="navidrome-password"
+                  name="navidrome-password"
+                  type="password"
+                  placeholder="stored locally, never shared"
+                  autocomplete="current-password"
+                >
+              </div>
+              <p class="service-fields__hint">
+                use your normal login or create an app-specific token. requests go through the subsonic api to your server.
+              </p>
             </div>
-            <input type="file" id="artwork-upload" accept="image/*" hidden>
-            <p class="artwork-controls__hint">
-              Override the artist artwork if it looks wrong or you just prefer a different image. 
+            <div class="actions">
+              <button id="download" type="button" class="btn btn--secondary" aria-disabled="true">
+                download image
+              </button>
+              <span id="loading" class="loading" hidden>preparing your wrapped...</span>
+              <span id="download-error" class="error" hidden>
+                couldn't load the artist image, download unavailable.
+              </span>
+            </div>
+            <section class="support-banner" aria-label="Project support message">
+              <div class="support-banner__text">
+                <p>
+                  keeping this running isn't free and i'm a teen working on this between classes. if you'd like to <a href="https://ko-fi.com/devmatei">support the project</a>, it would mean a lot. no pressure though.
+                </p>
+            </section>
+            <div class="artwork-controls">
+              <label class="form__label">artwork options</label>
+              <div class="artwork-controls__buttons">
+                <button type="button" class="btn btn--ghost" id="artwork-upload-btn">upload artwork</button>
+                <button type="button" class="btn btn--ghost" id="artwork-reset-btn" aria-disabled="true" disabled>reset to auto</button>
+              </div>
+              <input type="file" id="artwork-upload" accept="image/*" hidden>
+              <p class="artwork-controls__hint">
+                if the auto-pulled artwork looks wrong or you want something different, upload your own.
+              </p>
+              <div class="artwork-source" role="group" aria-labelledby="artwork-source-label">
+                <span id="artwork-source-label" class="artwork-source__label">artwork source</span>
+                <div class="artwork-source__options">
+                  <label class="artwork-source__option">
+                    <input type="radio" name="artwork-source" value="artist" checked>
+                    <span>artist image (last.fm)</span>
+                  </label>
+                  <label class="artwork-source__option">
+                    <input type="radio" name="artwork-source" value="release">
+                    <span>top release cover (listenbrainz only)</span>
+                  </label>
+                </div>
+              </div>
+              <div class="artwork-editor" aria-disabled="true">
+                <div class="artwork-editor__control">
+                  <label for="artwork-scale">zoom</label>
+                  <input type="range" id="artwork-scale" min="0.8" max="1.6" step="0.01" value="1" disabled>
+                </div>
+                <div class="artwork-editor__control">
+                  <label for="artwork-offset-x">horizontal</label>
+                  <input type="range" id="artwork-offset-x" min="-200" max="200" step="1" value="0" disabled>
+                </div>
+                <div class="artwork-editor__control">
+                  <label for="artwork-offset-y">vertical</label>
+                  <input type="range" id="artwork-offset-y" min="-200" max="200" step="1" value="0" disabled>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card card--preview">
+          <div class="card__body">
+            <canvas id="canvas" width="1080" height="1920" aria-label="Wrapped preview"></canvas>
+          </div>
+        </section>
+      </div>
+
+      <footer class="footer-bento">
+        <section class="card card--repo" aria-label="Project links">
+          <div class="card__body">
+            <h2>it's foss</h2>
+            <p>
+              agpl licensed. star the repo, open issues, or contribute if you want. or just use it, that's cool too.
             </p>
-            <div class="artwork-source" role="group" aria-labelledby="artwork-source-label">
-              <span id="artwork-source-label" class="artwork-source__label">Artwork source</span>
-              <div class="artwork-source__options">
-                <label class="artwork-source__option">
-                  <input type="radio" name="artwork-source" value="artist" checked>
-                  <span>Artist image (Last.fm)</span>
-                </label>
-                <label class="artwork-source__option">
-                  <input type="radio" name="artwork-source" value="release">
-                  <span>Top release cover (ListenBrainz only)</span>
-                </label>
-              </div>
-            </div>
-            <div class="artwork-editor" aria-disabled="true">
-              <div class="artwork-editor__control">
-                <label for="artwork-scale">Zoom</label>
-                <input type="range" id="artwork-scale" min="0.8" max="1.6" step="0.01" value="1" disabled>
-              </div>
-              <div class="artwork-editor__control">
-                <label for="artwork-offset-x">Horizontal</label>
-                <input type="range" id="artwork-offset-x" min="-200" max="200" step="1" value="0" disabled>
-              </div>
-              <div class="artwork-editor__control">
-                <label for="artwork-offset-y">Vertical</label>
-                <input type="range" id="artwork-offset-y" min="-200" max="200" step="1" value="0" disabled>
-              </div>
-            </div>
+            <a class="link-button" href="https://github.com/DevMatei/make-a-wrapped" target="_blank" rel="noopener noreferrer">
+              github repo
+              <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M7 17L17 7M17 7H9M17 7V15"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+            </a>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section class="card card--preview">
-        <div class="card__body">
-          <canvas id="canvas" width="1080" height="1920" aria-label="Wrapped preview"></canvas>
-        </div>
-      </section>
-
-      <section class="card card--details card--full" aria-live="polite">
-        <div class="card__body results" hidden>
-          <h2>Your highlights</h2>
-          <div class="results__grid">
-            <div>
-              <h3>Top artists</h3>
-              <p id="top-artists"></p>
-            </div>
-            <div>
-              <h3>Top tracks</h3>
-              <p id="top-tracks"></p>
-            </div>
-            <div>
-              <h3>Minutes listened</h3>
-              <p id="listen-time"></p>
-            </div>
-            <div>
-              <h3>Top genre</h3>
-              <p id="top-genre"></p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="card card--repo" aria-label="Project links">
-        <div class="card__body">
-          <h2>It`s FOSS!</h2>
-          <p>
-            This project is AGPL-licensed. Star the repo, open issues, or contribute to the code on GitHub!
-          </p>
-          <a class="link-button" href="https://github.com/DevMatei/make-a-wrapped" target="_blank" rel="noopener noreferrer">
-            View the GitHub repo
-            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M7 17L17 7M17 7H9M17 7V15"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="2"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              />
-            </svg>
-          </a>
-        </div>
-      </section>
-
-      <section class="card card--purpose" aria-label="Why Make a Wrapped exists">
-        <div class="card__body">
-          <h2>Why this exists</h2>
-          <p>
-            Yeah, the idea is for people whose friends all use Spotify and post their Wrapped. When you share a ListenBrainz or Last.fm one everyone replies “wait, what’s that?”—so this bridges the gap. I swapped Spotify for Navidrome but still wanted that wrapped-moment vibe.
-          </p>
-          <p>
-            Share <a href="https://wrapped.devmatei.com" target="_blank" rel="noopener noreferrer">wrapped.devmatei.com</a> for a cookie 🍪
-          </p>
-        </div>
-      </section>
-
-      <section class="card card--legal" aria-label="Legal notice">
-        <div class="card__body">
-          <h2>Legal notice</h2>
-          <p>
-            This independent project is not affiliated with, sponsored by, or endorsed by Spotify AB or any of its partners. Spotify, Spotify Wrapped, and all related trademarks belong to their respective owners.
-          </p>
-        </div>
-      </section>
-
-      <section class="card card--about" aria-label="About DevMatei">
-        <div class="card__body">
-          <h2>About Matei</h2>
-          <p>
-            I’m Matei (aka <a href="https://github.com/devmatei" target="_blank" rel="noopener noreferrer">DevMatei</a>) - a full-stack developer and open-source lover. I have a homelab running debian on which I host this project andd I use arch, btw :3
-          </p>
-          <p>
-            Want to collaborate, talk self-hosting, or peek at other experiments? Hit <a href="https://devmatei.com" target="_blank" rel="noopener noreferrer">devmatei.com</a>, say hi on socials, or drop me a note at <a href="mailto:hello@devmatei.com">hello@devmatei.com</a>.
+        <section class="card card--purpose" aria-label="Why Make a Wrapped exists">
+          <div class="card__body">
+            <h2>why this exists</h2>
+            <p>
+              everyone posts their spotify wrapped every year and if you share a listenbrainz or last.fm one people go "wait what's that?". this bridges that gap. i swapped spotify for navidrome but still wanted that wrapped moment. now you can have it too.
+            </p>
+            <p>
+              share <a href="https://wrapped.devmatei.com" target="_blank" rel="noopener noreferrer">wrapped.devmatei.com</a> with your friends if you want.
             </p>
           </div>
-      </section>
+        </section>
 
-      <section class="card card--counter" aria-live="polite" aria-label="Live wrapped counter">
-        <div class="card__body">
-          <h2>Live wrapped counter</h2>
-          <p class="counter__value">
-            <span id="wrapped-count" aria-live="polite">0</span> wraps generated so far
-          </p>
-          <p class="counter__since">Tracking wraps since <span id="wrapped-count-since">Nov 2025</span>.</p>
-          <p class="counter__hint">
-            idk why i made this but whatever
-          </p>
-        </div>
-      </section>
+        <section class="card card--legal" aria-label="Legal notice">
+          <div class="card__body">
+            <h2>legal stuff</h2>
+            <p>
+              not affiliated with spotify, listenbrainz, last.fm, navidrome, or musicbrainz. just a fan project. spotify wrapped belongs to spotify, this is a community alternative.
+            </p>
+          </div>
+        </section>
+
+        <section class="card card--about" aria-label="About DevMatei">
+          <div class="card__body">
+            <h2>about me</h2>
+            <p>
+              i'm matei, aka <a href="https://devmatei.com" target="_blank" rel="noopener noreferrer author">devmatei</a>. full-stack dev, open-source enjoyer, and i run a homelab where this thing lives. check out my other projects at <a href="https://devmatei.com" target="_blank" rel="noopener noreferrer">devmatei.com</a>. yes i use arch btw.
+            </p>
+            <p>
+              want to collab, talk self-hosting, or just chat? hit <a href="https://devmatei.com" target="_blank" rel="noopener noreferrer">devmatei.com</a>, dm me on socials, or email <a href="mailto:hello@devmatei.com">hello@devmatei.com</a>.
+            </p>
+          </div>
+        </section>
+
+        <section class="card card--counter" aria-live="polite" aria-label="Live wrapped counter">
+          <div class="card__body">
+            <h2>the counter</h2>
+            <p class="counter__value">
+              <span id="wrapped-count" aria-live="polite">0</span> wraps generated so far
+            </p>
+            <p class="counter__since">tracking since <span id="wrapped-count-since">nov 2025</span>.</p>
+            <p class="counter__hint">
+              built by <a href="https://devmatei.com" target="_blank" rel="noopener noreferrer">devmatei</a>
+            </p>
+          </div>
+        </section>
+      </footer>
     </main>
 
     <img id="artist-img" src="img/black.png" alt="" hidden>
