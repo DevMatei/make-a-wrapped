@@ -176,22 +176,18 @@ def calculate_average_track_minutes(username: str) -> Optional[float]:
 
 
 def estimate_total_listen_minutes(username: str) -> str:
-    ranges = [LISTEN_RANGE]
-    if LISTEN_RANGE != "all_time":
-        ranges.append("all_time")
+    import datetime
 
-    activity: Dict = {}
-    for stat_range in ranges:
-        activity = fetch_listenbrainz(
-            f"/stats/user/{username}/listening-activity",
-            {"range": stat_range},
-        )
-        if activity.get("listening_activity"):
-            break
+    activity = fetch_listenbrainz(
+        f"/stats/user/{username}/listening-activity",
+        {"range": LISTEN_RANGE},
+    )
 
+    current_year = datetime.datetime.now(datetime.timezone.utc).year
     listen_counts = [
         normalise_count(item.get("listen_count", 0))
         for item in activity.get("listening_activity", [])
+        if item.get("from_ts") and datetime.datetime.fromtimestamp(item["from_ts"], tz=datetime.timezone.utc).year == current_year
     ]
     total_listens = sum(listen_counts)
     if total_listens <= 0:

@@ -1,8 +1,7 @@
 import {
-  NAVIDROME_ALBUM_PAGE_SIZE,
-  NAVIDROME_ALBUM_DELAY_MS,
-  NAVIDROME_DETAIL_DELAY_MS,
-  NAVIDROME_MAX_ALBUMS_TO_SCAN,
+  NAVIDROME_SONG_PAGE_SIZE,
+  NAVIDROME_REQUEST_DELAY_MS,
+  NAVIDROME_CONCURRENT_REQUESTS,
 } from './constants.js';
 import { delay } from './helpers.js';
 
@@ -42,136 +41,151 @@ function isWithinRange(timestamp, start, end) {
   return timestamp >= start && timestamp < end;
 }
 
+async function fetchSongsBatch(api, offset, size) {
+  const payload = await api.requestJson('search3', {
+    query: '',
+    songCount: String(size),
+    songOffset: String(offset),
+    albumCount: '0',
+    artistCount: '0',
+  });
+  return payload?.searchResult3?.song || [];
+}
+
 export async function collectNavidromeStats(api, progressCallback = () => {}) {
-  const albums = [];
-  const songs = [];
   const artistPlays = new Map();
   const artistIdToName = new Map();
   const genrePlayCounts = Object.create(null);
   const albumPlayCounts = new Map();
+  const topSongs = [];
   const { start: rangeStartMs, end: rangeEndMs } = getCurrentYearRange();
-  let offset = 0;
   let totalSec = 0;
+  let totalSongsFetched = 0;
+  let nextOffset = 0;
+  let reachedEnd = false;
 
-  progressCallback(0, 'Starting album scan', 'albums');
-  while (albums.length < NAVIDROME_MAX_ALBUMS_TO_SCAN) {
-    const payload = await api.requestJson('getAlbumList2', {
-      type: 'alphabeticalByName',
-      size: NAVIDROME_ALBUM_PAGE_SIZE,
-      offset,
+  progressCallback(0, 'Starting song scan', 'songs');
+
+  function processSong(song) {
+    const playCount = Number(song.playCount) || 0;
+    if (!playCount) {
+      return;
+    }
+
+    const playDateRaw = song.playDate || song.played || song.lastPlayed || null;
+    const playedAt = parsePlayDate(playDateRaw);
+    if (!isWithinRange(playedAt, rangeStartMs, rangeEndMs)) {
+      return;
+    }
+
+    const duration = Number(song.duration) || 0;
+    const artistName = song.displayArtist || song.artist || '';
+    const genre = (song.genre || '').trim();
+    const coverArt = song.coverArt || null;
+    const albumId = song.albumId || null;
+    const artistsArr = Array.isArray(song.artists) && song.artists.length
+      ? song.artists
+      : [{ id: song.artistId || '', name: artistName }];
+
+    artistsArr.forEach((entry) => {
+      const artistKey = entry.id || entry.name || artistName;
+      const artistLabel = entry.name || artistName || 'Unknown artist';
+      if (!artistKey && !artistLabel) {
+        return;
+      }
+      const key = artistKey || artistLabel;
+      artistIdToName.set(key, artistLabel);
+      if (playCount > 0) {
+        artistPlays.set(key, (artistPlays.get(key) || 0) + playCount);
+      }
     });
-    const batch = payload?.albumList2?.album || [];
-    if (!batch.length) {
-      break;
-    }
-    albums.push(...batch);
-    offset += batch.length;
-    const ratio = Math.min(albums.length / NAVIDROME_MAX_ALBUMS_TO_SCAN, 1);
-    progressCallback(
-      10 + ratio * 20,
-      `Fetched ${Math.min(albums.length, NAVIDROME_MAX_ALBUMS_TO_SCAN)} albums`,
-      'albums',
-    );
-    if (batch.length < NAVIDROME_ALBUM_PAGE_SIZE || albums.length >= NAVIDROME_MAX_ALBUMS_TO_SCAN) {
-      break;
-    }
-    await delay(NAVIDROME_ALBUM_DELAY_MS);
-  }
 
-  const albumsToProcess = Math.min(albums.length, NAVIDROME_MAX_ALBUMS_TO_SCAN);
-  progressCallback(30, `Processing ${albumsToProcess} albums`, 'albums');
+    topSongs.push({
+      title: song.title || '',
+      plays: playCount,
+      albumId,
+      coverArtId: coverArt,
+    });
 
-  for (let i = 0; i < albumsToProcess; i += 1) {
-    const albumPayload = await api.requestJson('getAlbum', { id: albums[i].id });
-    const album = albumPayload?.album;
-    if (!album) {
-      continue; // eslint-disable-line no-continue
-    }
-
-    for (const song of album.song || []) {
-      const playCount = Number(song.playCount) || 0;
-      if (!playCount) {
-        continue; // eslint-disable-line no-continue
-      }
-      const playDateRaw = song.playDate || song.played || song.lastPlayed || null;
-      const playedAt = parsePlayDate(playDateRaw);
-      if (!isWithinRange(playedAt, rangeStartMs, rangeEndMs)) {
-        continue; // eslint-disable-line no-continue
-      }
-      const duration = Number(song.duration) || 0;
-      const artistName = song.displayArtist || song.artist || album.artist || '';
-      const genre = (song.genre || album.genre || '').trim();
-      const coverArt = song.coverArt || album.coverArt;
-      const artistsArr = Array.isArray(song.artists) && song.artists.length
-        ? song.artists
-        : [
-          {
-            id: song.artistId || album.artistId || '',
-            name: artistName,
-          },
-        ];
-      artistsArr.forEach((entry) => {
-        const artistKey = entry.id || entry.name || artistName;
-        const artistLabel = entry.name || artistName || 'Unknown artist';
-        if (!artistKey && !artistLabel) {
-          return;
-        }
-        const key = artistKey || artistLabel;
-        artistIdToName.set(key, artistLabel);
-        if (playCount > 0) {
-          artistPlays.set(key, (artistPlays.get(key) || 0) + playCount);
-        }
-      });
-
-      songs.push({
-        title: song.title || '',
-        plays: playCount,
-        albumId: album.id,
-        coverArtId: coverArt,
-      });
-
-      const albumEntry = albumPlayCounts.get(album.id) || {
+    if (albumId) {
+      const albumEntry = albumPlayCounts.get(albumId) || {
         plays: 0,
-        name: album.name || '',
-        coverArtId: coverArt || album.coverArt || null,
+        name: song.album || '',
+        coverArtId: coverArt,
       };
       albumEntry.plays += playCount;
-      if (!albumEntry.coverArtId && (coverArt || album.coverArt)) {
-        albumEntry.coverArtId = coverArt || album.coverArt || null;
+      if (!albumEntry.coverArtId && coverArt) {
+        albumEntry.coverArtId = coverArt;
       }
-      if (!albumEntry.name && album.name) {
-        albumEntry.name = album.name;
-      }
-      albumPlayCounts.set(album.id, albumEntry);
+      albumPlayCounts.set(albumId, albumEntry);
+    }
 
-      if (genre) {
-        genrePlayCounts[genre] = (genrePlayCounts[genre] || 0) + playCount;
+    if (genre) {
+      genrePlayCounts[genre] = (genrePlayCounts[genre] || 0) + playCount;
+    }
+    if (playCount) {
+      totalSec += duration * playCount;
+    }
+  }
+
+  async function fetchAndProcessBatch(offset) {
+    const batch = await fetchSongsBatch(api, offset, NAVIDROME_SONG_PAGE_SIZE);
+    if (!batch.length) {
+      reachedEnd = true;
+      return 0;
+    }
+    for (const song of batch) {
+      processSong(song);
+    }
+    totalSongsFetched += batch.length;
+    const progress = Math.min(90, (totalSongsFetched / 10000) * 80);
+    progressCallback(progress, `Fetched ${totalSongsFetched} songs`, 'songs');
+    return batch.length;
+  }
+
+  async function runWithConcurrency() {
+    const activePromises = new Set();
+
+    while (!reachedEnd) {
+      while (activePromises.size < NAVIDROME_CONCURRENT_REQUESTS && !reachedEnd) {
+        const offset = nextOffset;
+        nextOffset += NAVIDROME_SONG_PAGE_SIZE;
+
+        const promise = fetchAndProcessBatch(offset)
+          .catch((error) => {
+            console.error('Batch fetch error:', error);
+            reachedEnd = true;
+            return 0;
+          })
+          .finally(() => {
+            activePromises.delete(promise);
+          });
+
+        activePromises.add(promise);
+        await delay(NAVIDROME_REQUEST_DELAY_MS);
       }
-      if (playCount) {
-        totalSec += duration * playCount;
+
+      if (activePromises.size) {
+        await Promise.race(activePromises);
       }
     }
 
-    if (albumsToProcess && (i % 50 === 0 || i === albumsToProcess - 1)) {
-      const ratio = Math.min((i + 1) / albumsToProcess, 1);
-      progressCallback(30 + ratio * 55, `Album ${i + 1}/${albumsToProcess}`, 'albums');
+    if (activePromises.size) {
+      await Promise.allSettled(activePromises);
     }
-    await delay(NAVIDROME_DETAIL_DELAY_MS);
   }
 
-  if (albums.length > NAVIDROME_MAX_ALBUMS_TO_SCAN) {
-    progressCallback(85, `Sampled ${NAVIDROME_MAX_ALBUMS_TO_SCAN} albums for performance`, 'wrap');
-  }
+  await runWithConcurrency();
 
   progressCallback(90, 'Building final objects', 'wrap');
 
-  const topArtists = [...artistPlays.entries()]
+  const sortedArtists = [...artistPlays.entries()]
     .filter(([id]) => (artistIdToName.get(id) || id).toLowerCase() !== 'various artists')
     .sort((a, b) => b[1] - a[1])
     .slice(0, 10)
     .map(([id, plays]) => [artistIdToName.get(id) || id, plays]);
 
-  const topSongs = songs
+  const sortedSongs = topSongs
     .filter((song) => song.plays)
     .sort((a, b) => b.plays - a.plays)
     .slice(0, 10)
@@ -181,7 +195,7 @@ export async function collectNavidromeStats(api, progressCallback = () => {}) {
       albumId: song.albumId || null,
     }));
 
-  const topAlbums = [...albumPlayCounts.entries()]
+  const sortedAlbums = [...albumPlayCounts.entries()]
     .sort((a, b) => b[1].plays - a[1].plays)
     .slice(0, 10)
     .map(([id, entry]) => ({
@@ -197,9 +211,9 @@ export async function collectNavidromeStats(api, progressCallback = () => {}) {
   return {
     username: api.user,
     listeningTime: totalSec,
-    topArtistsByPlays: topArtists,
-    topSongsByPlaycount: topSongs,
-    topAlbumsByPlaycount: topAlbums,
+    topArtistsByPlays: sortedArtists,
+    topSongsByPlaycount: sortedSongs,
+    topAlbumsByPlaycount: sortedAlbums,
     albumBasedStats: {
       topGenresByPlays,
     },

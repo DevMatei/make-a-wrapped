@@ -140,13 +140,16 @@ def _normalise_duration(value: Optional[str]) -> int:
 
 @lru_cache(maxsize=2048)
 def _fetch_track_duration(artist_name: str, track_name: str) -> int:
-    payload = _call_lastfm(
-        "track.getInfo",
-        {
-            "artist": artist_name,
-            "track": track_name,
-        },
-    )
+    try:
+        payload = _call_lastfm(
+            "track.getInfo",
+            {
+                "artist": artist_name,
+                "track": track_name,
+            },
+        )
+    except Exception:
+        payload = None
     track_info = payload.get("track") if isinstance(payload, dict) else None
     duration = None
     if isinstance(track_info, dict):

@@ -4,6 +4,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from flask import Flask
 
 from .rate_limiter import init_rate_limiter
