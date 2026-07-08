@@ -17,6 +17,7 @@ from .config import (
     LASTFM_API,
     LASTFM_API_KEY,
 )
+from .date_range import DateRange
 from .http import (
     cover_art_session,
     image_session,
@@ -39,19 +40,20 @@ from .musicbrainz import (
     search_artist_mbid,
 )
 
+
 logger = logging.getLogger("wrapped_fm")
 
 
 class ImageQueueFullError(Exception):
-    """Raised when the download queue is at capacity."""
+    pass
 
 
 class ImageQueueBusyError(Exception):
-    """Raised when no worker is available within timeout."""
+    pass
 
 
 class ImageUnavailableError(Exception):
-    """Raised when artwork cannot be located."""
+    pass
 
 
 @dataclass
@@ -82,7 +84,11 @@ def _leave_image_queue() -> None:
 
 
 def _fetch_binary_image(url: str) -> Optional[Tuple[str, bytes]]:
-    response = request_with_handling(image_session, url)
+    try:
+        response = request_with_handling(image_session, url)
+    except Exception as exc:
+        logger.debug("image fetch failed: %s", exc)
+        return None
     if response.status_code == 404 or response.status_code >= 500:
         return None
     if not response.ok:
@@ -97,7 +103,11 @@ def _fetch_binary_image(url: str) -> Optional[Tuple[str, bytes]]:
 
 
 def _artist_image_candidates(artist_mbid: str) -> List[str]:
-    details = fetch_artist_details(artist_mbid)
+    try:
+        details = fetch_artist_details(artist_mbid)
+    except Exception as exc:
+        logger.debug("MusicBrainz details failed for %s: %s", artist_mbid, exc)
+        return []
     relations = details.get("relations") or []
     candidates: List[str] = []
 
@@ -172,20 +182,18 @@ def _fetch_lastfm_payload(
         params["mbid"] = artist_mbid
     if extra_params:
         params.update(extra_params)
-    response = request_with_handling(lastfm_session, LASTFM_API, params=params)
+    try:
+        response = request_with_handling(lastfm_session, LASTFM_API, params=params)
+    except Exception as exc:
+        logger.debug("Last.fm %s failed: %s", method, exc)
+        return {}
     if response.status_code == 404 or not response.ok:
-        logger.debug("Last.fm returned %s for %s", response.status_code, method)
         return {}
     try:
         payload = response.json()
     except ValueError:
         return {}
     if isinstance(payload, dict) and payload.get("error"):
-        logger.debug(
-            "Last.fm error for %s: %s",
-            method,
-            payload.get("message") or payload.get("error"),
-        )
         return {}
     return payload
 
@@ -228,16 +236,25 @@ def _download_lastfm_artist_image(artist_name: str, artist_mbid: Optional[str]) 
     return None
 
 
-def _collect_artist_candidates(username: str, *, service: str = "listenbrainz") -> List[Tuple[str, Optional[str]]]:
+def _collect_artist_candidates(
+    username: str,
+    *,
+    service: str = "listenbrainz",
+    range_obj: Optional[DateRange] = None,
+) -> List[Tuple[str, Optional[str]]]:
     if service == "lastfm":
-        artists = get_lastfm_top_artists(username, COVER_ART_LOOKUP_LIMIT)
+        artists = get_lastfm_top_artists(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj)
         candidates: List[Tuple[str, Optional[str]]] = []
         for name in artists:
             mbid = search_artist_mbid(name) or None
             candidates.append((name, mbid))
         return candidates
 
-    artists = get_top_artists_payload(username, COVER_ART_LOOKUP_LIMIT)
+    artists = get_top_artists_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj)
+    if not artists and range_obj and range_obj.is_custom:
+        from .date_range import resolve_preset
+        fallback = resolve_preset("this_year")
+        artists = get_top_artists_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=fallback)
     candidates: List[Tuple[str, Optional[str]]] = []
     for artist in artists:
         name = artist.get("artist_name") or artist.get("name")
@@ -247,7 +264,12 @@ def _collect_artist_candidates(username: str, *, service: str = "listenbrainz") 
     return candidates
 
 
-def _collect_cover_candidates(username: str, *, service: str = "listenbrainz") -> List[Tuple[str, Optional[str]]]:
+def _collect_cover_candidates(
+    username: str,
+    *,
+    service: str = "listenbrainz",
+    range_obj: Optional[DateRange] = None,
+) -> List[Tuple[str, Optional[str]]]:
     if service != "listenbrainz":
         return []
     weighted_candidates: Dict[Tuple[str, Optional[str]], int] = {}
@@ -265,13 +287,17 @@ def _collect_cover_candidates(username: str, *, service: str = "listenbrainz") -
         if weight > current:
             weighted_candidates[key] = weight
 
-    releases = get_top_releases_payload(username, COVER_ART_LOOKUP_LIMIT)
+    releases = get_top_releases_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj)
+    if not releases and range_obj and range_obj.is_custom:
+        from .date_range import resolve_preset
+        fallback = resolve_preset("this_year")
+        releases = get_top_releases_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=fallback)
     for release in releases:
         listen_count = normalise_count(release.get("listen_count", 0))
         add_candidate(release.get("caa_release_mbid"), release.get("caa_release_mbid"), listen_count)
         add_candidate(release.get("release_mbid"), release.get("caa_release_mbid"), listen_count)
 
-    recordings = get_top_tracks_payload(username, COVER_ART_LOOKUP_LIMIT)
+    recordings = get_top_tracks_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj)
     for recording in recordings:
         listen_count = normalise_count(recording.get("listen_count", 0))
         add_candidate(recording.get("caa_release_mbid"), recording.get("caa_release_mbid"), listen_count)
@@ -305,12 +331,20 @@ def _download_cover_art(release_mbid: str, caa_release_mbid: Optional[str]) -> O
     ]
 
     for url in endpoints:
-        response = request_with_handling(cover_art_session, url)
+        try:
+            response = request_with_handling(cover_art_session, url)
+        except Exception as exc:
+            logger.debug("CAA fetch failed for %s: %s", url, exc)
+            continue
         if response.status_code in (301, 302, 303, 307, 308):
             redirect_url = response.headers.get("Location")
             if not redirect_url:
                 continue
-            response = request_with_handling(cover_art_session, redirect_url)
+            try:
+                response = request_with_handling(cover_art_session, redirect_url)
+            except Exception as exc:
+                logger.debug("CAA redirect failed: %s", exc)
+                continue
 
         if response.status_code == 404 or response.status_code >= 500:
             continue
@@ -328,7 +362,13 @@ def _download_cover_art(release_mbid: str, caa_release_mbid: Optional[str]) -> O
     return None
 
 
-def fetch_top_artist_image(username: str, *, preferred_source: str = "artist", service: str = "listenbrainz") -> ImageResult:
+def fetch_top_artist_image(
+    username: str,
+    *,
+    preferred_source: str = "artist",
+    service: str = "listenbrainz",
+    range_obj: Optional[DateRange] = None,
+) -> ImageResult:
     queue_position = _enter_image_queue()
     if queue_position is None:
         raise ImageQueueFullError
@@ -348,14 +388,14 @@ def fetch_top_artist_image(username: str, *, preferred_source: str = "artist", s
 
         for source in preference_order:
             if source == "release" and service == "listenbrainz":
-                for release_mbid, caa_release_mbid in _collect_cover_candidates(username):
+                for release_mbid, caa_release_mbid in _collect_cover_candidates(username, range_obj=range_obj):
                     art = _download_cover_art(release_mbid, caa_release_mbid)
                     if art:
                         content_type, content = art
                         return ImageResult(content_type or "image/jpeg", content, max(queue_position - 1, 0))
             else:
                 if not artist_candidates:
-                    artist_candidates = _collect_artist_candidates(username, service=service)
+                    artist_candidates = _collect_artist_candidates(username, service=service, range_obj=range_obj)
                 for artist_name, artist_mbid in artist_candidates:
                     art = _download_lastfm_artist_image(artist_name, artist_mbid)
                     if art:
