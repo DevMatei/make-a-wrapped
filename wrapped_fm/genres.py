@@ -8,8 +8,8 @@ from .listenbrainz import get_top_artists_payload
 from .musicbrainz import extract_artist_mbid, lookup_artist_tag, search_artist_mbid
 
 
-def get_top_genre(username: str) -> str:
-    artists = get_top_artists_payload(username, 10)
+def get_top_genre(username: str, *, range_obj=None) -> str:
+    artists = get_top_artists_payload(username, 10, range_obj=range_obj)
     tag_counter: Counter[str] = Counter()
 
     for artist in artists:
