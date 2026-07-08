@@ -15,13 +15,13 @@ from .config import (
 from .http import musicbrainz_session, request_with_handling, wikidata_session
 
 
-def fetch_musicbrainz(path: str, params: Optional[Dict[str, str]] = None) -> Dict:
+def fetch_musicbrainz(path: str, params: Optional[Dict[str, str]] = None, *, timeout: Optional[float] = None) -> Dict:
     url = f"{MUSICBRAINZ_API}{path}"
-    response = request_with_handling(musicbrainz_session, url, params=params)
+    response = request_with_handling(musicbrainz_session, url, params=params, timeout=timeout)
 
-    if response.status_code == 503:  # MusicBrainz rate limiting
+    if response.status_code == 503:
         time.sleep(1.0)
-        response = request_with_handling(musicbrainz_session, url, params=params)
+        response = request_with_handling(musicbrainz_session, url, params=params, timeout=timeout)
     if not response.ok:
         return {}
     try:
@@ -170,7 +170,18 @@ def lookup_wikidata_image(qid: str) -> Optional[str]:
 def lookup_recording_length(recording_mbid: str) -> Optional[int]:
     if not recording_mbid:
         return None
-    data = fetch_musicbrainz(f"/recording/{recording_mbid}", {"fmt": "json"})
+    from .http import musicbrainz_aggregate_session, request_with_handling
+    url = f"{MUSICBRAINZ_API}/recording/{recording_mbid}"
+    try:
+        response = request_with_handling(musicbrainz_aggregate_session, url, params={"fmt": "json"}, timeout=3)
+    except Exception:
+        return None
+    if not response.ok:
+        return None
+    try:
+        data = response.json()
+    except ValueError:
+        return None
     length = data.get("length")
     try:
         return int(length)
