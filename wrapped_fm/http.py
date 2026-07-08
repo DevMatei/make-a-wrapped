@@ -49,6 +49,20 @@ def _configure_session(
     session.mount("https://", adapter)
 
 
+def _configure_no_retry_session(
+    session: requests.Session,
+    pool_maxsize: int = HTTP_POOL_MAXSIZE,
+) -> None:
+    retry = Retry(total=0, raise_on_status=False)
+    adapter = HTTPAdapter(
+        max_retries=retry,
+        pool_connections=pool_maxsize,
+        pool_maxsize=pool_maxsize,
+    )
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+
+
 listenbrainz_session = requests.Session()
 listenbrainz_session.headers.update(
     {"User-Agent": LISTENBRAINZ_USER_AGENT, "Accept": "application/json"}
@@ -85,6 +99,24 @@ lastfm_session.headers.update(
     {"User-Agent": LASTFM_USER_AGENT, "Accept": "application/json"}
 )
 _configure_session(lastfm_session)
+
+listenbrainz_aggregate_session = requests.Session()
+listenbrainz_aggregate_session.headers.update(
+    {"User-Agent": LISTENBRAINZ_USER_AGENT, "Accept": "application/json"}
+)
+_configure_no_retry_session(listenbrainz_aggregate_session)
+
+lastfm_aggregate_session = requests.Session()
+lastfm_aggregate_session.headers.update(
+    {"User-Agent": LASTFM_USER_AGENT, "Accept": "application/json"}
+)
+_configure_no_retry_session(lastfm_aggregate_session)
+
+musicbrainz_aggregate_session = requests.Session()
+musicbrainz_aggregate_session.headers.update(
+    {"User-Agent": MUSICBRAINZ_USER_AGENT, "Accept": "application/json"}
+)
+_configure_no_retry_session(musicbrainz_aggregate_session)
 
 deezer_session = requests.Session()
 deezer_session.headers.update(
