@@ -98,7 +98,7 @@ export function createCanvasRenderer({ canvas, themeSelect, artistImg }) {
     };
   }
 
-  function draw({ data, isCoverReady, customArtworkActive, imageTransform }) {
+  function draw({ data, isCoverReady, customArtworkActive, imageTransform, period }) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const theme = themeSelect.value;

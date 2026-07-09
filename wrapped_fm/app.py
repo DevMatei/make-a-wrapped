@@ -22,7 +22,6 @@ def create_app() -> Flask:
     init_rate_limiter(app)
     app.register_blueprint(routes_bp)
 
-    # Add 404 error handler
     @app.errorhandler(404)
     def page_not_found(e):
         return app.send_static_file('404.html'), 404
