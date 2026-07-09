@@ -562,6 +562,30 @@ select {
   cursor: pointer;
 }
 
+.artwork-override {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: rgba(21, 18, 34, 0.4);
+}
+
+.artwork-override__option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.artwork-override__option input[type="checkbox"] {
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 .artwork-controls__buttons {
   display: flex;
   flex-wrap: wrap;

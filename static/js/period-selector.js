@@ -9,7 +9,7 @@ const PERIOD_PRESET_VALUES = new Set([
   'all_time',
 ]);
 
-const FALLBACK_RANGE = { preset: 'this_year', month: null, year: null };
+const FALLBACK_RANGE = { preset: 'last_month', month: null, year: null };
 const SPECIFIC_MONTH_VALUE = 'specific_month';
 
 function clone(value) {
@@ -20,14 +20,18 @@ function clone(value) {
 }
 
 function defaultFromDescriptors(descriptor) {
+  const now = new Date();
+  const prevMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  const fallbackMonth = prevMonth.getUTCMonth() + 1;
+  const fallbackYear = prevMonth.getUTCFullYear();
   const fallback = descriptor && descriptor.defaults ? descriptor.defaults : null;
   if (!fallback) {
-    return { ...FALLBACK_RANGE };
+    return { preset: 'last_month', month: fallbackMonth, year: fallbackYear };
   }
   return {
-    preset: fallback.preset || FALLBACK_RANGE.preset,
-    month: fallback.month || null,
-    year: fallback.year || null,
+    preset: 'last_month',
+    month: fallbackMonth,
+    year: fallbackYear,
   };
 }
 
@@ -170,11 +174,15 @@ export function createPeriodSelector({ descriptor, onChange } = {}) {
     specificGroup.classList.toggle('is-visible', visible);
     if (visible) {
       populateSpecificSelectors();
+      const now = new Date();
+      const prevMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+      const fallbackMonth = prevMonth.getUTCMonth() + 1;
+      const fallbackYear = prevMonth.getUTCFullYear();
       if (specificMonthSelect) {
-        specificMonthSelect.value = current.month ? String(current.month) : String(_descriptor?.defaults?.month || 1);
+        specificMonthSelect.value = current.month ? String(current.month) : String(fallbackMonth);
       }
       if (specificYearSelect) {
-        specificYearSelect.value = current.year ? String(current.year) : String(_descriptor?.defaults?.year || new Date().getUTCFullYear());
+        specificYearSelect.value = current.year ? String(current.year) : String(fallbackYear);
       }
       if (specificMonthSelect && current.month) specificMonthSelect.value = String(current.month);
       if (specificYearSelect && current.year) specificYearSelect.value = String(current.year);
@@ -264,8 +272,10 @@ export function createPeriodSelector({ descriptor, onChange } = {}) {
           next.month = null;
           next.year = null;
         } else if (!next.month || !next.year) {
-          next.month = _descriptor?.defaults?.month || null;
-          next.year = _descriptor?.defaults?.year || null;
+          const now = new Date();
+          const prevMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+          next.month = prevMonth.getUTCMonth() + 1;
+          next.year = prevMonth.getUTCFullYear();
         }
         applySelection(next);
         closeDropdown();

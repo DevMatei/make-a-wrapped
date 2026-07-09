@@ -5,6 +5,7 @@ import {
   ARTWORK_TOKEN_KEY,
   ARTWORK_TOKEN_EXPIRY_KEY,
   ARTWORK_SOURCE_KEY,
+  ARTWORK_OVERRIDE_KEY,
   BACKGROUND_SOURCES,
   TURNSTILE_TOKEN_KEY,
   TURNSTILE_TOKEN_EXPIRY_KEY,
@@ -66,6 +67,7 @@ const artworkScaleInput = document.getElementById('artwork-scale');
 const artworkOffsetXInput = document.getElementById('artwork-offset-x');
 const artworkOffsetYInput = document.getElementById('artwork-offset-y');
 const artworkSourceInputs = document.querySelectorAll('input[name="artwork-source"]');
+const artworkOverrideInput = document.getElementById('artwork-override');
 const artworkReleaseInput = Array.from(artworkSourceInputs).find((input) => input.value === 'release');
 const artworkReleaseLabel = artworkReleaseInput ? artworkReleaseInput.closest('.artwork-source__option') : null;
 const navidromeFields = document.getElementById('navidrome-fields');
@@ -346,6 +348,7 @@ const state = {
   customArtworkServerToken: null,
   customArtworkServerExpiry: null,
   imageTransform: { scale: 1, offsetX: 0, offsetY: 0 },
+  artworkOverrideActive: false,
   queueMessageVisible: false,
   artworkSource: 'artist',
   turnstileToken: null,
@@ -543,9 +546,24 @@ artworkSourceInputs.forEach((input) => {
   });
 });
 
+if (artworkOverrideInput) {
+  artworkOverrideInput.addEventListener('change', () => {
+    state.artworkOverrideActive = artworkOverrideInput.checked;
+    writeLocal(ARTWORK_OVERRIDE_KEY, state.artworkOverrideActive ? '1' : '');
+    if (!state.artworkOverrideActive && !state.customArtworkActive) {
+      state.imageTransform = { scale: 1, offsetX: 0, offsetY: 0 };
+      applyTransformToControls();
+      saveImageTransform();
+    }
+    setArtworkEditorEnabled(state.customArtworkActive || state.artworkOverrideActive);
+    drawCanvas();
+  });
+}
+
 restoreImageTransform();
 restoreStoredArtwork();
-setArtworkEditorEnabled(state.customArtworkActive);
+restoreArtworkOverride();
+setArtworkEditorEnabled(state.customArtworkActive || state.artworkOverrideActive);
 restoreTurnstileTokenFromSession();
 
 window.addEventListener('load', () => {
@@ -596,7 +614,7 @@ function drawCanvas() {
   canvasRenderer.draw({
     data: state.generatedData,
     isCoverReady: state.isCoverReady,
-    customArtworkActive: state.customArtworkActive,
+    allowTransform: state.customArtworkActive || state.artworkOverrideActive,
     imageTransform: state.imageTransform,
     period: state.activeRange,
   });
@@ -987,7 +1005,7 @@ function disableReleaseArtworkOption(disabled) {
 }
 
 function handleArtworkTransformChange() {
-  if (!state.customArtworkActive) {
+  if (!state.customArtworkActive && !state.artworkOverrideActive) {
     applyTransformToControls();
     return;
   }
@@ -1016,7 +1034,7 @@ function applyTransformToControls() {
 }
 
 function saveImageTransform() {
-  if (!state.customArtworkActive) {
+  if (!state.customArtworkActive && !state.artworkOverrideActive) {
     return;
   }
   writeLocal(ARTWORK_TRANSFORM_KEY, JSON.stringify(state.imageTransform));
@@ -1116,7 +1134,7 @@ function resetArtworkUpload(options = {}) {
     artworkUploadInput.value = '';
   }
   toggleArtworkReset(false);
-  setArtworkEditorEnabled(false);
+  setArtworkEditorEnabled(state.artworkOverrideActive);
   if (!silent) {
     setStatus('Custom artwork cleared. The next generation will fetch artwork automatically again.');
   }
@@ -1151,6 +1169,14 @@ function restoreImageTransform() {
     state.imageTransform = { scale: 1, offsetX: 0, offsetY: 0 };
   }
   applyTransformToControls();
+}
+
+function restoreArtworkOverride() {
+  const raw = readLocal(ARTWORK_OVERRIDE_KEY);
+  state.artworkOverrideActive = raw === '1';
+  if (artworkOverrideInput) {
+    artworkOverrideInput.checked = state.artworkOverrideActive;
+  }
 }
 
 function restoreStoredArtwork() {
@@ -1509,7 +1535,7 @@ async function loadCoverArt(username) {
     }
     return applyCustomArtwork();
   }
-  setArtworkEditorEnabled(false);
+  setArtworkEditorEnabled(state.artworkOverrideActive);
   if (state.coverObjectUrl) {
     URL.revokeObjectURL(state.coverObjectUrl);
     state.coverObjectUrl = null;
@@ -1608,7 +1634,7 @@ async function loadNavidromeCoverArt() {
     await loadImage(artistImg, BACKGROUND_SOURCES.black);
     return false;
   }
-  setArtworkEditorEnabled(false);
+  setArtworkEditorEnabled(state.artworkOverrideActive || state.customArtworkActive);
   if (state.coverObjectUrl) {
     URL.revokeObjectURL(state.coverObjectUrl);
     state.coverObjectUrl = null;

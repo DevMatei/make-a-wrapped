@@ -98,7 +98,7 @@ export function createCanvasRenderer({ canvas, themeSelect, artistImg }) {
     };
   }
 
-  function draw({ data, isCoverReady, customArtworkActive, imageTransform, period }) {
+  function draw({ data, isCoverReady, allowTransform, imageTransform, period }) {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     const theme = themeSelect.value;
@@ -109,7 +109,7 @@ export function createCanvasRenderer({ canvas, themeSelect, artistImg }) {
       background.onload = () => draw({
         data,
         isCoverReady,
-        customArtworkActive,
+        allowTransform,
         imageTransform,
       });
     }
@@ -128,7 +128,6 @@ export function createCanvasRenderer({ canvas, themeSelect, artistImg }) {
       const imgWidth = artistImg.naturalWidth;
       const imgHeight = artistImg.naturalHeight;
       const containScale = Math.min(destSize / imgWidth, destSize / imgHeight);
-      const allowTransform = customArtworkActive;
       const userScale = allowTransform && Number.isFinite(imageTransform.scale) ? imageTransform.scale : 1;
       const offsetX = allowTransform && Number.isFinite(imageTransform.offsetX) ? imageTransform.offsetX : 0;
       const offsetY = allowTransform && Number.isFinite(imageTransform.offsetY) ? imageTransform.offsetY : 0;

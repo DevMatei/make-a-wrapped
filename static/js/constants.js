@@ -37,6 +37,7 @@ export const ARTWORK_TRANSFORM_KEY = 'wrappedArtworkTransform';
 export const ARTWORK_TOKEN_KEY = 'wrappedArtworkToken';
 export const ARTWORK_TOKEN_EXPIRY_KEY = 'wrappedArtworkTokenExpiry';
 export const ARTWORK_SOURCE_KEY = 'wrappedArtworkSource';
+export const ARTWORK_OVERRIDE_KEY = 'wrappedArtworkOverride';
 export const TURNSTILE_TOKEN_KEY = 'wrappedTurnstileToken';
 export const TURNSTILE_TOKEN_EXPIRY_KEY = 'wrappedTurnstileTokenExpiry';
 export const TURNSTILE_TOKEN_TTL_MS = 30 * 60 * 1000;
