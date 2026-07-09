@@ -12,6 +12,13 @@ function getCurrentYearRange(referenceDate = new Date()) {
   return { year, start, end };
 }
 
+function getRangeWindow(range) {
+  if (!range || !Number.isFinite(range.startTs) || !Number.isFinite(range.endTs)) {
+    return getCurrentYearRange();
+  }
+  return { start: range.startTs * 1000, end: range.endTs * 1000 };
+}
+
 function parsePlayDate(value) {
   if (!value && value !== 0) {
     return null;
@@ -52,13 +59,13 @@ async function fetchSongsBatch(api, offset, size) {
   return payload?.searchResult3?.song || [];
 }
 
-export async function collectNavidromeStats(api, progressCallback = () => {}) {
+export async function collectNavidromeStats(api, progressCallback = () => {}, range = null) {
   const artistPlays = new Map();
   const artistIdToName = new Map();
   const genrePlayCounts = Object.create(null);
   const albumPlayCounts = new Map();
   const topSongs = [];
-  const { start: rangeStartMs, end: rangeEndMs } = getCurrentYearRange();
+  const { start: rangeStartMs, end: rangeEndMs } = getRangeWindow(range);
   let totalSec = 0;
   let totalSongsFetched = 0;
   let nextOffset = 0;
@@ -217,5 +224,6 @@ export async function collectNavidromeStats(api, progressCallback = () => {}) {
     albumBasedStats: {
       topGenresByPlays,
     },
+    period: range || null,
   };
 }

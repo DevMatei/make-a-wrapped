@@ -14,7 +14,7 @@ export class NavidromeClient {
     return this.api.fetchCoverArt(id);
   }
 
-  async stats(progressCallback = () => {}) {
-    return collectNavidromeStats(this.api, progressCallback);
+  async stats(progressCallback = () => {}, range = null) {
+    return collectNavidromeStats(this.api, progressCallback, range);
   }
 }

@@ -37,7 +37,7 @@ export class NavidromeApi {
       throw new Error('Unable to reach your Navidrome server. Check the URL and network settings.');
     }
     if (!response.ok) {
-      throw new Error(`Navidrome request failed (${response.status} – ${response.statusText})`);
+      throw new Error(`Navidrome request failed (${response.status} - ${response.statusText})`);
     }
     let data;
     try {
