@@ -15,6 +15,7 @@ import {
 } from './constants.js';
 import { createCanvasRenderer } from './canvas-renderer.js';
 import { createServiceSelector } from './service-selector.js';
+import { createPeriodSelector, loadPeriodDescriptor } from './period-selector.js';
 import { NavidromeClient } from './navidrome-client.js';
 import {
   formatSectionListForStatus,
@@ -113,6 +114,100 @@ function getUsernameCopy(service) {
 
 function getSelectedService() {
   return serviceSelector.getValue();
+}
+
+function buildRequestUrl(path) {
+  let url = serviceSelector.withService(path);
+  if (state.activeRange) {
+    const params = new URLSearchParams();
+    params.set('range', state.activeRange.preset);
+    if (state.activeRange.preset === 'specific_month') {
+      if (state.activeRange.month) params.set('month', String(state.activeRange.month));
+      if (state.activeRange.year) params.set('year', String(state.activeRange.year));
+    }
+    const separator = url.includes('?') ? '&' : '?';
+    url = `${url}${separator}${params.toString()}`;
+  }
+  return url;
+}
+
+function buildFallbackRequestUrl(path) {
+  let url = serviceSelector.withService(path);
+  if (url.includes('range=')) {
+    url = url.replace(/range=[^&]*/, 'range=all_time');
+  } else {
+    const separator = url.includes('?') ? '&' : '?';
+    url = `${url}${separator}range=all_time`;
+  }
+  return url;
+}
+
+function buildRangeFromSelection(selection) {
+  if (!selection || !selection.preset) {
+    return { preset: 'this_year', startTs: null, endTs: null, label: 'This year', kind: 'year' };
+  }
+  const descriptor = state.periodDescriptor || {};
+  const defaults = descriptor.defaults || {};
+  const label = selection.preset === 'specific_month' && selection.month && selection.year
+    ? formatSpecificMonthLabel(selection.month, selection.year)
+    : selection.preset;
+  let startTs = null;
+  let endTs = null;
+  if (selection.preset === 'this_year' || selection.preset === 'all_time') {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    if (selection.preset === 'this_year') {
+      startTs = Math.floor(Date.UTC(year, 0, 1) / 1000);
+      endTs = Math.floor(Date.now() / 1000);
+    } else {
+      startTs = 0;
+      endTs = Math.floor(Date.now() / 1000);
+    }
+  } else if (selection.preset === 'last_year') {
+    const year = new Date().getUTCFullYear() - 1;
+    startTs = Math.floor(Date.UTC(year, 0, 1) / 1000);
+    endTs = Math.floor(Date.UTC(year + 1, 0, 1) / 1000);
+  } else if (selection.preset === 'last_12_months') {
+    endTs = Math.floor(Date.now() / 1000);
+    startTs = endTs - 365 * 24 * 60 * 60;
+  } else if (selection.preset === 'this_month') {
+    const now = new Date();
+    const year = now.getUTCFullYear();
+    const month = now.getUTCMonth();
+    startTs = Math.floor(Date.UTC(year, month, 1) / 1000);
+    endTs = Math.floor(Date.now() / 1000);
+  } else if (selection.preset === 'last_month') {
+    const now = new Date();
+    const ref = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1) - 1);
+    startTs = Math.floor(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth(), 1) / 1000);
+    endTs = Math.floor(Date.UTC(ref.getUTCFullYear(), ref.getUTCMonth() + 1, 1) / 1000);
+  } else if (selection.preset === 'specific_month') {
+    const year = Number(selection.year || defaults.year || new Date().getUTCFullYear());
+    const month = Number(selection.month || defaults.month || 1);
+    startTs = Math.floor(Date.UTC(year, month - 1, 1) / 1000);
+    endTs = Math.floor(Date.UTC(year, month, 1) / 1000);
+  }
+  const kind = (descriptor.presets || []).find((p) => p.value === selection.preset)?.kind
+    || (selection.preset === 'this_month' || selection.preset === 'last_month' || selection.preset === 'specific_month' ? 'month' : 'year');
+  return {
+    preset: selection.preset,
+    month: selection.month || null,
+    year: selection.year || null,
+    startTs,
+    endTs,
+    label,
+    kind,
+  };
+}
+
+function formatSpecificMonthLabel(month, year) {
+  try {
+    const date = new Date(Date.UTC(Number(year), Number(month) - 1, 1));
+    const monthName = date.toLocaleString(undefined, { month: 'long', timeZone: 'UTC' });
+    return `${monthName} ${year}`;
+  } catch (error) {
+    return `${month}/${year}`;
+  }
 }
 
 function isNavidromeSelected() {
@@ -259,6 +354,10 @@ const state = {
   navidromeStats: null,
   sectionWarnings: [],
   imageWarningMessage: '',
+  periodDescriptor: null,
+  activePeriod: null,
+  activeRange: null,
+  lowDataFallback: false,
 };
 
 const serviceSelector = createServiceSelector();
@@ -270,6 +369,22 @@ if (serviceHiddenInput) {
   });
 }
 handleServiceChange(serviceSelector.getValue());
+
+const periodSelector = createPeriodSelector({
+  descriptor: state.periodDescriptor || null,
+  onChange: (selection) => {
+    state.activePeriod = selection;
+    state.activeRange = buildRangeFromSelection(selection);
+    if (state.generatedData && state.generatedData.username) {
+      const label = state.activeRange?.label || 'new period';
+      setStatus(`period set to ${label}. click generate to refresh.`);
+    }
+  },
+});
+
+function isLoading() {
+  return loadingIndicator && !loadingIndicator.hidden;
+}
 
 function invalidateTurnstileToken() {
   if (!isTurnstileEnabled()) {
@@ -363,7 +478,6 @@ async function refreshTurnstileToken() {
     }, 15000);
   });
 
-  // If widget supports automatic execution, trigger it to avoid extra clicks.
   if (window.turnstile && typeof window.turnstile.execute === 'function' && turnstileWidgetId !== null) {
     try {
       window.turnstile.execute(turnstileWidgetId);
@@ -448,6 +562,21 @@ window.addEventListener('load', () => {
   if (state.customArtworkActive) {
     applyCustomArtwork();
   }
+  loadPeriodDescriptor()
+    .then((descriptor) => {
+      state.periodDescriptor = descriptor;
+      periodSelector.init(descriptor);
+      const initial = periodSelector.getSelection();
+      state.activePeriod = initial;
+      state.activeRange = buildRangeFromSelection(initial);
+    })
+    .catch((error) => {
+      console.warn('Period selector init failed', error);
+      periodSelector.init();
+      const initial = periodSelector.getSelection();
+      state.activePeriod = initial;
+      state.activeRange = buildRangeFromSelection(initial);
+    });
   ensureClientConfigLoaded()
     .then(() => {
       if (isTurnstileEnabled()) {
@@ -469,6 +598,7 @@ function drawCanvas() {
     isCoverReady: state.isCoverReady,
     customArtworkActive: state.customArtworkActive,
     imageTransform: state.imageTransform,
+    period: state.activeRange,
   });
 }
 
@@ -725,20 +855,18 @@ async function turnstileFetch(path, options = {}, { forceRefreshToken = false } 
   await ensureClientConfigLoaded();
   const mergedOptions = await applyTurnstileHeadersAsync(options, { forceRefreshToken });
   try {
-    // Add timeout to fetch - be generous with timeouts for local/slow environments
-    // Image endpoints can take longer due to external API calls.
-    let timeoutMs = 60000;
+    let timeoutMs = 30000;
     if (path.includes('/top/img/')) {
-      timeoutMs = 120000;
+      timeoutMs = 60000;
     }
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-    
+
     try {
-      const response = await fetch(serviceSelector.withService(path), {
-        ...mergedOptions,
-        signal: controller.signal,
-      });
+  const response = await fetch(buildRequestUrl(path), {
+    ...mergedOptions,
+    signal: controller.signal,
+  });
       clearTimeout(timeoutId);
       return response;
     } catch (error) {
@@ -1157,8 +1285,8 @@ async function generateWrapped(event) {
         ? 'You already generated a wrapped for this selection.'
         : `Current wrapped belongs to ${existingLabel}.`,
       'Type:',
-      '- keep — keep the existing poster',
-      '- new — refresh everything',
+        '- keep: keep the existing poster',
+        '- new: refresh everything',
       '- or list sections to refresh (artists, tracks, time, genre, image)',
     ].join('\n');
     const choiceRaw = window.prompt(promptMessage, 'new');
@@ -1237,12 +1365,17 @@ async function generateWrapped(event) {
     if (sectionsToRefresh.length === ALL_SECTIONS.length) {
       await recordWrappedGenerated();
     }
+    const periodLabel = state.activeRange && state.activeRange.label
+      ? state.activeRange.label
+      : (state.activePeriod && state.activePeriod.preset) || 'this period';
     const baseLabel = sectionsToRefresh.length === ALL_SECTIONS.length
-      ? `done! wrapped generated for ${username}.`
-      : `updated ${formatSectionListForStatus(sectionsToRefresh)}.`;
+      ? `done! wrapped generated for ${username} · ${periodLabel}.`
+      : `updated ${formatSectionListForStatus(sectionsToRefresh)} · ${periodLabel}.`;
     if (state.sectionWarnings.length) {
       const affected = state.sectionWarnings.map((entry) => entry.section).join(', ');
       setStatus(`${baseLabel} some sections couldn't load (${affected}). try refreshing those sections.`, 'error');
+    } else if (state.lowDataFallback) {
+      setStatus(`${baseLabel} not enough listens for ${periodLabel}, showing all time instead.`, 'info');
     } else {
       setStatus(baseLabel);
     }
@@ -1288,6 +1421,24 @@ async function fetchText(path) {
     return response.text();
   };
   return fetchWithTurnstileRetry(fetcher);
+}
+
+const LOW_DATA_MIN_ARTISTS = 1;
+const LOW_DATA_MIN_TRACKS = 1;
+const LOW_DATA_MIN_MINUTES = 5;
+
+function isCustomPreset(preset) {
+  return preset === 'specific_month' || preset === 'last_12_months' || preset === 'last_year';
+}
+
+function readResponsePeriod(response) {
+  try {
+    const raw = response.headers.get('X-Period');
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (error) {
+    return null;
+  }
 }
 
 async function parseError(response) {
@@ -1434,7 +1585,6 @@ async function loadCoverArt(username) {
           failedSources.push(`${sourceOption}: ${error?.message || 'unavailable'}`);
           break;
         }
-        // brief delay before retrying the same source
         await new Promise((resolve) => setTimeout(resolve, 700));
       }
     }
@@ -1505,13 +1655,27 @@ async function updateSections(username, sections) {
 
 async function updateListenBrainzSections(username, sections) {
   const queue = [];
+  const activeRange = state.activeRange;
+  const customRange = Boolean(activeRange && activeRange.preset && isCustomPreset(activeRange.preset));
+  state.lowDataFallback = false;
 
   if (sections.includes('artists')) {
     queue.push({
       section: 'Top artists',
       run: async () => {
-        const artists = sanitiseRankedArray(await fetchJson(`/top/artists/${encodeURIComponent(username)}/5`));
+        const url = `/top/artists/${encodeURIComponent(username)}/5`;
+        const payload = await fetchJson(url);
+        const periodMeta = payload && payload.period;
+        let artists = sanitiseRankedArray(payload && (payload.artists || payload)).slice(0, 5);
+        let usedFallback = false;
+        if (customRange && artists.length < LOW_DATA_MIN_ARTISTS) {
+          const fallbackPayload = await fetchJson(buildFallbackRequestUrl(url));
+          artists = sanitiseRankedArray(fallbackPayload && (fallbackPayload.artists || fallbackPayload)).slice(0, 5);
+          usedFallback = Boolean(artists.length);
+        }
         state.generatedData.artists = artists;
+        if (usedFallback) state.lowDataFallback = true;
+        if (periodMeta) state.generatedData.period = periodMeta;
         if (topArtistsEl) topArtistsEl.textContent = formatRankedList(artists);
       },
     });
@@ -1521,8 +1685,19 @@ async function updateListenBrainzSections(username, sections) {
     queue.push({
       section: 'Top tracks',
       run: async () => {
-        const tracks = sanitiseRankedArray(await fetchJson(`/top/tracks/${encodeURIComponent(username)}/5`));
+        const url = `/top/tracks/${encodeURIComponent(username)}/5`;
+        const payload = await fetchJson(url);
+        const periodMeta = payload && payload.period;
+        let tracks = sanitiseRankedArray(payload && (payload.tracks || payload)).slice(0, 5);
+        let usedFallback = false;
+        if (customRange && tracks.length < LOW_DATA_MIN_TRACKS) {
+          const fallbackPayload = await fetchJson(buildFallbackRequestUrl(url));
+          tracks = sanitiseRankedArray(fallbackPayload && (fallbackPayload.tracks || fallbackPayload)).slice(0, 5);
+          usedFallback = Boolean(tracks.length);
+        }
         state.generatedData.tracks = tracks;
+        if (usedFallback) state.lowDataFallback = true;
+        if (periodMeta) state.generatedData.period = periodMeta;
         if (topTracksEl) topTracksEl.textContent = formatRankedList(tracks);
       },
     });
@@ -1532,8 +1707,40 @@ async function updateListenBrainzSections(username, sections) {
     queue.push({
       section: 'Minutes listened',
       run: async () => {
-        const minutes = ensureMinutesLabel(await fetchText(`/time/total/${encodeURIComponent(username)}`));
+        const url = `/time/total/${encodeURIComponent(username)}`;
+        const fetcher = async () => {
+          const response = await turnstileFetch(url, { cache: 'no-store' });
+          if (!response.ok) {
+            const errorMessage = await parseError(response);
+            const handled = handleTurnstileFailure(errorMessage, response.status);
+            if (handled) {
+              const err = new Error('Verification expired. Please complete the challenge again.');
+              err.__turnstileExpired = true;
+              throw err;
+            }
+            throw new Error(errorMessage);
+          }
+          const text = await response.text();
+          const periodMeta = readResponsePeriod(response);
+          return { text, periodMeta };
+        };
+        let { text, periodMeta } = await fetchWithTurnstileRetry(fetcher);
+        let usedFallback = false;
+        if (customRange && Number(text.replace(/[^0-9]/g, '')) < LOW_DATA_MIN_MINUTES) {
+          const fallbackFetcher = async () => {
+            const response = await turnstileFetch(buildFallbackRequestUrl(url), { cache: 'no-store' });
+            if (!response.ok) {
+              throw new Error(await parseError(response));
+            }
+            return response.text();
+          };
+          text = await fetchWithTurnstileRetry(fallbackFetcher);
+          usedFallback = true;
+        }
+        const minutes = ensureMinutesLabel(text);
         state.generatedData.minutes = minutes;
+        if (usedFallback) state.lowDataFallback = true;
+        if (periodMeta) state.generatedData.period = periodMeta;
         if (listenTimeEl) listenTimeEl.textContent = minutes;
       },
     });
@@ -1543,9 +1750,38 @@ async function updateListenBrainzSections(username, sections) {
     queue.push({
       section: 'Top genre',
       run: async () => {
-        const genre = await fetchText(`/top/genre/user/${encodeURIComponent(username)}`);
+        const url = `/top/genre/user/${encodeURIComponent(username)}`;
+        const fetcher = async () => {
+          const response = await turnstileFetch(url, { cache: 'no-store' });
+          if (!response.ok) {
+            const errorMessage = await parseError(response);
+            const handled = handleTurnstileFailure(errorMessage, response.status);
+            if (handled) {
+              const err = new Error('Verification expired. Please complete the challenge again.');
+              err.__turnstileExpired = true;
+              throw err;
+            }
+            throw new Error(errorMessage);
+          }
+          const text = await response.text();
+          const periodMeta = readResponsePeriod(response);
+          return { text, periodMeta };
+        };
+        let { text: genre, periodMeta } = await fetchWithTurnstileRetry(fetcher);
+        if (customRange && (!genre || genre.trim() === '' || genre.toLowerCase() === 'no genre')) {
+          const fallbackFetcher = async () => {
+            const response = await turnstileFetch(buildFallbackRequestUrl(url), { cache: 'no-store' });
+            if (!response.ok) {
+              throw new Error(await parseError(response));
+            }
+            return response.text();
+          };
+          genre = await fetchWithTurnstileRetry(fallbackFetcher);
+          state.lowDataFallback = true;
+        }
         const normalised = normaliseGenreLabel(genre);
         state.generatedData.genre = normalised;
+        if (periodMeta) state.generatedData.period = periodMeta;
         if (topGenreEl) topGenreEl.textContent = normalised;
       },
     });
@@ -1567,8 +1803,6 @@ async function updateListenBrainzSections(username, sections) {
     });
   }
 
-  // Run sequentially to avoid reusing a single Turnstile token across parallel requests.
-  /* eslint-disable no-await-in-loop */
   for (const task of queue) {
     try {
       await task.run();
@@ -1581,7 +1815,6 @@ async function updateListenBrainzSections(username, sections) {
       throw error;
     }
   }
-  /* eslint-enable no-await-in-loop */
 
   if (!sections.includes('artists') && Array.isArray(state.generatedData.artists)) {
     if (topArtistsEl) topArtistsEl.textContent = formatRankedList(state.generatedData.artists);
@@ -1607,7 +1840,7 @@ async function updateNavidromeSections(sections) {
       const pct = Number.isFinite(percent) ? `${Math.round(percent)}%` : '';
       const prefix = step ? `${step}: ` : '';
       setStatus(`Navidrome: ${prefix}${message} ${pct}`.trim());
-    });
+    }, state.activeRange);
   }
   const stats = state.navidromeStats;
   if (!stats) {
