@@ -266,6 +266,155 @@ select {
   width: 100%;
 }
 
+.period-select {
+  position: relative;
+  width: 100%;
+}
+
+.period-select__toggle {
+  width: 100%;
+  padding: 0.6rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: rgba(21, 18, 34, 0.6);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.period-select__toggle:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.period-select__current {
+  font-weight: 600;
+}
+
+.period-select__chevron {
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.period-select.is-open .period-select__chevron {
+  transform: rotate(180deg);
+}
+
+.period-select__menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-accent);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 4px;
+  list-style: none;
+  margin: 0;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
+  transition: opacity 0.1s ease, transform 0.1s ease;
+  z-index: 10;
+}
+
+.period-select.is-open .period-select__menu {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+
+.period-select__option {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: inherit;
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+
+.period-select__option:hover,
+.period-select__option.is-active {
+  background: rgba(192, 132, 252, 0.12);
+}
+
+.period-select__option--muted {
+  color: var(--text-muted);
+  border-top: 1px solid var(--card-border);
+  margin-top: 4px;
+  padding-top: 0.6rem;
+  border-radius: 0 0 8px 8px;
+}
+
+.period-select__option--muted:hover,
+.period-select__option--muted.is-active {
+  color: var(--text);
+}
+
+.period-select__specific {
+  margin-top: 0.5rem;
+  padding: 0.6rem;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: rgba(21, 18, 34, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 0;
+  overflow: hidden;
+  padding: 0;
+  border-width: 0;
+  opacity: 0;
+  transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.2s ease, border-width 0.2s ease;
+}
+
+.period-select__specific.is-visible {
+  max-height: 200px;
+  opacity: 1;
+  padding: 0.6rem;
+  border-width: 1px;
+}
+
+.period-select__specific-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+.period-select__specific-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.period-select__specific select {
+  width: 100%;
+  padding: 0.45rem 0.55rem;
+  border-radius: 8px;
+  border: 1px solid var(--card-border);
+  background: rgba(21, 18, 34, 0.7);
+  color: var(--text);
+  font-size: 0.9rem;
+  font-family: inherit;
+}
+
+.period-select__hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
 .service-fields {
   padding: 1rem;
   border-radius: 12px;

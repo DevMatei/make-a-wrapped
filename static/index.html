@@ -140,7 +140,7 @@
           <div class="card__body">
             <h1>make a wrapped</h1>
             <p class="intro-copy">
-              your friends post spotify wrapped every year and you're sitting there with your listenbrainz/last.fm/navidrome stats like "i have taste too". now you can prove it. drop your username, pick a service, and get a poster with your top artists, tracks, listening time, and genre.
+              your friends post spotify wrapped every year and you're sitting there with your listenbrainz/last.fm/navidrome stats like "i have taste too". now you can prove it, whenever you want, not just in december. drop your username, pick a service and a time frame (this year, last month, a random month from 2 years ago, whatever), and get a poster with your top artists, tracks, listening time, and genre.
             </p>
             <form id="wrapped-form" class="form" autocomplete="off" novalidate>
               <label class="form__label" id="username-label" for="username">music username</label>
@@ -271,6 +271,97 @@
                   <input type="hidden" id="service" name="service" value="listenbrainz">
                 </div>
               </div>
+              <div class="form__secondary">
+                <label class="form__label" for="period-select">wrapped period</label>
+                <div class="period-select" data-period-dropdown>
+                  <button
+                    type="button"
+                    id="period-select"
+                    class="period-select__toggle"
+                    aria-haspopup="listbox"
+                    aria-expanded="false"
+                    data-period-toggle
+                  >
+                    <span class="period-select__current">This year</span>
+                    <svg
+                      class="period-select__chevron"
+                      width="16"
+                      height="16"
+                      viewBox="0 0 24 24"
+                      aria-hidden="true"
+                    >
+                      <path
+                        d="M6.5 9l5.5 5 5.5-5"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  </button>
+                  <ul
+                    class="period-select__menu"
+                    role="listbox"
+                    aria-labelledby="period-select"
+                    data-period-menu
+                  >
+                    <li>
+                      <button type="button" class="period-select__option" role="option" data-value="this_year" data-label="This year" data-period-option>
+                        This year
+                      </button>
+                    </li>
+                    <li>
+                      <button type="button" class="period-select__option" role="option" data-value="last_year" data-label="Last year" data-period-option>
+                        Last year
+                      </button>
+                    </li>
+                    <li>
+                      <button type="button" class="period-select__option" role="option" data-value="last_12_months" data-label="Last 12 months" data-period-option>
+                        Last 12 months
+                      </button>
+                    </li>
+                    <li>
+                      <button type="button" class="period-select__option" role="option" data-value="this_month" data-label="This month" data-period-option>
+                        This month
+                      </button>
+                    </li>
+                    <li>
+                      <button type="button" class="period-select__option" role="option" data-value="last_month" data-label="Last month" data-period-option>
+                        Last month
+                      </button>
+                    </li>
+                    <li>
+                      <button type="button" class="period-select__option" role="option" data-value="specific_month" data-label="Specific month" data-period-option>
+                        Specific month…
+                      </button>
+                    </li>
+                    <li>
+                      <button type="button" class="period-select__option period-select__option--muted" role="option" data-value="all_time" data-label="All time" data-period-option>
+                        All time
+                      </button>
+                    </li>
+                  </ul>
+                </div>
+                <div
+                  class="period-select__specific"
+                  data-period-specific
+                >
+                  <div class="period-select__specific-grid">
+                    <label class="period-select__specific-field">
+                      <span class="form__label">month</span>
+                      <select id="period-specific-month" name="period-specific-month"></select>
+                    </label>
+                    <label class="period-select__specific-field">
+                      <span class="form__label">year</span>
+                      <select id="period-specific-year" name="period-specific-year"></select>
+                    </label>
+                  </div>
+                  <p class="period-select__hint" id="period-specific-hint">
+                    pick a finished month. future months are hidden.
+                  </p>
+                </div>
+              </div>
             </div>
             <div id="navidrome-fields" class="service-fields service-fields--navidrome" hidden>
               <p class="service-fields__description">
@@ -394,7 +485,7 @@
               everyone posts their spotify wrapped every year and if you share a listenbrainz or last.fm one people go "wait what's that?". this bridges that gap. i swapped spotify for navidrome but still wanted that wrapped moment. now you can have it too.
             </p>
             <p>
-              share <a href="https://wrapped.devmatei.com" target="_blank" rel="noopener noreferrer">wrapped.devmatei.com</a> with your friends if you want.
+              you're not stuck waiting for december either, generate one for any month, last year, whatever period you want. share <a href="https://wrapped.devmatei.com" target="_blank" rel="noopener noreferrer">wrapped.devmatei.com</a> with your friends if you want.
             </p>
           </div>
         </section>
