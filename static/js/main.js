@@ -7,6 +7,7 @@ import {
   ARTWORK_SOURCE_KEY,
   ARTWORK_OVERRIDE_KEY,
   BACKGROUND_SOURCES,
+  BADGE_SECRET_KEY,
   TURNSTILE_TOKEN_KEY,
   TURNSTILE_TOKEN_EXPIRY_KEY,
   TURNSTILE_TOKEN_TTL_MS,
@@ -49,6 +50,12 @@ const turnstileWrapper = document.getElementById('turnstile-wrapper');
 const turnstileContainer = document.getElementById('turnstile-container');
 const turnstileStatusEl = document.getElementById('turnstile-status');
 const downloadBtn = document.getElementById('download');
+const badgePanel = document.getElementById('badge-panel');
+const badgePreviewImg = document.getElementById('badge-preview');
+const badgePreviewStatus = document.getElementById('badge-preview-status');
+const badgeCopyBtn = document.getElementById('badge-copy-btn');
+const badgeTypeChips = Array.from(document.querySelectorAll('[data-badge-type]'));
+const badgeSwatches = Array.from(document.querySelectorAll('[data-badge-color]'));
 const loadingIndicator = document.getElementById('loading');
 const statusMessage = document.getElementById('status-message');
 const downloadError = document.getElementById('download-error');
@@ -223,6 +230,149 @@ function clearNavidromeState() {
   }
   state.navidromeClient = null;
   state.navidromeStats = null;
+  hideBadgePanel();
+}
+
+const BADGE_TYPE_LABELS = {
+  artist: 'top artist',
+  track: 'top track',
+  genre: 'top genre',
+  minutes: 'minutes listened',
+};
+
+function getBadgeSecret() {
+  let secret = readLocal(BADGE_SECRET_KEY);
+  if (!secret || !/^[A-Za-z0-9_-]{16,64}$/.test(secret)) {
+    const bytes = new Uint8Array(24);
+    crypto.getRandomValues(bytes);
+    secret = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    writeLocal(BADGE_SECRET_KEY, secret);
+  }
+  return secret;
+}
+
+function hideBadgePanel() {
+  if (badgePanel) {
+    badgePanel.hidden = true;
+  }
+  state.badgeId = null;
+}
+
+function setBadgePreviewMessage(message, isError = false) {
+  if (!badgePreviewStatus) {
+    return;
+  }
+  badgePreviewStatus.hidden = !message;
+  badgePreviewStatus.textContent = message || '';
+  badgePreviewStatus.style.color = isError ? 'var(--error)' : '';
+}
+
+async function ensureNavidromeBadgePublished() {
+  if (state.badgeId) {
+    return state.badgeId;
+  }
+  const data = state.generatedData || {};
+  const values = {
+    artist: Array.isArray(data.artists) ? data.artists[0] || '' : '',
+    track: Array.isArray(data.tracks) ? data.tracks[0] || '' : '',
+    genre: typeof data.genre === 'string' ? data.genre : '',
+    minutes: typeof data.minutes === 'string' ? data.minutes : '',
+  };
+  const response = await fetch('/api/badge/publish', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ secret: getBadgeSecret(), values }),
+  });
+  if (!response.ok) {
+    throw new Error(await parseError(response));
+  }
+  const payload = await response.json();
+  state.badgeId = payload.badge_id;
+  return state.badgeId;
+}
+
+async function buildBadgeUrl({ preview = false } = {}) {
+  const params = new URLSearchParams();
+  params.set('type', state.badgeType);
+  params.set('color', state.badgeColor);
+  let path;
+  if (isNavidromeSelected()) {
+    const badgeId = await ensureNavidromeBadgePublished();
+    path = `/badge/nv/${badgeId}`;
+    if (preview) {
+      params.set('_', String(Date.now()));
+    }
+  } else {
+    const username = state.generatedData && state.generatedData.username;
+    if (!username) {
+      throw new Error('Generate your wrapped first.');
+    }
+    path = `/badge/${encodeURIComponent(username)}`;
+    params.set('service', getSelectedService());
+    if (state.activeRange && state.activeRange.preset) {
+      params.set('range', state.activeRange.preset);
+      if (state.activeRange.preset === 'specific_month') {
+        if (state.activeRange.month) params.set('month', String(state.activeRange.month));
+        if (state.activeRange.year) params.set('year', String(state.activeRange.year));
+      }
+    }
+  }
+  return `${path}?${params.toString()}`;
+}
+
+async function refreshBadgePreview() {
+  if (!badgePanel || !badgePreviewImg) {
+    return;
+  }
+  badgePreviewImg.hidden = true;
+  setBadgePreviewMessage('loading preview...');
+  try {
+    const url = await buildBadgeUrl({ preview: true });
+    await new Promise((resolve, reject) => {
+      badgePreviewImg.onload = resolve;
+      badgePreviewImg.onerror = () => reject(new Error("couldn't load the badge preview."));
+      badgePreviewImg.src = url;
+    });
+    badgePreviewImg.hidden = false;
+    setBadgePreviewMessage('');
+  } catch (error) {
+    console.error(error);
+    setBadgePreviewMessage(error.message || "couldn't load the badge preview.", true);
+  }
+}
+
+async function copyBadgeMarkdown() {
+  try {
+    const url = await buildBadgeUrl();
+    const label = BADGE_TYPE_LABELS[state.badgeType] || 'wrapped badge';
+    const markdown = `![${label}](${window.location.origin}${url})`;
+    await navigator.clipboard.writeText(markdown);
+    if (badgeCopyBtn) {
+      const original = badgeCopyBtn.textContent;
+      badgeCopyBtn.textContent = 'copied!';
+      window.setTimeout(() => {
+        badgeCopyBtn.textContent = original;
+      }, 1600);
+    }
+  } catch (error) {
+    console.error(error);
+    setBadgePreviewMessage(error.message || "couldn't copy the badge markdown.", true);
+  }
+}
+
+function showBadgePanel() {
+  if (!badgePanel) {
+    return;
+  }
+  state.badgeId = null;
+  badgePanel.hidden = false;
+  refreshBadgePreview();
+}
+
+function setActiveBadgeChip(list, attr, value) {
+  list.forEach((el) => {
+    el.classList.toggle('is-active', el.dataset[attr] === value);
+  });
 }
 
 function handleServiceChange(nextValue) {
@@ -266,6 +416,7 @@ function handleServiceChange(nextValue) {
   if (!isNavidrome) {
     clearNavidromeState();
   }
+  hideBadgePanel();
 }
 
 function readNavidromeCredentials(username) {
@@ -361,6 +512,9 @@ const state = {
   activePeriod: null,
   activeRange: null,
   lowDataFallback: false,
+  badgeType: 'artist',
+  badgeColor: 'c084fc',
+  badgeId: null,
 };
 
 const serviceSelector = createServiceSelector();
@@ -515,6 +669,26 @@ downloadBtn.addEventListener('click', () => {
   link.href = canvas.toDataURL('image/png');
   link.click();
 });
+
+badgeTypeChips.forEach((chip) => {
+  chip.addEventListener('click', () => {
+    state.badgeType = chip.dataset.badgeType;
+    setActiveBadgeChip(badgeTypeChips, 'badgeType', state.badgeType);
+    refreshBadgePreview();
+  });
+});
+
+badgeSwatches.forEach((swatch) => {
+  swatch.addEventListener('click', () => {
+    state.badgeColor = swatch.dataset.badgeColor;
+    setActiveBadgeChip(badgeSwatches, 'badgeColor', state.badgeColor);
+    refreshBadgePreview();
+  });
+});
+
+if (badgeCopyBtn) {
+  badgeCopyBtn.addEventListener('click', copyBadgeMarkdown);
+}
 
 if (artworkUploadBtn && artworkUploadInput) {
   artworkUploadBtn.addEventListener('click', () => artworkUploadInput.click());
@@ -1405,6 +1579,7 @@ async function generateWrapped(event) {
     } else {
       setStatus(baseLabel);
     }
+    showBadgePanel();
   } catch (error) {
     console.error(error);
     setStatus(formatErrorWithGuidance(error), 'error');

@@ -22,6 +22,27 @@ Spotify Wrapped-style recap generator for ListenBrainz, Last.fm, and Navidrome. 
 * there's a live counter of total wraps ever generated (idk it seemed cool)
 * officially listed on the [ListenBrainz Enabled Applications](https://wiki.musicbrainz.org/ListenBrainz_Enabled_Applications) page :D
 
+## 🏷️ readme badges
+
+put your top artist in your github profile / website. live shields-style SVG, cached server-side so it won't nuke anything:
+
+```markdown
+![top artist](https://wrapped.devmatei.com/badge/YOUR_USERNAME)
+```
+
+options via query params:
+
+* `type` - `artist` (default), `track`, `genre`, `minutes`
+* `service` - `listenbrainz` (default) or `lastfm`
+* `range` - any period preset, e.g. `this_month`, `this_year`, `all_time`
+* `color` - hex without the `#`, e.g. `color=ff6b9d`
+
+```markdown
+![minutes](https://wrapped.devmatei.com/badge/YOUR_USERNAME?type=minutes&service=lastfm&range=this_month&color=ff6b9d)
+```
+
+**navidrome badges** work differently since your server credentials never touch this app: generate your wrapped, hit "copy readme badge", and the browser publishes just the final numbers (top artist/track/genre/minutes, nothing else) under a private key stored in your browser. the badge URL stays stable across regenerations, only you can update it, and snapshots expire after 60 days unless refreshed.
+
 ## wanna make me slightly richer? (i'm broke lol)
 
 [![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/F1F016B4WM)
@@ -83,6 +104,8 @@ sudo docker compose up -d
 `WRAPPED_COUNT_FILE` (defaults to `data/wrapped-count.txt`)
 `WRAPPED_COUNT_SINCE` - label for when you started counting wraps (ISO date string)
 `APP_RATE_LIMIT_SALT`, `APP_TRUST_PROXY_HEADERS`
+`BADGE_CACHE_TTL` (seconds, default 6h), `BADGE_CACHE_SIZE`
+`BADGE_SNAPSHOT_DIR`, `BADGE_SNAPSHOT_TTL_SECONDS` (default 60 days), `BADGE_SNAPSHOT_MAX_COUNT`
 
 ### why it exists
 

@@ -527,6 +527,88 @@ select {
   gap: 0.5rem;
 }
 
+.badge-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.75rem 0.85rem;
+  border-radius: 10px;
+  border: 1px solid var(--card-border);
+  background: rgba(21, 18, 34, 0.4);
+}
+
+.badge-panel__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.badge-chip {
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+}
+
+.badge-chip:hover {
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.badge-chip.is-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.badge-swatch {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  background: var(--swatch);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.badge-swatch:hover {
+  transform: scale(1.12);
+}
+
+.badge-swatch.is-active {
+  border-color: var(--text);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.badge-panel__preview {
+  display: flex;
+  align-items: center;
+  min-height: 32px;
+}
+
+.badge-panel__preview img {
+  height: 28px;
+  max-width: 100%;
+}
+
+.badge-panel__actions {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.badge-panel__hint {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0;
+}
+
 .artwork-source {
   display: flex;
   flex-direction: column;

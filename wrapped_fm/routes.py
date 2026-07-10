@@ -16,7 +16,15 @@ from flask import (
     send_file,
 )
 
+from .badge import badge_label, build_badge, normalise_badge_color, normalise_badge_type, render_badge_svg
+from .badge_store import (
+    BadgeStoreFullError,
+    SnapshotInvalidError,
+    fetch_snapshot,
+    store_snapshot,
+)
 from .config import (
+    BADGE_SNAPSHOT_TTL_SECONDS,
     IMAGE_RATE_LIMIT,
     STATS_RATE_LIMIT,
     TEMP_ARTWORK_MAX_BYTES,
@@ -236,6 +244,53 @@ def period_options_api() -> Response:
     payload = describe_for_client()
     response = jsonify(payload)
     response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@bp.route("/badge/<username>")
+@rate_limit(STATS_RATE_LIMIT)
+def get_badge(username: str) -> Response:
+    service = _resolve_stats_service()
+    range_obj = _resolve_date_range()
+    badge_type = normalise_badge_type(request.args.get("type"))
+    color = normalise_badge_color(request.args.get("color"))
+    svg = build_badge(service, username, badge_type, color, range_obj)
+    response = current_app.response_class(svg, mimetype="image/svg+xml")
+    response.headers["Cache-Control"] = "public, max-age=3600"
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    return response
+
+
+@bp.route("/api/badge/publish", methods=["POST"])
+@rate_limit(IMAGE_RATE_LIMIT)
+def publish_badge_snapshot() -> Response:
+    payload = request.get_json(silent=True) or {}
+    try:
+        badge_id = store_snapshot(payload.get("secret"), payload.get("values"))
+    except SnapshotInvalidError as exc:
+        abort(400, description=str(exc))
+    except BadgeStoreFullError:
+        abort(503, description="Badge storage is full, try again later.")
+    return jsonify({"badge_id": badge_id, "expires_in": BADGE_SNAPSHOT_TTL_SECONDS})
+
+
+@bp.route("/badge/nv/<badge_id>")
+@rate_limit(STATS_RATE_LIMIT)
+def get_navidrome_badge(badge_id: str) -> Response:
+    badge_type = normalise_badge_type(request.args.get("type"))
+    color = normalise_badge_color(request.args.get("color"))
+    snapshot = fetch_snapshot(badge_id)
+    if snapshot is None:
+        svg = render_badge_svg(badge_label(badge_type), "expired", "9f9f9f")
+        max_age = 300
+    else:
+        value = snapshot.get(badge_type) or "unavailable"
+        svg = render_badge_svg(badge_label(badge_type), value, color)
+        max_age = 3600
+    response = current_app.response_class(svg, mimetype="image/svg+xml")
+    response.headers["Cache-Control"] = f"public, max-age={max_age}"
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
 

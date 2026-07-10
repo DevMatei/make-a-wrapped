@@ -407,6 +407,31 @@
                   keeping this running isn't free and i'm a teen working on this between classes. if you'd like to <a href="https://ko-fi.com/devmatei">support the project</a>, it would mean a lot. no pressure though.
                 </p>
             </section>
+            <div class="badge-panel" id="badge-panel" hidden>
+              <label class="form__label">readme badge</label>
+              <div class="badge-panel__row" id="badge-type-chips" role="group" aria-label="badge stat">
+                <button type="button" class="badge-chip is-active" data-badge-type="artist">top artist</button>
+                <button type="button" class="badge-chip" data-badge-type="track">top track</button>
+                <button type="button" class="badge-chip" data-badge-type="genre">top genre</button>
+                <button type="button" class="badge-chip" data-badge-type="minutes">minutes</button>
+              </div>
+              <div class="badge-panel__row" id="badge-color-swatches" role="group" aria-label="badge color">
+                <button type="button" class="badge-swatch is-active" data-badge-color="c084fc" style="--swatch: #c084fc" aria-label="lavender"></button>
+                <button type="button" class="badge-swatch" data-badge-color="6ee7b7" style="--swatch: #6ee7b7" aria-label="mint"></button>
+                <button type="button" class="badge-swatch" data-badge-color="fbbf24" style="--swatch: #fbbf24" aria-label="sunset"></button>
+                <button type="button" class="badge-swatch" data-badge-color="f472b6" style="--swatch: #f472b6" aria-label="pink"></button>
+              </div>
+              <div class="badge-panel__preview">
+                <img id="badge-preview" alt="badge preview" hidden>
+                <span id="badge-preview-status" class="badge-panel__hint">loading preview...</span>
+              </div>
+              <div class="badge-panel__actions">
+                <button type="button" class="btn btn--ghost" id="badge-copy-btn">copy markdown</button>
+              </div>
+              <p class="badge-panel__hint">
+                live badge for your github readme or website. updates with your listens. navidrome badges only share the stats you see here, never your credentials, and refresh when you regenerate.
+              </p>
+            </div>
             <div class="artwork-controls">
               <label class="form__label">artwork options</label>
               <div class="artwork-controls__buttons">

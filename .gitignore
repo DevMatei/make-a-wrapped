@@ -6,4 +6,5 @@ __pycache__
 .DS_Store
 .vscode
 data/wrapped-count.txt
+data/badges/
 .dev.log
