@@ -19,6 +19,18 @@ export function createServiceSelector() {
     return (serviceInput && serviceInput.value) || 'listenbrainz';
   }
 
+  function getInitialValue() {
+    try {
+      const param = new URLSearchParams(window.location.search).get('service');
+      if (param && serviceOptions.some((option) => option.dataset.value === param)) {
+        return param;
+      }
+    } catch (error) {
+      // ignore, fall back to the input default
+    }
+    return getValue();
+  }
+
   function updateSelection(value, labelText) {
     if (!serviceDropdown) {
       return;
@@ -115,7 +127,7 @@ export function createServiceSelector() {
     if (serviceMenu) {
       serviceMenu.setAttribute('aria-hidden', 'true');
     }
-    updateSelection(getValue());
+    updateSelection(getInitialValue());
   }
 
   function withService(path) {

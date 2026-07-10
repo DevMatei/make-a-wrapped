@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <title>Navidrome Wrapped - Spotify Wrapped for your self-hosted music | Make a Wrapped</title>
+    <meta name="description" content="Generate a Navidrome Wrapped from your self-hosted music server. Top artists, tracks, genres, and listening time, computed in your browser. Your credentials never leave it.">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <meta name="author" content="DevMatei">
+    <link rel="canonical" href="https://wrapped.devmatei.com/navidrome-wrapped">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Navidrome Wrapped - Spotify Wrapped for your self-hosted music">
+    <meta property="og:description" content="Turn your Navidrome server's play counts into a shareable Wrapped poster. Runs in your browser, credentials never leave it.">
+    <meta property="og:url" content="https://wrapped.devmatei.com/navidrome-wrapped">
+    <meta property="og:image" content="https://github.com/user-attachments/assets/56c0dcd2-b111-4978-ac1f-2ae802f00237">
+    <meta property="og:site_name" content="Make a Wrapped">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Navidrome Wrapped - Spotify Wrapped for your self-hosted music">
+    <meta name="twitter:description" content="Turn your Navidrome server's play counts into a shareable Wrapped poster.">
+    <meta name="twitter:image" content="https://github.com/user-attachments/assets/56c0dcd2-b111-4978-ac1f-2ae802f00237">
+    <meta name="theme-color" content="#c084fc">
+    <meta name="color-scheme" content="dark">
+    <link rel="icon" type="image/svg+xml" href="favicon-lavender.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="favicon-lavender-180.png">
+    <link rel="stylesheet" href="style.css">
+    <style>
+      .landing { max-width: 720px; margin: 0 auto; display: grid; gap: 1.25rem; }
+      .landing .card__body p { margin-bottom: 0.75rem; }
+      .landing h2 { margin-bottom: 0.5rem; }
+      .landing .btn { display: inline-block; text-decoration: none; margin-top: 0.5rem; }
+    </style>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": "Navidrome Wrapped",
+        "url": "https://wrapped.devmatei.com/navidrome-wrapped",
+        "description": "Generate a Spotify Wrapped style poster from your self-hosted Navidrome server, computed entirely in your browser.",
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "Make a Wrapped",
+          "url": "https://wrapped.devmatei.com/"
+        }
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Does my Navidrome password leave my browser?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. The stats are computed client-side. Your browser talks directly to your Navidrome server using standard Subsonic token auth, nothing is sent to or stored on the Make a Wrapped server."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "What do I need to generate a Navidrome Wrapped?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Your Navidrome server URL, username, and password. The server needs to be reachable from your browser."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I pick a custom time period?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. This year, last month, or any custom range, based on the play dates your server reports."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is Navidrome Wrapped free?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes, completely free and open source under AGPL-3.0. You can self-host the whole thing next to your Navidrome instance."
+            }
+          }
+        ]
+      }
+    </script>
+    <script defer src="https://analytics.devmatei.com/script.js" data-website-id="a24ad413-b9c9-4ade-95a0-2c0f6dea6db7"></script>
+  </head>
+  <body>
+    <main class="page">
+      <div class="landing">
+        <section class="card">
+          <div class="card__body">
+            <h1>navidrome wrapped</h1>
+            <p class="intro-copy">
+              you ditched spotify and self-host your music like a champ, but you also lost the yearly wrapped moment. this brings it back. point it at your navidrome server and get a spotify wrapped style poster: top artists, top tracks, top genre, and total listening time from your actual play counts.
+            </p>
+            <a class="btn" href="/?service=navidrome">make your navidrome wrapped</a>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card__body">
+            <h2>your credentials stay in your browser</h2>
+            <p>
+              the whole navidrome scan runs client-side. your browser talks straight to your server over the subsonic api with standard salted token auth, so your password never touches this site's backend. paranoid? good, <a href="https://github.com/DevMatei/make-a-wrapped" rel="noopener noreferrer" target="_blank">read the code</a> or self-host it next to your navidrome instance.
+            </p>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card__body">
+            <h2>how it works</h2>
+            <p>
+              enter your server url, username, and password, pick a time period, hit generate. the app pages through your library, adds up play counts and durations, and builds the poster right there. album art comes straight from your own server, or upload your own image.
+            </p>
+            <p>
+              your server just needs to be reachable from the browser you're using. local network, tailscale, reverse proxy, whatever you've got.
+            </p>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card__body">
+            <h2>faq</h2>
+            <p><strong>does my password get stored anywhere?</strong> no. it's only used in your browser to sign subsonic requests to your own server.</p>
+            <p><strong>which servers work?</strong> built for navidrome. other subsonic-compatible servers may work if they report per-song play counts, no promises tho.</p>
+            <p><strong>custom periods?</strong> yes, any month or year based on the play dates your server reports.</p>
+            <p><strong>is it free?</strong> yes, open source under agpl.</p>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card__body">
+            <h2>not on navidrome?</h2>
+            <p>
+              the same generator works with <a href="/">listenbrainz</a> and <a href="/lastfm-wrapped">last.fm</a> too. same poster, different source.
+            </p>
+            <p>
+              not affiliated with navidrome or spotify. just a fan project by <a href="https://devmatei.com" rel="noopener noreferrer" target="_blank">devmatei</a>.
+            </p>
+          </div>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

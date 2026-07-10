@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <title>Last.fm Wrapped - free Spotify Wrapped for your scrobbles | Make a Wrapped</title>
+    <meta name="description" content="Generate a Last.fm Wrapped any time of year. Top artists, tracks, genre, and listening minutes from your scrobbles, no login needed. Free and open source.">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+    <meta name="author" content="DevMatei">
+    <link rel="canonical" href="https://wrapped.devmatei.com/lastfm-wrapped">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Last.fm Wrapped - free Spotify Wrapped for your scrobbles">
+    <meta property="og:description" content="Turn your Last.fm scrobbles into a shareable Wrapped poster for any month or year. No login, just your username.">
+    <meta property="og:url" content="https://wrapped.devmatei.com/lastfm-wrapped">
+    <meta property="og:image" content="https://github.com/user-attachments/assets/56c0dcd2-b111-4978-ac1f-2ae802f00237">
+    <meta property="og:site_name" content="Make a Wrapped">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Last.fm Wrapped - free Spotify Wrapped for your scrobbles">
+    <meta name="twitter:description" content="Turn your Last.fm scrobbles into a shareable Wrapped poster for any month or year.">
+    <meta name="twitter:image" content="https://github.com/user-attachments/assets/56c0dcd2-b111-4978-ac1f-2ae802f00237">
+    <meta name="theme-color" content="#c084fc">
+    <meta name="color-scheme" content="dark">
+    <link rel="icon" type="image/svg+xml" href="favicon-lavender.svg">
+    <link rel="apple-touch-icon" sizes="180x180" href="favicon-lavender-180.png">
+    <link rel="stylesheet" href="style.css">
+    <style>
+      .landing { max-width: 720px; margin: 0 auto; display: grid; gap: 1.25rem; }
+      .landing .card__body p { margin-bottom: 0.75rem; }
+      .landing h2 { margin-bottom: 0.5rem; }
+      .landing .btn { display: inline-block; text-decoration: none; margin-top: 0.5rem; }
+    </style>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebPage",
+        "name": "Last.fm Wrapped",
+        "url": "https://wrapped.devmatei.com/lastfm-wrapped",
+        "description": "Generate a Spotify Wrapped style poster from your Last.fm scrobbles for any month or year.",
+        "isPartOf": {
+          "@type": "WebSite",
+          "name": "Make a Wrapped",
+          "url": "https://wrapped.devmatei.com/"
+        }
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+          {
+            "@type": "Question",
+            "name": "Do I need to log in to my Last.fm account?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. Last.fm listening data is public, so you only type your username. No password, no OAuth, no account connection."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Can I make a Last.fm Wrapped for a specific month?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes. Pick this year, last month, or any custom month or year. You are not stuck waiting for December."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "How is listening time calculated for Last.fm?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Last.fm does not expose total listening time, so it is estimated from your scrobble count and the actual track lengths of your most played songs."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Is Last.fm Wrapped free?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Yes, completely free and open source under AGPL-3.0. You can also self-host it."
+            }
+          }
+        ]
+      }
+    </script>
+    <script defer src="https://analytics.devmatei.com/script.js" data-website-id="a24ad413-b9c9-4ade-95a0-2c0f6dea6db7"></script>
+  </head>
+  <body>
+    <main class="page">
+      <div class="landing">
+        <section class="card">
+          <div class="card__body">
+            <h1>last.fm wrapped</h1>
+            <p class="intro-copy">
+              you've been scrobbling for years and all you get is a yearly playback page. this turns your last.fm history into an actual spotify wrapped style poster: top artists, top tracks, top genre, and estimated listening minutes. any month, any year, whenever you feel like it.
+            </p>
+            <a class="btn" href="/?service=lastfm">make your last.fm wrapped</a>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card__body">
+            <h2>how it works</h2>
+            <p>
+              type your last.fm username, pick a time period, hit generate. that's it. your scrobbles are public on last.fm so there's no login and no password, we just read the same data anyone can see on your profile.
+            </p>
+            <p>
+              artist artwork gets pulled automatically from last.fm (with musicbrainz and wikidata as backup), or you can upload and position your own image. a few themes to pick from, then save the poster and post it wherever.
+            </p>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card__body">
+            <h2>faq</h2>
+            <p><strong>do i need my last.fm password?</strong> no. just the username.</p>
+            <p><strong>can i pick a random month from two years ago?</strong> yes. custom date ranges are the whole point.</p>
+            <p><strong>how are the minutes calculated?</strong> last.fm doesn't give total listening time, so it's estimated from your scrobble count times the real lengths of your most played tracks. close enough to brag with.</p>
+            <p><strong>is it free?</strong> yes, and open source (agpl). <a href="https://github.com/DevMatei/make-a-wrapped" rel="noopener noreferrer" target="_blank">code's on github</a> if you want to self-host.</p>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card__body">
+            <h2>not on last.fm?</h2>
+            <p>
+              the same generator works with <a href="/">listenbrainz</a> and self-hosted <a href="/navidrome-wrapped">navidrome</a> too. same poster, different source.
+            </p>
+            <p>
+              not affiliated with last.fm or spotify. just a fan project by <a href="https://devmatei.com" rel="noopener noreferrer" target="_blank">devmatei</a>.
+            </p>
+          </div>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

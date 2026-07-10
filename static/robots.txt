@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /top/
+Disallow: /time/
+Disallow: /artwork/
+Disallow: /metrics/
+
+Sitemap: https://wrapped.devmatei.com/sitemap.xml

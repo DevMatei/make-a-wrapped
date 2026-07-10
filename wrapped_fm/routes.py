@@ -191,6 +191,16 @@ def root() -> Response:
     return current_app.send_static_file("index.html")
 
 
+@bp.route("/lastfm-wrapped")
+def lastfm_landing() -> Response:
+    return current_app.send_static_file("lastfm-wrapped.html")
+
+
+@bp.route("/navidrome-wrapped")
+def navidrome_landing() -> Response:
+    return current_app.send_static_file("navidrome-wrapped.html")
+
+
 def _client_config_payload() -> dict:
     return {
         "turnstileEnabled": bool(TURNSTILE_ENABLED),
