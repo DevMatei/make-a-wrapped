@@ -243,12 +243,9 @@ def _collect_artist_candidates(
     range_obj: Optional[DateRange] = None,
 ) -> List[Tuple[str, Optional[str]]]:
     if service == "lastfm":
+        # mbids are only needed by the MusicBrainz fallback; resolve them lazily there
         artists = get_lastfm_top_artists(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj)
-        candidates: List[Tuple[str, Optional[str]]] = []
-        for name in artists:
-            mbid = search_artist_mbid(name) or None
-            candidates.append((name, mbid))
-        return candidates
+        return [(name, None) for name in artists]
 
     artists = get_top_artists_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj)
     if not artists and range_obj and range_obj.is_custom:
@@ -321,10 +318,9 @@ def _download_cover_art(release_mbid: str, caa_release_mbid: Optional[str]) -> O
         return None
 
     release_identifier = caa_release_mbid or release_mbid
+    # CAA only serves 250/500/1200 thumbnails
     endpoints = [
         f"{COVER_ART_API}/{release_identifier}/front-1200",
-        f"{COVER_ART_API}/{release_identifier}/front-1000",
-        f"{COVER_ART_API}/{release_identifier}/front-800",
         f"{COVER_ART_API}/{release_identifier}/front-500",
         f"{COVER_ART_API}/{release_identifier}/front-250",
         f"{COVER_ART_API}/{release_identifier}/front",
@@ -402,7 +398,8 @@ def fetch_top_artist_image(
                         content_type, content = art
                         return ImageResult(content_type or "image/jpeg", content, max(queue_position - 1, 0))
 
-                for _, artist_mbid in artist_candidates:
+                for artist_name, artist_mbid in artist_candidates:
+                    artist_mbid = artist_mbid or search_artist_mbid(artist_name)
                     if not artist_mbid:
                         continue
                     art = _download_artist_image(artist_mbid)
