@@ -1829,17 +1829,29 @@ async function updateListenBrainzSections(username, sections) {
     });
   }
 
-  for (const task of queue) {
+  const runTask = async (task) => {
     try {
       await task.run();
+      return null;
     } catch (error) {
       if (isLikelyNetworkError(error)) {
         console.warn(`Network error loading ${task.section}`, error);
         handleSectionNetworkFailure(task.section, error.message);
-        continue;
+        return null;
       }
-      throw error;
+      return error;
     }
+  };
+
+  if (isTurnstileEnabled()) {
+    // turnstile tokens are single-use, so stay sequential when it is on
+    for (const task of queue) {
+      const error = await runTask(task);
+      if (error) throw error;
+    }
+  } else {
+    const errors = (await Promise.all(queue.map(runTask))).filter(Boolean);
+    if (errors.length) throw errors[0];
   }
 
   if (!sections.includes('artists') && Array.isArray(state.generatedData.artists)) {

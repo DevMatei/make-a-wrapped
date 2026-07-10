@@ -1,9 +1,7 @@
 import {
   NAVIDROME_SONG_PAGE_SIZE,
-  NAVIDROME_REQUEST_DELAY_MS,
   NAVIDROME_CONCURRENT_REQUESTS,
 } from './constants.js';
-import { delay } from './helpers.js';
 
 function getCurrentYearRange(referenceDate = new Date()) {
   const year = referenceDate.getUTCFullYear();
@@ -137,9 +135,8 @@ export async function collectNavidromeStats(api, progressCallback = () => {}, ra
 
   async function fetchAndProcessBatch(offset) {
     const batch = await fetchSongsBatch(api, offset, NAVIDROME_SONG_PAGE_SIZE);
-    if (!batch.length) {
+    if (batch.length < NAVIDROME_SONG_PAGE_SIZE) {
       reachedEnd = true;
-      return 0;
     }
     for (const song of batch) {
       processSong(song);
@@ -147,39 +144,23 @@ export async function collectNavidromeStats(api, progressCallback = () => {}, ra
     totalSongsFetched += batch.length;
     const progress = Math.min(90, (totalSongsFetched / 10000) * 80);
     progressCallback(progress, `Fetched ${totalSongsFetched} songs`, 'songs');
-    return batch.length;
   }
 
   async function runWithConcurrency() {
-    const activePromises = new Set();
-
-    while (!reachedEnd) {
-      while (activePromises.size < NAVIDROME_CONCURRENT_REQUESTS && !reachedEnd) {
+    async function worker() {
+      while (!reachedEnd) {
         const offset = nextOffset;
         nextOffset += NAVIDROME_SONG_PAGE_SIZE;
-
-        const promise = fetchAndProcessBatch(offset)
-          .catch((error) => {
-            console.error('Batch fetch error:', error);
-            reachedEnd = true;
-            return 0;
-          })
-          .finally(() => {
-            activePromises.delete(promise);
-          });
-
-        activePromises.add(promise);
-        await delay(NAVIDROME_REQUEST_DELAY_MS);
-      }
-
-      if (activePromises.size) {
-        await Promise.race(activePromises);
+        try {
+          await fetchAndProcessBatch(offset);
+        } catch (error) {
+          console.error('Batch fetch error:', error);
+          reachedEnd = true;
+        }
       }
     }
 
-    if (activePromises.size) {
-      await Promise.allSettled(activePromises);
-    }
+    await Promise.all(Array.from({ length: NAVIDROME_CONCURRENT_REQUESTS }, worker));
   }
 
   await runWithConcurrency();
