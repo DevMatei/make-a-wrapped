@@ -24,7 +24,7 @@ limiter: Optional["Limiter"] = None
 
 def _resolve_client_ip(current_request: Request) -> str:
     if TRUST_PROXY_HEADERS:
-        forwarded_for = current_request.headers.get("X-Forwarded-#For", "")
+        forwarded_for = current_request.headers.get("X-Forwarded-For", "")
         if forwarded_for:
             candidate = forwarded_for.split(",")[0].strip()
             if candidate:

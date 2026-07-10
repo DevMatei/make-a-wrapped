@@ -63,6 +63,8 @@ from .turnstile import require_turnstile
 logger = logging.getLogger("wrapped_fm")
 bp = Blueprint("wrapped_routes", __name__)
 SUPPORTED_STATS_SERVICES = {"listenbrainz", "lastfm"}
+# raster only, no SVG (can carry scripts and we serve it from our origin)
+ALLOWED_ARTWORK_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
 
 
 def _resolve_stats_service() -> str:
@@ -250,9 +252,9 @@ def upload_custom_artwork() -> Response:
         abort(400, description="Empty artwork file")
     if len(data) > TEMP_ARTWORK_MAX_BYTES:
         abort(413, description="Artwork exceeds size limit")
-    content_type = uploaded_file.mimetype or "application/octet-stream"
-    if "image" not in content_type.lower():
-        abort(400, description="Artwork must be an image")
+    content_type = (uploaded_file.mimetype or "").split(";")[0].strip().lower()
+    if content_type not in ALLOWED_ARTWORK_TYPES:
+        abort(400, description="Artwork must be a PNG, JPEG, WebP, or GIF image")
     token = store_artwork(data, content_type)
     return jsonify({"token": token, "expires_in": TEMP_ARTWORK_TTL_SECONDS})
 
@@ -265,6 +267,8 @@ def fetch_custom_artwork(token: str) -> Response:
         abort(404, description="Artwork expired")
     except ArtworkExpiredError:
         abort(410, description="Artwork expired")
+    if content_type not in ALLOWED_ARTWORK_TYPES:
+        content_type = "application/octet-stream"
     response = send_file(
         io.BytesIO(data),
         mimetype=content_type,
@@ -272,6 +276,8 @@ def fetch_custom_artwork(token: str) -> Response:
         download_name=f"artwork-{token}.img",
     )
     response.headers["Cache-Control"] = "no-store"
+    response.headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+    response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
 
