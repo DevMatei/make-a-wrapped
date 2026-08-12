@@ -401,12 +401,13 @@
                 couldn't load the artist image, download unavailable.
               </span>
             </div>
-            <section class="support-banner" aria-label="Project support message">
-              <div class="support-banner__text">
-                <p>
-                  keeping this running isn't free and i'm a teen working on this between classes. if you'd like to <a href="https://ko-fi.com/devmatei">support the project</a>, it would mean a lot. no pressure though.
-                </p>
-            </section>
+            <div
+              data-devmatei-ad
+              data-tier="text"
+              data-max-width="100%"
+              data-radius="16px"
+              data-fallback-text="keeping this running isn't free and i'm a teen working on this between classes. if you'd like to support the project, it would mean a lot. no pressure though."
+            ></div>
             <div class="badge-panel" id="badge-panel" hidden>
               <label class="form__label">readme badge</label>
               <div class="badge-panel__row" id="badge-type-chips" role="group" aria-label="badge stat">
@@ -486,6 +487,14 @@
         </section>
       </div>
 
+      <div
+        data-devmatei-ad
+        data-tier="banner"
+        data-max-width="100%"
+        data-radius="16px"
+        data-fallback-text="your project could be here"
+      ></div>
+
       <footer class="footer-bento">
         <section class="card card--repo" aria-label="Project links">
           <div class="card__body">
@@ -561,5 +570,6 @@
     </main>
 
     <img id="artist-img" src="img/black.png" alt="" hidden>
+  <script async src="https://sponsor.devmatei.com/embed/ad.js"></script>
   </body>
 </html>
