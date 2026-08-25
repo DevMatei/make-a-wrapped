@@ -22,21 +22,26 @@ except ImportError: #pragma: no cover - optional depedency
 limiter: Optional["Limiter"] = None
 
 
-def _resolve_client_ip(current_request: Request) -> str:
+def resolve_client_ip(current_request: Request) -> str:
     if TRUST_PROXY_HEADERS:
-        forwarded_for = current_request.headers.get("X-Forwarded-For", "")
-        if forwarded_for:
-            candidate = forwarded_for.split(",")[0].strip()
-            if candidate:
-                return candidate
-        real_ip = current_request.headers.get("X-Real-IP")
+        connecting_ip = current_request.headers.get("CF-Connecting-IP", "").strip()
+        if connecting_ip:
+            return connecting_ip
+        real_ip = current_request.headers.get("X-Real-IP", "").strip()
         if real_ip:
-            return real_ip.strip()
+            return real_ip
+        forwarded_for = [
+            part.strip()
+            for part in current_request.headers.get("X-Forwarded-For", "").split(",")
+            if part.strip()
+        ]
+        if forwarded_for:
+            return forwarded_for[-1]
     return current_request.remote_addr or "0.0.0.0"
 
 
 def _rate_limit_key() -> str:
-    client_ip = _resolve_client_ip(request)
+    client_ip = resolve_client_ip(request)
     seed = f"{client_ip}|{RATE_LIMIT_SALT}".encode("utf-8")
     return hashlib.blake2s(seed, digest_size=16).hexdigest()
 

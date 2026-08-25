@@ -93,7 +93,7 @@ def store_snapshot(secret: str, values) -> str:
             _prune_expired_locked()
             if _count_snapshots() >= BADGE_SNAPSHOT_MAX_COUNT:
                 raise BadgeStoreFullError
-        tmp_path = f"{path}.tmp"
+        tmp_path = f"{path}.{os.getpid()}.tmp"
         with open(tmp_path, "w", encoding="utf-8") as handle:
             json.dump({"values": cleaned, "updated_at": time.time()}, handle)
         os.replace(tmp_path, path)

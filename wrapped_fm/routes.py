@@ -75,6 +75,9 @@ SUPPORTED_STATS_SERVICES = {"listenbrainz", "lastfm"}
 ALLOWED_ARTWORK_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
 
 
+BADGE_SANDBOX_POLICY = "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+
+
 def _resolve_stats_service() -> str:
     service = (request.args.get("service") or "listenbrainz").strip().lower()
     if service not in SUPPORTED_STATS_SERVICES:
@@ -258,6 +261,8 @@ def get_badge(username: str) -> Response:
     response = current_app.response_class(svg, mimetype="image/svg+xml")
     response.headers["Cache-Control"] = "public, max-age=3600"
     response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Content-Security-Policy"] = BADGE_SANDBOX_POLICY
     return response
 
 
@@ -291,6 +296,7 @@ def get_navidrome_badge(badge_id: str) -> Response:
     response.headers["Cache-Control"] = f"public, max-age={max_age}"
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Content-Security-Policy"] = BADGE_SANDBOX_POLICY
     return response
 
 
@@ -300,6 +306,7 @@ def get_wrapped_metric() -> Response:
 
 
 @bp.route("/metrics/wrapped", methods=["POST"])
+@rate_limit(STATS_RATE_LIMIT)
 def increment_wrapped_metric() -> Response:
     count = increment_wrapped_count()
     return jsonify({"count": count, "since": WRAPPED_COUNT_SINCE})
@@ -484,6 +491,9 @@ def get_top_artist_img(username: str) -> Response:
     range_obj = _resolve_date_range()
     try:
         image_result = fetch_top_artist_image(username, preferred_source=source, service=service, range_obj=range_obj)
+        content_type = (image_result.content_type or "").split(";")[0].strip().lower()
+        if content_type not in ALLOWED_ARTWORK_TYPES:
+            raise ImageUnavailableError
     except ImageQueueFullError:
         abort(429, description="Image queue is full, try again in a moment.")
     except ImageQueueBusyError:
@@ -501,8 +511,10 @@ def get_top_artist_img(username: str) -> Response:
         _set_period_header(response, range_obj)
         return response
 
-    response = Response(image_result.content, content_type=image_result.content_type or "image/jpeg")
+    response = Response(image_result.content, content_type=content_type or "image/jpeg")
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["X-Image-Queue-Position"] = str(image_result.queue_position)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Content-Security-Policy"] = BADGE_SANDBOX_POLICY
     _set_period_header(response, range_obj)
     return response

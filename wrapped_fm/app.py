@@ -10,6 +10,7 @@ load_dotenv()
 
 from flask import Flask
 
+from .config import TEMP_ARTWORK_MAX_BYTES
 from .rate_limiter import init_rate_limiter
 from .routes import bp as routes_bp
 
@@ -19,6 +20,7 @@ STATIC_DIR = BASE_DIR / "static"
 
 def create_app() -> Flask:
     app = Flask(__name__, static_url_path="", static_folder=str(STATIC_DIR))
+    app.config["MAX_CONTENT_LENGTH"] = TEMP_ARTWORK_MAX_BYTES + (1024 * 1024)
     init_rate_limiter(app)
     app.register_blueprint(routes_bp)
 

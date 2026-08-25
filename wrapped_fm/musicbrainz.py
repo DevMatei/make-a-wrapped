@@ -121,9 +121,7 @@ def normalise_image_resource(resource: str) -> Optional[str]:
         if "width=" not in lowered:
             return f"{resource}?width=1200"
         return resource
-    if "upload.wikimedia.org" in lowered:
-        return resource
-    if lowered.endswith((".jpg", ".jpeg", ".png", ".webp", ".gif")):
+    if lowered.startswith("https://upload.wikimedia.org/"):
         return resource
     return None
 

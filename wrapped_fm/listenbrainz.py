@@ -79,24 +79,23 @@ def _fetch_listenbrainz_uncached(path: str, params: Optional[Dict[str, str]], ti
 
     content_type = response.headers.get("Content-Type", "")
     if "application/json" not in content_type:
-        abort(
-            502,
-            description=(
-                "Unexpected response from ListenBrainz "
-                f"(status {response.status_code}, content-type {content_type}): {_snippet() or 'empty body'}"
-            ),
+        logger.warning(
+            "ListenBrainz non-json response status=%s type=%s body=%s",
+            response.status_code,
+            content_type,
+            _snippet() or "empty",
         )
+        abort(502, description="Unexpected response from ListenBrainz")
 
     try:
         data = response.json()
     except ValueError:
-        abort(
-            502,
-            description=(
-                "Unable to decode ListenBrainz response as JSON "
-                f"(status {response.status_code}): {_snippet() or 'empty body'}"
-            ),
+        logger.warning(
+            "ListenBrainz undecodable response status=%s body=%s",
+            response.status_code,
+            _snippet() or "empty",
         )
+        abort(502, description="Unable to decode ListenBrainz response")
 
     payload = data.get("payload") if isinstance(data, dict) else None
     if payload is None:

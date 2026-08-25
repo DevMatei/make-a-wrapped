@@ -42,6 +42,12 @@ _BADGE_LABELS = {
     "minutes": "minutes listened",
 }
 
+_XML_ESCAPE_ENTITIES = {'"': "&quot;", "'": "&apos;"}
+
+
+def _escape_xml(text: str) -> str:
+    return escape(text, _XML_ESCAPE_ENTITIES)
+
 
 def normalise_badge_type(raw: Optional[str]) -> str:
     value = (raw or "artist").strip().lower()
@@ -131,9 +137,9 @@ def render_badge_svg(label: str, value: str, color: str) -> str:
     total_width = left_width + right_width
     label_x = (icon_zone + (left_width - icon_zone - 9) / 2) * 10
     value_x = (left_width + right_width / 2) * 10
-    esc_label = escape(label)
-    esc_value = escape(value)
-    aria = escape(f"{label}: {value}")
+    esc_label = _escape_xml(label)
+    esc_value = _escape_xml(value)
+    aria = _escape_xml(f"{label}: {value}")
     value_fill = "#1e1b2e" if _is_light_color(color) else "#ffffff"
     label_shadow = (
         f'<text x="{label_x}" y="192" transform="scale(.1)" fill="#0b0817" fill-opacity=".45" '

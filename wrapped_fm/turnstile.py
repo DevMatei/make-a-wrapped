@@ -12,13 +12,13 @@ from flask import abort, current_app, request
 from requests import RequestException
 
 from .config import (
-    TRUST_PROXY_HEADERS,
     TURNSTILE_CACHE_TTL,
     TURNSTILE_ENABLED,
     TURNSTILE_SECRET_KEY,
     TURNSTILE_TIMEOUT,
     TURNSTILE_VERIFY_URL,
 )
+from .rate_limiter import resolve_client_ip
 
 TURNSTILE_HEADER = "X-Turnstile-Token"
 
@@ -27,16 +27,7 @@ _cache_lock = threading.Lock()
 
 
 def _client_ip() -> str:
-    if TRUST_PROXY_HEADERS:
-        forwarded_for = request.headers.get("X-Forwarded-For", "")
-        if forwarded_for:
-            candidate = forwarded_for.split(",")[0].strip()
-            if candidate:
-                return candidate
-        real_ip = request.headers.get("X-Real-IP")
-        if real_ip:
-            return real_ip.strip()
-    return request.remote_addr or "0.0.0.0"
+    return resolve_client_ip(request)
 
 
 def _extract_turnstile_token() -> Optional[str]:

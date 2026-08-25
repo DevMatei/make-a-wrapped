@@ -131,12 +131,18 @@ def request_with_handling(
     *,
     params: Optional[Dict[str, str]] = None,
     timeout: Optional[float] = None,
+    allow_redirects: bool = True,
 ) -> RequestsResponse:
     """Perform a GET request with shared retry and error handling."""
     last_exc: Optional[Exception] = None
     for attempt in range(3):
         try:
-            response = session.get(url, params=params, timeout=timeout or HTTP_TIMEOUT)
+            response = session.get(
+                url,
+                params=params,
+                timeout=timeout or HTTP_TIMEOUT,
+                allow_redirects=allow_redirects,
+            )
             return response
         except RequestException as exc:
             last_exc = exc

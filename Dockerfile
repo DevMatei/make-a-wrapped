@@ -1,19 +1,19 @@
-# Use the latest official Python image as a base image
-FROM python:latest
+FROM python:3.14-slim
 
-# Set the working directory in the container to /app
 WORKDIR /app
 
-# Copy the requirements.txt file to the working directory
 COPY requirements.txt ./
 
-# Install pip and the Python dependencies listed in requirements.txt
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the rest of the application code to the working directory
 COPY . .
 
-# Specify the command to run the application
-# timeout increased to 120s to accommodate slow image fetching from external APIs
+RUN useradd --uid 1000 --create-home appuser \
+    && mkdir -p /app/data \
+    && chown -R appuser:appuser /app
+
+USER appuser
+
+EXPOSE 8000
+
 CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:8000", "--timeout", "120", "wrapped-fm:app"]

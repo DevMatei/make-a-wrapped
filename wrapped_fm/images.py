@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import ipaddress
 import logging
+import socket
 import threading
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Dict, List, Optional, Tuple
+from urllib.parse import urlparse
 
 from .config import (
     COVER_ART_API,
@@ -42,6 +45,17 @@ from .musicbrainz import (
 
 
 logger = logging.getLogger("wrapped_fm")
+
+SAFE_IMAGE_HOST_SUFFIXES = (
+    "wikimedia.org",
+    "last.fm",
+    "coverartarchive.org",
+    "archive.org",
+    "musicbrainz.org",
+    "images-amazon.com",
+)
+SAFE_IMAGE_HOSTS = {"lastfm.freetls.fastly.net"}
+MAX_IMAGE_REDIRECTS = 3
 
 
 class ImageQueueFullError(Exception):
@@ -83,18 +97,89 @@ def _leave_image_queue() -> None:
         image_queue_size = max(0, image_queue_size - 1)
 
 
-def _fetch_binary_image(url: str) -> Optional[Tuple[str, bytes]]:
+def _is_safe_image_host(host: Optional[str]) -> bool:
+    host = (host or "").lower()
+    if host in SAFE_IMAGE_HOSTS:
+        return True
+    return any(host == suffix or host.endswith("." + suffix) for suffix in SAFE_IMAGE_HOST_SUFFIXES)
+
+
+def _url_is_allowed(url: str) -> bool:
     try:
-        response = request_with_handling(image_session, url)
-    except Exception as exc:
-        logger.debug("image fetch failed: %s", exc)
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    if parsed.scheme != "https":
+        return False
+    return _is_safe_image_host(parsed.hostname)
+
+
+def _host_resolves_publicly(host: str) -> bool:
+    try:
+        infos = socket.getaddrinfo(host, 443, proto=socket.IPPROTO_TCP)
+    except (OSError, UnicodeError):
+        return False
+    if not infos:
+        return False
+    for info in infos:
+        address = info[4][0]
+        try:
+            ip = ipaddress.ip_address(address)
+        except ValueError:
+            return False
+        if (
+            ip.is_private
+            or ip.is_loopback
+            or ip.is_link_local
+            or ip.is_reserved
+            or ip.is_multicast
+            or ip.is_unspecified
+        ):
+            return False
+    return True
+
+
+def _safe_image_fetch(session, url: str):
+    if not _url_is_allowed(url):
+        return None
+    host = urlparse(url).hostname
+    if not host or not _host_resolves_publicly(host):
+        return None
+    current_url = url
+    for _ in range(MAX_IMAGE_REDIRECTS + 1):
+        try:
+            response = request_with_handling(
+                session,
+                current_url,
+                timeout=15,
+                allow_redirects=False,
+            )
+        except Exception as exc:
+            logger.debug("image fetch failed: %s", exc)
+            return None
+        if response.status_code in (301, 302, 303, 307, 308):
+            next_url = response.headers.get("Location")
+            if not next_url or not _url_is_allowed(next_url):
+                return None
+            next_host = urlparse(next_url).hostname
+            if not next_host or not _host_resolves_publicly(next_host):
+                return None
+            current_url = next_url
+            continue
+        return response
+    return None
+
+
+def _fetch_binary_image(url: str) -> Optional[Tuple[str, bytes]]:
+    response = _safe_image_fetch(image_session, url)
+    if response is None:
         return None
     if response.status_code == 404 or response.status_code >= 500:
         return None
     if not response.ok:
         return None
     content_type = response.headers.get("Content-Type", "")
-    if "image" not in content_type.lower():
+    if "image" not in content_type.lower() or "svg" in content_type.lower():
         return None
     content = response.content
     if not content:
@@ -327,20 +412,9 @@ def _download_cover_art(release_mbid: str, caa_release_mbid: Optional[str]) -> O
     ]
 
     for url in endpoints:
-        try:
-            response = request_with_handling(cover_art_session, url)
-        except Exception as exc:
-            logger.debug("CAA fetch failed for %s: %s", url, exc)
+        response = _safe_image_fetch(cover_art_session, url)
+        if response is None:
             continue
-        if response.status_code in (301, 302, 303, 307, 308):
-            redirect_url = response.headers.get("Location")
-            if not redirect_url:
-                continue
-            try:
-                response = request_with_handling(cover_art_session, redirect_url)
-            except Exception as exc:
-                logger.debug("CAA redirect failed: %s", exc)
-                continue
 
         if response.status_code == 404 or response.status_code >= 500:
             continue
@@ -348,7 +422,7 @@ def _download_cover_art(release_mbid: str, caa_release_mbid: Optional[str]) -> O
             continue
 
         content_type = response.headers.get("Content-Type", "")
-        if "image" not in content_type.lower():
+        if "image" not in content_type.lower() or "svg" in content_type.lower():
             continue
         content = response.content
         if not content:
