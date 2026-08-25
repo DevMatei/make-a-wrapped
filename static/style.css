@@ -1133,3 +1133,69 @@ canvas {
     font-size: 1.5rem;
   }
 }
+
+.legal-email-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.legal-email-link:hover {
+  color: var(--accent-strong);
+}
+
+.legal-dialog {
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--text);
+  padding: 1.5rem 1.5rem 1.75rem;
+  max-width: 460px;
+  width: min(92vw, 460px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+}
+
+.legal-dialog::backdrop {
+  background: rgba(10, 8, 18, 0.7);
+}
+
+.legal-dialog h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.25rem;
+}
+
+.legal-dialog p {
+  margin: 0 0 0.75rem;
+  line-height: 1.5;
+}
+
+.legal-dialog__close {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.legal-dialog__close:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.legal-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}

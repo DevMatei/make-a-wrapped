@@ -4,11 +4,11 @@ Spotify Wrapped-style recap generator for ListenBrainz, Last.fm, and Navidrome. 
 
 > [!IMPORTANT]
 > Rebranded to Make a Wrapped (was ListenBrainz Wrapped).
-> Site's back up — if something's broken, open a [GitHub issue](https://github.com/DevMatei/make-a-wrapped/issues/new/choose).
+> Site's back up. if something's broken, open a [GitHub issue](https://github.com/DevMatei/make-a-wrapped/issues/new/choose).
 >
 > New 2025 templates are out!
 
-<img width="3241" height="1362" alt="Make a Wrapped — shareable stats for your scrobbles" src="image.png" />
+<img width="3241" height="1362" alt="Make a Wrapped, shareable stats for your scrobbles" src="image.png" />
 
 ## 🌐 website
 
@@ -119,7 +119,7 @@ I'm Matei ([DevMatei](https://devmatei.com)) - full-stack dev from Moldova. I bu
 
 ## 🤝 contributing
 
-See [CONTRIBUTING.yml](./CONTRIBUTING.yml) for setup, style notes, and the PR checklist. TL;DR: keep PRs focused, run `python -m py_compile wrapped-fm.py`, and attach screenshots for any UI changes.
+See [CONTRIBUTING.md](./.github/CONTRIBUTING.md) for setup, style notes, and the PR checklist. TL;DR: keep PRs focused, run `python -m py_compile wrapped-fm.py`, and attach screenshots for any UI changes.
 
 ## 🧩 to-do
 

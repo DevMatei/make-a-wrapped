@@ -388,8 +388,18 @@
                   autocomplete="current-password"
                 >
               </div>
+              <label class="form__label" for="navidrome-method">stats method</label>
+              <div class="form__field-group">
+                <select id="navidrome-method" name="navidrome-method">
+                  <option value="legacy" selected>Legacy (Subsonic scan)</option>
+                  <option value="experimental">Experimental (Native API)</option>
+                </select>
+              </div>
+              <p class="service-fields__hint" id="navidrome-method-hint">
+                legacy scans all your songs through the subsonic api and counts play counts.
+              </p>
               <p class="service-fields__hint">
-                use your normal login or create an app-specific token. requests go through the subsonic api to your server.
+                use your normal login or create an app-specific token. nothing leaves your browser.
               </p>
             </div>
             <div class="actions">
@@ -539,6 +549,9 @@
             <p>
               not affiliated with spotify, listenbrainz, last.fm, navidrome, or musicbrainz. just a fan project. spotify wrapped belongs to spotify, this is a community alternative.
             </p>
+            <p>
+              got a legal thing to flag, or just want to talk shop? email <a href="#" class="legal-email-link" data-legal-email>legal@devmatei.com</a>.
+            </p>
           </div>
         </section>
 
@@ -570,6 +583,24 @@
     </main>
 
     <img id="artist-img" src="img/black.png" alt="" hidden>
+
+    <dialog id="legal-modal" class="legal-dialog" aria-labelledby="legal-modal-title">
+      <button type="button" class="legal-dialog__close" data-legal-close aria-label="close">×</button>
+      <div class="legal-dialog__body">
+        <h2 id="legal-modal-title">WAIT!</h2>
+        <p>
+          are you from spotify and want to send me a copyright takedown? i have a counter offer: you let me use your templates and i tell everyone spotify helped an open-source project. doesn't that sound like great marketing :0
+        </p>
+        <p>
+          want to chat (or still want to send that takedown)? hit the button and email me.
+        </p>
+        <div class="legal-dialog__actions">
+          <a class="btn" href="mailto:legal@devmatei.com">email legal@devmatei.com</a>
+          <button type="button" class="btn btn--ghost" data-legal-close>nah, i'll keep browsing</button>
+        </div>
+      </div>
+    </dialog>
+
   <script async src="https://sponsor.devmatei.com/embed/ad.js"></script>
   </body>
 </html>

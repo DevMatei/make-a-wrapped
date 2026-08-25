@@ -1,86 +1,56 @@
-# Contributing to Make a Wrapped
+# contributing
 
-First off — thanks for taking the time to contribute! :D  
-This project is open to improvements, bug fixes, and cool ideas from the community.  
-Before you start, please take a moment to read through this guide.
+hey, thanks for wanting to help out :D
 
----
+make a wrapped is a small open source thing that turns your listenbrainz, last.fm, or navidrome history into a spotify wrapped style poster. it's a hobby project, not a company, so the rules are loose. just keep them in mind.
 
-## 🧠 What’s this project?
-**Make a Wrapped** is a small web service that generates a Spotify-style “Wrapped” using data from [ListenBrainz](https://listenbrainz.org/), [MusicBrainz](https://musicbrainz.org/), and a few related APIs — all public, no tokens.
+## setup
 
----
+clone, venv, install, run. the short version:
 
-## 🛠️ Local Setup
+```bash
+git clone https://github.com/DevMatei/make-a-wrapped.git
+cd make-a-wrapped
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+./start.sh 0.0.0.0 5000
+```
 
-1. **Clone the repo**
-   ```bash
-   git clone https://github.com/DevMatei/make-a-wrapped.git
-   cd make-a-wrapped
+then open http://localhost:5000.
 
-2. **Create and activate a virtual environment**
+## code rules
 
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   ```
+keep it readable. clarity beats cleverness.
 
-3. **Install dependencies**
+- follow pep8 for python.
+- add type hints where they help, not everywhere.
+- keep functions small and to the point.
+- commit messages in the `feat:`, `fix:`, `chore:` style.
+- don't commit cache or data files, .gitignore exists for a reason.
+- run `python -m py_compile wrapped-fm.py` before pushing so you don't ship a syntax error.
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+## before you open a pr
 
-4. **Run locally**
+- for big changes, open an issue first so we can agree on the direction.
+- small stuff, like typos or copy fixes, can go straight to a pr.
+- keep prs focused. one feature or one fix per pr, not a kitchen sink.
+- if it's a ui change, attach a screenshot. i need to see what it looks like.
+- fill out the pr template, i actually read it.
 
-   ```bash
-   ./script.sh 0.0.0.0 5000
-   ```
+## where you can help
 
-   Then open [http://localhost:5000](http://localhost:5000).
+- bug reports that show how to reproduce it, plus your browser and os.
+- new integrations, last.fm, navidrome, whatever you're into.
+- perf ideas for the data fetching, caching, and retry logic.
+- translations, i take those gladly.
 
----
+## license
 
-## 🧩 Code Guidelines
+by contributing, you agree your changes get licensed under the same license as the project (see LICENSE).
 
-* Follow **PEP8** for Python formatting.
-* Use **type hints** where possible.
-* Keep functions **small and readable** — clarity over cleverness.
-* Use **descriptive commit messages** (`feat:`, `fix:`, `chore:` style preferred).
-* Don’t commit large cache/data files — use `.gitignore`.
+## the vibe
 
----
+this is a homelab passion project, not a product with a roadmap. i built it because i wanted a wrapped that actually cares about self-hosters. don't resell it, don't rebrand it, and don't hammer the public apis and abuse the rate limits. be nice in issues and code review, assume good faith, and remember everyone's just here for the data crunching.
 
-## 💡 Want to Add Something?
-
-* Open an **issue** first to discuss major changes.
-* For small fixes (typos, doc updates), just open a **pull request** directly.
-* Keep PRs focused — one feature or bug per PR.
-
----
-
-## 🧑‍💻 Example Areas to Contribute
-
-* UI/UX tweaks or redesigns for the Wrapped output.
-* Performance improvements for data fetching.
-* New API integrations (Last.fm, Navidrome, etc.).
-* Translation/localization support.
-* Caching / retry logic improvements.
-
----
-
-## 🧾 License
-
-By contributing, you agree that your contributions will be licensed under the same license as the project (see `LICENSE` file).
-
----
-
-## ☕ Note from the dev
-
-This project exists because Spotify Wrapped doesn’t care about self-hosters.
-If you like it, share it — but please don’t resell, rebrand, or abuse the API rate limits.
-
-Thanks for helping make "Make a Wrapped" more fun 💜
-— **</DevMatei>**
-
-
+that's it. if you made it this far, nice. thanks for helping make it more fun. i'm matei.

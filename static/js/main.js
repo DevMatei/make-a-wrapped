@@ -444,6 +444,23 @@ function readNavidromeCredentials(username) {
   };
 }
 
+const NAVIDROME_METHOD_HINTS = {
+  legacy: 'legacy scans all your songs through the subsonic api and counts play counts.',
+  experimental: 'experimental pulls real per-play scrobble history via the native api. needs an unreleased navidrome build (master only), may break, and could be removed.',
+};
+
+function readNavidromeMethod() {
+  const select = document.getElementById('navidrome-method');
+  return select && select.value === 'experimental' ? 'experimental' : 'legacy';
+}
+
+function updateNavidromeMethodHint() {
+  const hint = document.getElementById('navidrome-method-hint');
+  if (hint) {
+    hint.textContent = NAVIDROME_METHOD_HINTS[readNavidromeMethod()] || NAVIDROME_METHOD_HINTS.legacy;
+  }
+}
+
 function getServiceLabel(key) {
   if (SERVICE_LABELS[key]) {
     return SERVICE_LABELS[key];
@@ -688,6 +705,37 @@ badgeSwatches.forEach((swatch) => {
 
 if (badgeCopyBtn) {
   badgeCopyBtn.addEventListener('click', copyBadgeMarkdown);
+}
+
+const navidromeMethodSelect = document.getElementById('navidrome-method');
+if (navidromeMethodSelect) {
+  navidromeMethodSelect.addEventListener('change', updateNavidromeMethodHint);
+  updateNavidromeMethodHint();
+}
+
+const legalDialog = document.getElementById('legal-modal');
+const legalEmailTriggers = Array.from(document.querySelectorAll('[data-legal-email]'));
+function openLegalDialog() {
+  if (legalDialog && typeof legalDialog.showModal === 'function') {
+    legalDialog.showModal();
+  }
+}
+legalEmailTriggers.forEach((trigger) => {
+  trigger.addEventListener('click', (event) => {
+    event.preventDefault();
+    openLegalDialog();
+  });
+});
+if (legalDialog) {
+  const legalCloseButtons = Array.from(legalDialog.querySelectorAll('[data-legal-close]'));
+  legalCloseButtons.forEach((button) => {
+    button.addEventListener('click', () => legalDialog.close());
+  });
+  legalDialog.addEventListener('click', (event) => {
+    if (event.target === legalDialog) {
+      legalDialog.close();
+    }
+  });
 }
 
 if (artworkUploadBtn && artworkUploadInput) {
@@ -1468,8 +1516,11 @@ async function generateWrapped(event) {
       navidromeCredentials.serverUrl,
       username,
       navidromeCredentials.password,
+      readNavidromeMethod(),
     );
-    setStatus('Navidrome: scanning your library locally. This can take a minute for big collections.');
+    setStatus(readNavidromeMethod() === 'experimental'
+      ? 'Navidrome: (experimental) pulling scrobble history via the native api.'
+      : 'Navidrome: scanning your library locally. This can take a minute for big collections.');
   }
 
   const hasExisting = Boolean(state.generatedData);
