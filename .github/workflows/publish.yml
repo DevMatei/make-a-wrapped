@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - develop
     tags:
       - 'v*'
 
@@ -35,6 +36,7 @@ jobs:
           tags: |
             type=sha,format=short
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=develop,enable=${{ github.ref == 'refs/heads/develop' }}
             type=semver,pattern={{version}}
       - name: Build and Push Docker image
         uses: docker/build-push-action@v6
