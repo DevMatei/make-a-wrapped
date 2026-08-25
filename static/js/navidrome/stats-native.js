@@ -1,5 +1,3 @@
-import { NAVIDROME_SONG_CONCURRENCY } from './constants.js';
-
 function getRangeWindow(range) {
   if (!range || !Number.isFinite(range.startTs) || !Number.isFinite(range.endTs)) {
     const year = new Date().getUTCFullYear();
@@ -26,21 +24,7 @@ function collectArtists(meta) {
 }
 
 async function fetchSongMetadata(nativeApi, ids) {
-  const cache = new Map();
-  let index = 0;
-  async function worker() {
-    while (index < ids.length) {
-      const id = ids[index];
-      index += 1;
-      try {
-        cache.set(id, await nativeApi.fetchSong(id));
-      } catch (error) {
-        cache.set(id, null);
-      }
-    }
-  }
-  await Promise.all(Array.from({ length: Math.min(NAVIDROME_SONG_CONCURRENCY, ids.length) }, worker));
-  return cache;
+  return nativeApi.fetchSongs(ids);
 }
 
 export async function collectNavidromeStatsNative(nativeApi, progressCallback = () => {}, range = null) {
