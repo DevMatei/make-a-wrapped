@@ -1,6 +1,6 @@
 # 🎧 Make a Wrapped
 
-Spotify Wrapped-style recap generator for ListenBrainz, Last.fm, and Navidrome. Built with Flask.
+Spotify Wrapped-style recap generator for ListenBrainz, Last.fm, Libre.fm, and Navidrome. Built with Flask.
 
 > [!IMPORTANT]
 > Rebranded to Make a Wrapped (was ListenBrainz Wrapped).
@@ -16,7 +16,7 @@ Spotify Wrapped-style recap generator for ListenBrainz, Last.fm, and Navidrome. 
 
 ## 💡 why it's cool
 
-* pulls from ListenBrainz, Last.fm, Navidrome, MusicBrainz, Cover Art Archive, and Wikidata. all public, no tokens needed (except the optional Last.fm key you'd already have for artwork anyway)
+* pulls from ListenBrainz, Last.fm, Libre.fm, Navidrome, MusicBrainz, Cover Art Archive, and Wikidata. all public, no tokens needed (except the optional Last.fm key you'd already have for artwork anyway)
 * artist art tries Last.fm first, falls back to MusicBrainz/Wikidata, and if all else fails there's a built-in editor to upload/zoom/position your own image (saved in local storage, or temporarily on the server for 1 hour)
 * rate limits are in so your server doesn't get nuked
 * there's a live counter of total wraps ever generated (idk it seemed cool)
@@ -33,7 +33,7 @@ put your top artist in your github profile / website. live shields-style SVG, ca
 options via query params:
 
 * `type` - `artist` (default), `track`, `genre`, `minutes`
-* `service` - `listenbrainz` (default) or `lastfm`
+* `service` - `listenbrainz` (default), `lastfm`, or `librefm`
 * `range` - any period preset, e.g. `this_month`, `this_year`, `all_time`
 * `color` - hex without the `#`, e.g. `color=ff6b9d`
 

@@ -70,7 +70,8 @@ from .turnstile import require_turnstile
 
 logger = logging.getLogger("wrapped_fm")
 bp = Blueprint("wrapped_routes", __name__)
-SUPPORTED_STATS_SERVICES = {"listenbrainz", "lastfm"}
+SUPPORTED_STATS_SERVICES = {"listenbrainz", "lastfm", "librefm"}
+LASTFM_FAMILY_SERVICES = {"lastfm", "librefm"}
 # raster only, no SVG (can carry scripts and we serve it from our origin)
 ALLOWED_ARTWORK_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
 
@@ -153,44 +154,48 @@ def _safe_lb_genre(username: str, range_obj):
         return "No genre", True
 
 
-def _safe_lastfm_artists(username: str, number: int, range_obj):
+def _safe_lastfm_artists(username: str, number: int, range_obj, service: str = "lastfm"):
     try:
-        return get_lastfm_top_artists(username, number, range_obj=range_obj), False
+        return get_lastfm_top_artists(username, number, range_obj=range_obj, service=service), False
     except Exception as exc:
-        logger.warning("Last.fm artists failed for %s: %s", username, exc)
+        logger.warning("music service artists failed for %s: %s", username, exc)
         return [], True
 
 
-def _safe_lastfm_tracks(username: str, number: int, range_obj):
+def _safe_lastfm_tracks(username: str, number: int, range_obj, service: str = "lastfm"):
     try:
-        return get_lastfm_top_tracks(username, number, range_obj=range_obj), False
+        return get_lastfm_top_tracks(username, number, range_obj=range_obj, service=service), False
     except Exception as exc:
-        logger.warning("Last.fm tracks failed for %s: %s", username, exc)
+        logger.warning("music service tracks failed for %s: %s", username, exc)
         return [], True
 
 
-def _safe_lastfm_albums(username: str, number: int, range_obj):
+def _safe_lastfm_albums(username: str, number: int, range_obj, service: str = "lastfm"):
     try:
-        return get_lastfm_top_albums(username, number, range_obj=range_obj), False
+        return get_lastfm_top_albums(username, number, range_obj=range_obj, service=service), False
     except Exception as exc:
-        logger.warning("Last.fm albums failed for %s: %s", username, exc)
+        logger.warning("music service albums failed for %s: %s", username, exc)
         return [], True
 
 
-def _safe_lastfm_minutes(username: str, range_obj):
+def _safe_lastfm_minutes(username: str, range_obj, service: str = "lastfm"):
     try:
-        return estimate_lastfm_listen_minutes(username, range_obj=range_obj), False
+        return estimate_lastfm_listen_minutes(username, range_obj=range_obj, service=service), False
     except Exception as exc:
-        logger.warning("Last.fm minutes failed for %s: %s", username, exc)
+        logger.warning("music service minutes failed for %s: %s", username, exc)
         return "0", True
 
 
-def _safe_lastfm_genre(username: str, range_obj):
+def _safe_lastfm_genre(username: str, range_obj, service: str = "lastfm"):
     try:
-        return get_lastfm_top_genre(username, range_obj=range_obj), False
+        return get_lastfm_top_genre(username, range_obj=range_obj, service=service), False
     except Exception as exc:
-        logger.warning("Last.fm genre failed for %s: %s", username, exc)
+        logger.warning("music service genre failed for %s: %s", username, exc)
         return "No genre", True
+
+
+def _is_lastfm_family(service: str) -> bool:
+    return service in LASTFM_FAMILY_SERVICES
 
 
 def _all_time_fallback_range():
@@ -360,8 +365,8 @@ def get_top_albums(username: str, number: int) -> str:
     number = clamp_top_number(number)
     service = _resolve_stats_service()
     range_obj = _resolve_date_range()
-    if service == "lastfm":
-        names, _ = _safe_lastfm_albums(username, number, range_obj)
+    if _is_lastfm_family(service):
+        names, _ = _safe_lastfm_albums(username, number, range_obj, service=service)
     else:
         releases, _ = _safe_lb_releases(username, number, range_obj)
         names = [release.get("release_name", "Unknown Release") for release in releases]
@@ -377,8 +382,8 @@ def get_top_artists(username: str, number: int):
     number = clamp_top_number(number)
     service = _resolve_stats_service()
     range_obj = _resolve_date_range()
-    if service == "lastfm":
-        names, _ = _safe_lastfm_artists(username, number, range_obj)
+    if _is_lastfm_family(service):
+        names, _ = _safe_lastfm_artists(username, number, range_obj, service=service)
     else:
         artists, _ = _safe_lb_artists(username, number, range_obj)
         names = [artist.get("artist_name", "Unknown artist") for artist in artists]
@@ -394,8 +399,8 @@ def get_top_artists_formatted(username: str, number: int) -> str:
     number = clamp_top_number(number)
     service = _resolve_stats_service()
     range_obj = _resolve_date_range()
-    if service == "lastfm":
-        names, _ = _safe_lastfm_artists(username, number, range_obj)
+    if _is_lastfm_family(service):
+        names, _ = _safe_lastfm_artists(username, number, range_obj, service=service)
     else:
         artists, _ = _safe_lb_artists(username, number, range_obj)
         names = [artist.get("artist_name", "Unknown artist") for artist in artists]
@@ -411,8 +416,8 @@ def get_top_tracks(username: str, number: int):
     number = clamp_top_number(number)
     service = _resolve_stats_service()
     range_obj = _resolve_date_range()
-    if service == "lastfm":
-        names, _ = _safe_lastfm_tracks(username, number, range_obj)
+    if _is_lastfm_family(service):
+        names, _ = _safe_lastfm_tracks(username, number, range_obj, service=service)
     else:
         tracks, _ = _safe_lb_tracks(username, number, range_obj)
         names = [track.get("track_name", "Unknown track") for track in tracks]
@@ -428,8 +433,8 @@ def get_top_tracks_formatted(username: str, number: int) -> str:
     number = clamp_top_number(number)
     service = _resolve_stats_service()
     range_obj = _resolve_date_range()
-    if service == "lastfm":
-        names, _ = _safe_lastfm_tracks(username, number, range_obj)
+    if _is_lastfm_family(service):
+        names, _ = _safe_lastfm_tracks(username, number, range_obj, service=service)
     else:
         tracks, _ = _safe_lb_tracks(username, number, range_obj)
         names = [track.get("track_name", "Unknown track") for track in tracks]
@@ -444,8 +449,8 @@ def get_top_tracks_formatted(username: str, number: int) -> str:
 def get_listen_time(username: str) -> str:
     service = _resolve_stats_service()
     range_obj = _resolve_date_range()
-    if service == "lastfm":
-        minutes, _ = _safe_lastfm_minutes(username, range_obj)
+    if _is_lastfm_family(service):
+        minutes, _ = _safe_lastfm_minutes(username, range_obj, service=service)
     else:
         minutes, _ = _safe_lb_minutes(username, range_obj)
     response = current_app.response_class(minutes, mimetype="text/plain")
@@ -459,8 +464,8 @@ def get_listen_time(username: str) -> str:
 def get_top_genre_user(username: str) -> str:
     service = _resolve_stats_service()
     range_obj = _resolve_date_range()
-    if service == "lastfm":
-        genre, _ = _safe_lastfm_genre(username, range_obj)
+    if _is_lastfm_family(service):
+        genre, _ = _safe_lastfm_genre(username, range_obj, service=service)
     else:
         genre, _ = _safe_lb_genre(username, range_obj)
     response = current_app.response_class(genre, mimetype="text/plain")
@@ -473,8 +478,8 @@ def get_top_genre_user(username: str) -> str:
 @rate_limit(STATS_RATE_LIMIT)
 def get_top_genre_artist(artist_name: str) -> str:
     service = _resolve_stats_service()
-    if service == "lastfm":
-        genre = get_lastfm_artist_genre(artist_name)
+    if _is_lastfm_family(service):
+        genre = get_lastfm_artist_genre(artist_name, service=service)
     else:
         genre = get_genre_for_artist(artist_name)
     return current_app.response_class(genre, mimetype="text/plain")

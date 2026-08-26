@@ -20,13 +20,53 @@ from .config import (
     IGNORED_TAGS,
     LASTFM_API,
     LASTFM_API_KEY,
+    LIBREFM_API,
+    LIBREFM_API_KEY,
+    LIBREFM_DURATION_LOOKUP_LIMIT,
     POPULAR_GENRES,
 )
 from .date_range import DateRange
-from .http import deezer_session, lastfm_aggregate_session, lastfm_session, request_with_handling
+from .http import (
+    _pace,
+    deezer_session,
+    lastfm_aggregate_session,
+    lastfm_session,
+    librefm_aggregate_session,
+    librefm_session,
+    request_with_handling,
+)
 
 
 logger = logging.getLogger("wrapped_fm")
+
+
+@dataclass(frozen=True)
+class _Provider:
+    api: str
+    api_key: str
+    session: object
+    aggregate_session: object
+
+
+AUDIOSCROBBLER_PROVIDERS = {
+    "lastfm": _Provider(
+        api=LASTFM_API,
+        api_key=LASTFM_API_KEY or "",
+        session=lastfm_session,
+        aggregate_session=lastfm_aggregate_session,
+    ),
+    "librefm": _Provider(
+        api=LIBREFM_API,
+        api_key=LIBREFM_API_KEY,
+        session=librefm_session,
+        aggregate_session=librefm_aggregate_session,
+    ),
+}
+AUDIOSCROBBLER_SERVICES = tuple(AUDIOSCROBBLER_PROVIDERS)
+
+
+def _resolve_provider(service: Optional[str]) -> _Provider:
+    return AUDIOSCROBBLER_PROVIDERS.get(service or "lastfm", AUDIOSCROBBLER_PROVIDERS["lastfm"])
 
 
 DEFAULT_LASTFM_PERIOD = "12month"
@@ -55,28 +95,30 @@ class _AggregatedRecent:
     failed: bool = False
 
 
-def _ensure_lastfm_ready() -> None:
-    if not LASTFM_API_KEY:
-        abort(503, description="Last.fm support is not configured on this server.")
+def _ensure_provider_ready(service: Optional[str]) -> None:
+    provider = _resolve_provider(service)
+    if not provider.api_key:
+        abort(503, description="This service is not configured on this server.")
 
 
-def _call_lastfm(method: str, params: Optional[Dict[str, str]] = None) -> Dict:
-    _ensure_lastfm_ready()
+def _call_lastfm(method: str, params: Optional[Dict[str, str]] = None, service: Optional[str] = None) -> Dict:
+    provider = _resolve_provider(service)
+    _ensure_provider_ready(service)
     query = {
         "method": method,
-        "api_key": LASTFM_API_KEY,
+        "api_key": provider.api_key,
         "format": "json",
     }
     if params:
         query.update({k: v for k, v in params.items() if v is not None})
-    response = request_with_handling(lastfm_session, LASTFM_API, params=query)
+    response = request_with_handling(provider.session, provider.api, params=query)
     try:
         data = response.json()
     except ValueError:
-        abort(502, description="Invalid response from Last.fm")
+        abort(502, description="Invalid response from music service")
     error_code = data.get("error")
     if error_code:
-        message = data.get("message", "Last.fm request failed")
+        message = data.get("message", "Music service request failed")
         if error_code in {6, 7, 29}:
             abort(404, description=message)
         abort(502, description=message)
@@ -124,7 +166,7 @@ def _needs_aggregation(range_obj: Optional[DateRange]) -> bool:
     return bool(range_obj and (range_obj.is_custom or not range_obj.lastfm_period))
 
 
-def _fetch_top_names(username: str, method: str, path: Sequence[str], limit: int, range_obj: Optional[DateRange]) -> List[str]:
+def _fetch_top_names(username: str, method: str, path: Sequence[str], limit: int, range_obj: Optional[DateRange], service: Optional[str] = None) -> List[str]:
     payload = _call_lastfm(
         method,
         {
@@ -132,6 +174,7 @@ def _fetch_top_names(username: str, method: str, path: Sequence[str], limit: int
             "period": _resolve_lastfm_period(range_obj),
             "limit": str(limit),
         },
+        service=service,
     )
     return _extract_names(payload, path)[:limit]
 
@@ -141,11 +184,12 @@ def get_lastfm_top_artists(
     limit: int,
     *,
     range_obj: Optional[DateRange] = None,
+    service: Optional[str] = None,
 ) -> List[str]:
     if _needs_aggregation(range_obj):
-        aggregated = _aggregate_recent_in_range(username, range_obj)
+        aggregated = _aggregate_recent_in_range(username, range_obj, service=service)
         return [name for name, _ in aggregated.top_artists[:limit]]
-    return _fetch_top_names(username, "user.gettopartists", ("topartists", "artist"), limit, range_obj)
+    return _fetch_top_names(username, "user.gettopartists", ("topartists", "artist"), limit, range_obj, service=service)
 
 
 def get_lastfm_top_tracks(
@@ -153,11 +197,12 @@ def get_lastfm_top_tracks(
     limit: int,
     *,
     range_obj: Optional[DateRange] = None,
+    service: Optional[str] = None,
 ) -> List[str]:
     if _needs_aggregation(range_obj):
-        aggregated = _aggregate_recent_in_range(username, range_obj)
+        aggregated = _aggregate_recent_in_range(username, range_obj, service=service)
         return [track for track, _artist, _plays in aggregated.top_tracks[:limit]]
-    return _fetch_top_names(username, "user.gettoptracks", ("toptracks", "track"), limit, range_obj)
+    return _fetch_top_names(username, "user.gettoptracks", ("toptracks", "track"), limit, range_obj, service=service)
 
 
 def get_lastfm_top_albums(
@@ -165,11 +210,12 @@ def get_lastfm_top_albums(
     limit: int,
     *,
     range_obj: Optional[DateRange] = None,
+    service: Optional[str] = None,
 ) -> List[str]:
     if _needs_aggregation(range_obj):
-        aggregated = _aggregate_recent_in_range(username, range_obj)
+        aggregated = _aggregate_recent_in_range(username, range_obj, service=service)
         return [name for name, _ in aggregated.top_albums[:limit]]
-    return _fetch_top_names(username, "user.gettopalbums", ("topalbums", "album"), limit, range_obj)
+    return _fetch_top_names(username, "user.gettopalbums", ("topalbums", "album"), limit, range_obj, service=service)
 
 
 def _default_duration_ms() -> int:
@@ -191,7 +237,7 @@ def _normalise_duration(value: Optional[str]) -> int:
 
 
 @lru_cache(maxsize=2048)
-def _fetch_track_duration(artist_name: str, track_name: str) -> int:
+def _fetch_track_duration(artist_name: str, track_name: str, service: str = "lastfm") -> int:
     try:
         payload = _call_lastfm(
             "track.getInfo",
@@ -199,6 +245,7 @@ def _fetch_track_duration(artist_name: str, track_name: str) -> int:
                 "artist": artist_name,
                 "track": track_name,
             },
+            service=service,
         )
     except Exception:
         payload = None
@@ -233,13 +280,13 @@ def _fetch_track_duration(artist_name: str, track_name: str) -> int:
     return resolved
 
 
-def _resolve_durations(keys: Sequence[Tuple[str, str]]) -> Dict[Tuple[str, str], int]:
+def _resolve_durations(keys: Sequence[Tuple[str, str]], service: Optional[str] = None) -> Dict[Tuple[str, str], int]:
     """Look up durations for (artist, track) pairs concurrently."""
     if not keys:
         return {}
     workers = min(DURATION_LOOKUP_CONCURRENCY, len(keys))
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        durations = pool.map(lambda key: _fetch_track_duration(key[0], key[1]), keys)
+        durations = pool.map(lambda key: _fetch_track_duration(key[0], key[1], service or "lastfm"), keys)
         return dict(zip(keys, durations))
 
 
@@ -249,18 +296,25 @@ def _average_minutes(total_length_ms: int, total_listens: int) -> float:
     return (total_length_ms / total_listens) / 60000.0
 
 
+def _duration_lookup_limit(service: Optional[str]) -> int:
+    if service == "librefm":
+        return max(1, LIBREFM_DURATION_LOOKUP_LIMIT)
+    return DURATION_LOOKUP_LIMIT
+
+
 def _calculate_lastfm_average_track_minutes(
     username: str,
     *,
     range_obj: Optional[DateRange] = None,
+    service: Optional[str] = None,
 ) -> float:
     if _needs_aggregation(range_obj):
-        aggregated = _aggregate_recent_in_range(username, range_obj)
-        sample = aggregated.top_tracks[:DURATION_LOOKUP_LIMIT]
+        aggregated = _aggregate_recent_in_range(username, range_obj, service=service)
+        sample = aggregated.top_tracks[:_duration_lookup_limit(service)]
         if not sample:
             return AVERAGE_TRACK_LENGTH_MINUTES
         keys = list(dict.fromkeys((artist, track) for track, artist, _ in sample if artist))
-        durations = _resolve_durations(keys)
+        durations = _resolve_durations(keys, service=service)
         total_length_ms = 0
         total_listens = 0
         for track_name, artist_name, plays in sample:
@@ -276,6 +330,7 @@ def _calculate_lastfm_average_track_minutes(
             "period": _resolve_lastfm_period(range_obj),
             "limit": str(LASTFM_AVERAGE_SAMPLE_LIMIT),
         },
+        service=service,
     )
     tracks = (payload.get("toptracks") or {}).get("track") or []
     if isinstance(tracks, dict):
@@ -307,7 +362,7 @@ def _calculate_lastfm_average_track_minutes(
 
     # entries are ordered by playcount, so capped lookups cover the tracks that matter most
     missing = [key for key in plays_by_key if key not in durations]
-    durations.update(_resolve_durations(missing[:DURATION_LOOKUP_LIMIT]))
+    durations.update(_resolve_durations(missing[:_duration_lookup_limit(service)], service=service))
 
     total_length_ms = 0
     total_listens = 0
@@ -324,6 +379,7 @@ def _fetch_lastfm_total_listens(
     username: str,
     *,
     range_obj: Optional[DateRange] = None,
+    service: Optional[str] = None,
 ) -> int:
     if range_obj:
         start = range_obj.start_ts
@@ -341,6 +397,7 @@ def _fetch_lastfm_total_listens(
             "to": str(end),
             "limit": "1",
         },
+        service=service,
     )
     recenttracks = payload.get("recenttracks", {})
     if not isinstance(recenttracks, dict):
@@ -348,22 +405,30 @@ def _fetch_lastfm_total_listens(
     attr = recenttracks.get("@attr", {})
     if not isinstance(attr, dict):
         return 0
-    try:
-        return int(attr.get("total", 0))
-    except (TypeError, ValueError):
+    total = _attr_int(attr, "total")
+    if total > 0:
+        return total
+    total_pages = _attr_int(attr, "totalPages")
+    if total_pages <= 0:
         return 0
+    # some audioscrobbler-compatible APIs (libre.fm) omit the total count, so
+    # reconstruct it from the pagination metadata. we request limit=1 above, so
+    # every page holds one listen and totalPages equals the listen count.
+    per_page = _attr_int(attr, "perPage")
+    return total_pages * max(per_page, 1)
 
 
 def estimate_lastfm_listen_minutes(
     username: str,
     *,
     range_obj: Optional[DateRange] = None,
+    service: Optional[str] = None,
 ) -> str:
     avg_pool = ThreadPoolExecutor(max_workers=1)
-    avg_future = avg_pool.submit(_calculate_lastfm_average_track_minutes, username, range_obj=range_obj)
+    avg_future = avg_pool.submit(_calculate_lastfm_average_track_minutes, username, range_obj=range_obj, service=service)
     avg_pool.shutdown(wait=False)
 
-    total_listens = _fetch_lastfm_total_listens(username, range_obj=range_obj)
+    total_listens = _fetch_lastfm_total_listens(username, range_obj=range_obj, service=service)
     if total_listens <= 0:
         return "0"
 
@@ -372,14 +437,16 @@ def estimate_lastfm_listen_minutes(
     return f"{total_minutes:,}"
 
 
-def _fetch_recent_page(username: str, start_ts: int, end_ts: int, page: int) -> Tuple[List[Dict], Dict]:
+def _fetch_recent_page(username: str, start_ts: int, end_ts: int, page: int, service: Optional[str] = None) -> Tuple[List[Dict], Dict]:
     """Fetch one page of recenttracks within [start_ts, end_ts]. Returns (tracks, @attr)."""
+    provider = _resolve_provider(service)
     try:
-        response = lastfm_aggregate_session.get(
-            LASTFM_API,
+        _pace(provider.aggregate_session)
+        response = provider.aggregate_session.get(
+            provider.api,
             params={
                 "method": "user.getrecenttracks",
-                "api_key": LASTFM_API_KEY,
+                "api_key": provider.api_key,
                 "format": "json",
                 "user": username,
                 "from": str(start_ts),
@@ -393,7 +460,7 @@ def _fetch_recent_page(username: str, start_ts: int, end_ts: int, page: int) -> 
             return [], {}
         data = response.json()
     except Exception as exc:
-        logger.debug("Last.fm recenttracks page %s failed for %s: %s", page, username, exc)
+        logger.debug("recenttracks page %s failed for %s: %s", page, username, exc)
         return [], {}
     if not isinstance(data, dict):
         return [], {}
@@ -416,14 +483,14 @@ def _attr_int(attr: Dict, key: str) -> int:
         return 0
 
 
-def _aggregate_recent_in_range(username: str, range_obj: DateRange) -> _AggregatedRecent:
-    cache_key = (username, range_obj.start_ts, range_obj.end_ts)
+def _aggregate_recent_in_range(username: str, range_obj: DateRange, service: Optional[str] = None) -> _AggregatedRecent:
+    cache_key = (username, range_obj.start_ts, range_obj.end_ts, service)
     return recenttracks_cache.get_or_compute(
-        cache_key, lambda: _aggregate_recent_uncached(username, range_obj)
+        cache_key, lambda: _aggregate_recent_uncached(username, range_obj, service=service)
     )
 
 
-def _aggregate_recent_uncached(username: str, range_obj: DateRange) -> _AggregatedRecent:
+def _aggregate_recent_uncached(username: str, range_obj: DateRange, service: Optional[str] = None) -> _AggregatedRecent:
     result = _AggregatedRecent()
     artist_counter: Counter = Counter()
     track_counter: Counter = Counter()
@@ -461,7 +528,7 @@ def _aggregate_recent_uncached(username: str, range_obj: DateRange) -> _Aggregat
         return count
 
     try:
-        tracks, attr = _fetch_recent_page(username, start_ts, end_ts, 1)
+        tracks, attr = _fetch_recent_page(username, start_ts, end_ts, 1, service=service)
         result.total_listen_count += parse_tracks(tracks)
         total_pages = _attr_int(attr, "totalPages")
         attr_total = _attr_int(attr, "total")
@@ -473,12 +540,12 @@ def _aggregate_recent_uncached(username: str, range_obj: DateRange) -> _Aggregat
             workers = min(RECENTTRACKS_CONCURRENCY, len(pages))
             with ThreadPoolExecutor(max_workers=workers) as pool:
                 for page_tracks, _ in pool.map(
-                    lambda page: _fetch_recent_page(username, start_ts, end_ts, page), pages
+                    lambda page: _fetch_recent_page(username, start_ts, end_ts, page, service=service), pages
                 ):
                     result.total_listen_count += parse_tracks(page_tracks)
         elif not total_pages and len(tracks) >= RECENTTRACKS_PAGE_SIZE:
             for page in range(2, RECENTTRACKS_MAX_PAGES + 1):
-                page_tracks, _ = _fetch_recent_page(username, start_ts, end_ts, page)
+                page_tracks, _ = _fetch_recent_page(username, start_ts, end_ts, page, service=service)
                 result.total_listen_count += parse_tracks(page_tracks)
                 if len(page_tracks) < RECENTTRACKS_PAGE_SIZE:
                     break
@@ -489,7 +556,7 @@ def _aggregate_recent_uncached(username: str, range_obj: DateRange) -> _Aggregat
         if attr_total > result.total_listen_count:
             result.total_listen_count = attr_total
     except Exception as exc:
-        logger.warning("Last.fm aggregation failed for %s: %s", username, exc)
+        logger.warning("recenttracks aggregation failed for %s: %s", username, exc)
         result.failed = True
 
     result.top_artists = artist_counter.most_common(50)
@@ -506,12 +573,13 @@ def _normalise_tag(name: str) -> str:
 
 
 @lru_cache(maxsize=512)
-def _fetch_artist_tags(artist_name: str) -> List[Tuple[str, int]]:
+def _fetch_artist_tags(artist_name: str, service: str = "lastfm") -> List[Tuple[str, int]]:
     payload = _call_lastfm(
         "artist.getTopTags",
         {
             "artist": artist_name,
         },
+        service=service,
     )
     tags = payload.get("toptags", {}).get("tag") or []
     if not isinstance(tags, list):
@@ -552,15 +620,16 @@ def get_lastfm_top_genre(
     username: str,
     *,
     range_obj: Optional[DateRange] = None,
+    service: Optional[str] = None,
 ) -> str:
-    artists = get_lastfm_top_artists(username, GENRE_ARTIST_SAMPLE, range_obj=range_obj)
+    artists = get_lastfm_top_artists(username, GENRE_ARTIST_SAMPLE, range_obj=range_obj, service=service)
     if not artists:
         return "No genre"
     workers = min(TAG_LOOKUP_CONCURRENCY, len(artists))
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        tag_lists = list(pool.map(_fetch_artist_tags, artists))
+        tag_lists = list(pool.map(lambda artist: _fetch_artist_tags(artist, service or "lastfm"), artists))
     return _pick_genre(tag for tags in tag_lists for tag in tags)
 
 
-def get_lastfm_artist_genre(artist_name: str) -> str:
-    return _pick_genre(_fetch_artist_tags(artist_name))
+def get_lastfm_artist_genre(artist_name: str, service: Optional[str] = None) -> str:
+    return _pick_genre(_fetch_artist_tags(artist_name, service or "lastfm"))

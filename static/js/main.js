@@ -106,6 +106,11 @@ const SERVICE_USERNAME_COPY = {
     placeholder: 'e.g. yourlastfmname',
     emptyMessage: 'Enter a Last.fm username to get started.',
   },
+  librefm: {
+    label: 'Libre.fm username',
+    placeholder: 'e.g. yourlibrefmname',
+    emptyMessage: 'Enter a Libre.fm username to get started.',
+  },
   navidrome: {
     label: 'Navidrome username',
     placeholder: 'e.g. alice',
