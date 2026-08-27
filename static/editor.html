@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+    <title>Wrapped Template Editor - design your own poster | Make a Wrapped</title>
+    <meta name="description" content="Design your own Make a Wrapped template in a visual editor. Position text, ranked lists, stats, backgrounds and album art on a live Wrapped-sized canvas, then submit it for review. No code needed.">
+    <meta name="keywords" content="Make a Wrapped template editor, wrapped template maker, Spotify Wrapped poster editor, ListenBrainz wrapped template, Last.fm wrapped template, Navidrome wrapped template, design a wrapped">
+    <meta name="author" content="DevMatei">
+    <link rel="canonical" href="https://wrapped.devmatei.com/editor">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Wrapped Template Editor - design your own poster | Make a Wrapped">
+    <meta property="og:description" content="Create, preview and submit your own wrapped template with a visual drag-and-drop editor. Built for artists, no code needed.">
+    <meta property="og:url" content="https://wrapped.devmatei.com/editor">
+    <meta property="og:image" content="https://github.com/user-attachments/assets/56c0dcd2-b111-4978-ac1f-2ae802f00237">
+    <meta property="og:image:alt" content="Make a Wrapped template editor">
+    <meta property="og:site_name" content="Make a Wrapped">
+    <meta property="og:locale" content="en_US">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Wrapped Template Editor - design your own poster">
+    <meta name="twitter:description" content="Visual drag-and-drop editor for your own wrapped template. Built for artists.">
+    <meta name="twitter:image" content="https://github.com/user-attachments/assets/56c0dcd2-b111-4978-ac1f-2ae802f00237">
+    <meta name="theme-color" content="#c084fc">
+    <meta name="color-scheme" content="dark">
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "Make a Wrapped Template Editor",
+        "url": "https://wrapped.devmatei.com/editor",
+        "applicationCategory": "DesignApplication",
+        "operatingSystem": "Web Browser",
+        "description": "A visual drag-and-drop editor for creating Make a Wrapped poster templates. Position text, ranked lists, stats, backgrounds and album art, then submit for review.",
+        "isAccessibleForFree": true,
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+        "featureList": ["Drag-and-drop canvas", "Text, list and stat elements", "Background and palette editor", "Album art positioning", "Google Fonts picker", "Submit for review"]
+      }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Bebas+Neue&family=Archivo+Black&family=Caveat:wght@400;700&family=Monoton&display=swap">
+    <link rel="icon" type="image/svg+xml" href="favicon-lavender.svg">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+    <script type="module" src="js/editor.js"></script>
+  </head>
+  <body>
+    <main class="page page--editor">
+      <header class="editor-header">
+        <div class="editor-header__lead">
+          <a class="marketplace-header__back" href="/marketplace" aria-label="back to library">
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </a>
+          <h1>template editor <span class="beta-badge">beta</span></h1>
+          <p class="editor-header__copy" id="editor-header-copy">design a wrapped poster, no code needed.</p>
+        </div>
+        <div class="editor-header__actions">
+          <div class="editor-header__tools">
+            <button type="button" class="btn btn--ghost" id="editor-export">export</button>
+            <button type="button" class="btn btn--ghost" id="editor-import">import</button>
+            <button type="button" class="btn btn--ghost" id="editor-reset">reset</button>
+          </div>
+          <input type="file" id="editor-import-file" accept="application/json,.json" hidden>
+          <button type="button" class="btn" id="editor-submit">submit for review</button>
+        </div>
+      </header>
+
+      <div class="editor-layout">
+        <aside class="editor-sidebar">
+          <section class="editor-editor">
+            <div class="editor-editor__title">
+              <span class="editor-editor__dot"></span>
+              <div class="editor-editor__meta">
+                <input id="editor-name" class="editor-editor__name" type="text" placeholder="Template name" aria-label="template name">
+                <div class="editor-editor__slug">
+                  <span>/</span>
+                  <input id="editor-slug" type="text" placeholder="my-template" aria-label="template slug">
+                </div>
+              </div>
+            </div>
+            <div class="editor-editor__tags">
+              <input id="editor-tags" type="text" placeholder="retro, purple, soft">
+              <select id="editor-category" aria-label="category"></select>
+            </div>
+          </section>
+
+          <section class="editor-panel editor-panel--layers">
+            <div class="editor-panel__head">
+              <h2 class="editor-panel__title">layers</h2>
+              <div class="editor-layer-add">
+                <button type="button" data-add="text" title="a fixed heading or label">
+                  <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h10M4 18h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                </button>
+                <button type="button" data-add="list" title="ranked list (artists/tracks)">
+                  <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h0M4 12h0M4 18h0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                </button>
+                <button type="button" data-add="slot" title="big number stat (minutes/genre)">
+                  <span>#</span>
+                </button>
+              </div>
+            </div>
+            <ul class="editor-element-list" id="editor-elements"></ul>
+          </section>
+
+          <section class="editor-panel editor-panel--properties" hidden>
+            <div class="editor-panel__head">
+              <h2 class="editor-panel__title">style this element</h2>
+            </div>
+            <div id="editor-properties" class="editor-properties"></div>
+          </section>
+
+          <section class="editor-panel">
+            <div class="editor-panel__head">
+              <h2 class="editor-panel__title">background</h2>
+            </div>
+            <div class="editor-seg" id="editor-bg-type" role="group" aria-label="background type">
+              <button type="button" class="editor-seg__btn" data-bg-type="solid">solid</button>
+              <button type="button" class="editor-seg__btn" data-bg-type="gradient">gradient</button>
+              <button type="button" class="editor-seg__btn" data-bg-type="image">image</button>
+            </div>
+            <div class="editor-designtwo">
+              <div class="editor-colorfield" id="editor-bg-solid">
+                <label class="form__label" for="editor-bg-color">color</label>
+                <input id="editor-bg-color" type="color" value="#000000">
+                <span id="editor-bg-color-hex">#000000</span>
+              </div>
+              <div class="editor-colorfield" id="editor-bg-gradient" hidden>
+                <span class="form__label">colors</span>
+                <div class="editor-swatches" id="editor-bg-colors"></div>
+              </div>
+            </div>
+            <div class="editor-sliderfield" id="editor-bg-angle-field" hidden>
+              <label class="form__label" for="editor-bg-angle">angle <span id="editor-bg-angle-value">135</span>&deg;</label>
+              <input id="editor-bg-angle" type="range" min="0" max="360" step="1" value="135">
+            </div>
+            <label class="editor-field editor-toggle">
+              <input type="checkbox" id="editor-art-enabled" checked>
+              <span>show album art</span>
+            </label>
+            <div class="editor-artgrid">
+              <label class="editor-number">
+                <span>size</span>
+                <input id="editor-art-size" type="number" step="8">
+              </label>
+              <label class="editor-number">
+                <span>x</span>
+                <input id="editor-art-x" type="number" step="1">
+              </label>
+              <label class="editor-number">
+                <span>y</span>
+                <input id="editor-art-y" type="number" step="1">
+              </label>
+            </div>
+            <label class="editor-field editor-toggle editor-toggle--quiet">
+              <input type="checkbox" id="editor-art-frame" checked>
+              <span>frame</span>
+            </label>
+            <div class="editor-palette">
+              <label class="editor-colorfield">
+                <span class="form__label">label text</span>
+                <input id="editor-palette-label" type="color" value="#f3f6ff">
+              </label>
+              <label class="editor-colorfield">
+                <span class="form__label">value text</span>
+                <input id="editor-palette-value" type="color" value="#ffffff">
+              </label>
+            </div>
+            <label class="editor-field editor-toggle editor-toggle--quiet" id="editor-bg-image-field" hidden>
+              <input id="editor-bg-image-file" type="file" accept="image/*" hidden>
+              <button type="button" class="btn btn--ghost editor-uploadbtn">upload background image</button>
+            </label>
+            <p class="editor-panel__hint" id="editor-bg-image-hint" hidden>uploaded with your submission.</p>
+          </section>
+
+          <section class="editor-panel">
+            <div class="editor-panel__head">
+              <h2 class="editor-panel__title">preview data</h2>
+            </div>
+            <p class="editor-panel__hint">swap sample data to catch layout problems.</p>
+            <div class="editor-samples" id="editor-samples"></div>
+          </section>
+
+          <section class="editor-panel">
+            <div class="editor-panel__head">
+              <h2 class="editor-panel__title">your identity</h2>
+            </div>
+            <p class="editor-panel__hint" id="editor-creator-id">verifying locally, no password needed.</p>
+            <div class="editor-field">
+              <label class="form__label" for="editor-creator-name">display name</label>
+              <input id="editor-creator-name" type="text" placeholder="how people see it">
+            </div>
+            <div class="editor-field">
+              <label class="form__label" for="editor-creator-website">website or social</label>
+              <input id="editor-creator-website" type="text" placeholder="https://...">
+            </div>
+            <div class="editor-field">
+              <label class="form__label" for="editor-creator-bio">bio</label>
+              <textarea id="editor-creator-bio" rows="2" placeholder="a short line about you"></textarea>
+            </div>
+            <p class="editor-panel__hint">anyone can browse, but publishing saves your name under this browser's key.</p>
+          </section>
+        </aside>
+
+        <section class="editor-stage">
+          <div class="editor-stage__canvas-wrap" id="editor-canvas-wrap">
+            <canvas id="editor-canvas" width="1080" height="1920" aria-label="Template canvas preview"></canvas>
+          </div>
+          <div class="editor-stages-bar">
+            <span class="editor-stages-bar__hint">drag to move</span>
+            <span class="editor-stages-bar__hint">drag corner to resize</span>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <div class="editor-toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
+  </body>
+</html>
