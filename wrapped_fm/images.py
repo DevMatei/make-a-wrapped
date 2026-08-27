@@ -30,7 +30,7 @@ from .listenbrainz import (
     get_top_tracks_payload,
     normalise_count,
 )
-from .lastfm import _resolve_provider, get_lastfm_top_artists
+from .lastfm import _needs_aggregation, _resolve_lastfm_period, _resolve_provider, get_lastfm_top_artists
 from .musicbrainz import (
     extract_artist_mbid,
     extract_wikidata_qid,
@@ -300,6 +300,37 @@ def _lookup_lastfm_album_image(artist_name: str, artist_mbid: Optional[str], ser
 
 
 @lru_cache(maxsize=256)
+def _is_lastfm_family(service: str) -> bool:
+    return service in ("lastfm", "librefm")
+
+
+def _download_lastfm_user_top_album_image(
+    username: str,
+    service: str,
+    range_obj: Optional[DateRange] = None,
+) -> Optional[Tuple[str, bytes]]:
+    provider = _resolve_provider(service)
+    if not provider or not provider.api_key or not username:
+        return None
+    if _needs_aggregation(range_obj):
+        return None
+    period = _resolve_lastfm_period(range_obj)
+    payload = _fetch_lastfm_payload(
+        "user.gettopalbums",
+        extra_params={"user": username, "period": period, "limit": "3"},
+        service=service,
+    )
+    albums = (payload.get("topalbums") or {}).get("album") or []
+    for album in albums:
+        image_url = _select_lastfm_image(album.get("image") or [])
+        if image_url:
+            art = _fetch_binary_image(image_url)
+            if art:
+                return art
+    return None
+
+
+@lru_cache(maxsize=256)
 def _download_lastfm_artist_image(artist_name: str, artist_mbid: Optional[str], service: str = "lastfm") -> Optional[Tuple[str, bytes]]:
     provider = _resolve_provider(service)
     if not provider.api_key or not artist_name:
@@ -451,11 +482,7 @@ def fetch_top_artist_image(
         raise ImageQueueBusyError
 
     try:
-        preference_order = []
-        if preferred_source == "release" and service == "listenbrainz":
-            preference_order = ["release", "artist"]
-        else:
-            preference_order = ["artist", "release"]
+        preference_order = ["release", "artist"] if preferred_source == "release" else ["artist", "release"]
 
         artist_candidates: List[Tuple[str, Optional[str]]] = []
 
@@ -466,6 +493,11 @@ def fetch_top_artist_image(
                     if art:
                         content_type, content = art
                         return ImageResult(content_type or "image/jpeg", content, max(queue_position - 1, 0))
+            elif source == "release" and _is_lastfm_family(service):
+                art = _download_lastfm_user_top_album_image(username, service, range_obj=range_obj)
+                if art:
+                    content_type, content = art
+                    return ImageResult(content_type or "image/jpeg", content, max(queue_position - 1, 0))
             else:
                 if not artist_candidates:
                     artist_candidates = _collect_artist_candidates(username, service=service, range_obj=range_obj)

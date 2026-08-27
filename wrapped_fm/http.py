@@ -195,15 +195,20 @@ def request_with_handling(
             )
         except RequestException as exc:
             last_exc = exc
-            if attempts >= 2:
+            if attempts >= 3:
                 abort(502, description=f"Upstream request failed: {last_exc}")
             attempts += 1
-            time.sleep(0.3 * attempts)
+            time.sleep(0.4 * attempts)
             _pace(session)
             continue
-        if response.status_code == 429 and attempts < 4:
+        if response.status_code == 429 and attempts < 5:
             attempts += 1
             time.sleep(_retry_after_seconds(response))
+            _pace(session)
+            continue
+        if response.status_code in (500, 502, 503, 504) and attempts < 4:
+            attempts += 1
+            time.sleep(0.5 * attempts)
             _pace(session)
             continue
         return response
