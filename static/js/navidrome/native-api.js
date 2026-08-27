@@ -1,5 +1,8 @@
 import { normaliseServerUrl } from './helpers.js';
-import { NAVIDROME_SCRABBLE_PAGE_SIZE } from './constants.js';
+import {
+  NAVIDROME_SCRABBLE_CONCURRENCY,
+  NAVIDROME_SCRABBLE_PAGE_SIZE,
+} from './constants.js';
 
 export class NavidromeNativeApi {
   constructor(serverUrl, username, password) {
@@ -39,7 +42,7 @@ export class NavidromeNativeApi {
     return this.token;
   }
 
-  async requestJson(path, params = null) {
+  async _request(path, params = null) {
     await this.authenticate();
     const query = params ? `?${params.toString()}` : '';
     let response;
@@ -57,6 +60,11 @@ export class NavidromeNativeApi {
       }
       throw new Error(`Navidrome Native API request failed (${response.status} - ${response.statusText})`);
     }
+    return response;
+  }
+
+  async _requestJson(path, params = null) {
+    const response = await this._request(path, params);
     try {
       return await response.json();
     } catch (error) {
@@ -64,31 +72,113 @@ export class NavidromeNativeApi {
     }
   }
 
+  async requestJson(path, params = null) {
+    return this._requestJson(path, params);
+  }
+
+  async _requestArray(path, params = null) {
+    const response = await this._request(path, params);
+    try {
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
+    } catch (error) {
+      throw new Error('Navidrome Native API returned an invalid response.');
+    }
+  }
+
+  _scrobbleParams(fromTs, toTs, start, end) {
+    return new URLSearchParams({
+      from: String(fromTs),
+      to: String(toTs),
+      _sort: 'submission_time',
+      _order: 'asc',
+      _start: String(start),
+      _end: String(end),
+    });
+  }
+
   async fetchScrobbles(fromTs, toTs) {
-    const scrobbles = [];
-    let offset = 0;
-    for (;;) {
-      const params = new URLSearchParams({
-        from: String(fromTs),
-        to: String(toTs),
-        _sort: 'submission_time',
-        _order: 'asc',
-        _start: String(offset),
-        _end: String(offset + NAVIDROME_SCRABBLE_PAGE_SIZE),
-      });
-      const rows = await this.requestJson('/api/scrobble', params);
-      const page = Array.isArray(rows) ? rows : [];
-      scrobbles.push(...page);
-      if (page.length < NAVIDROME_SCRABBLE_PAGE_SIZE) {
-        break;
+    const pageSize = NAVIDROME_SCRABBLE_PAGE_SIZE;
+    const first = await this._request('/api/scrobble', this._scrobbleParams(fromTs, toTs, 0, pageSize));
+    let firstRows;
+    try {
+      firstRows = await first.json();
+    } catch (error) {
+      throw new Error('Navidrome Native API returned an invalid response.');
+    }
+    if (!Array.isArray(firstRows)) {
+      firstRows = [];
+    }
+    if (firstRows.length < pageSize) {
+      return firstRows;
+    }
+    const total = Number(first.headers.get('X-Total-Count'));
+    const knownTotal = Number.isFinite(total) && total >= firstRows.length;
+    if (!knownTotal) {
+      const scrobbles = [...firstRows];
+      let offset = pageSize;
+      for (;;) {
+        const rows = await this._requestArray('/api/scrobble', this._scrobbleParams(fromTs, toTs, offset, offset + pageSize));
+        scrobbles.push(...rows);
+        if (rows.length < pageSize) {
+          break;
+        }
+        offset += pageSize;
       }
-      offset += NAVIDROME_SCRABBLE_PAGE_SIZE;
+      return scrobbles;
+    }
+    const totalPages = Math.ceil(total / pageSize);
+    const pages = new Array(totalPages);
+    pages[0] = firstRows;
+    let index = 1;
+    const worker = async () => {
+      while (index < totalPages) {
+        const pageIndex = index;
+        index += 1;
+        const rows = await this._requestArray(
+          '/api/scrobble',
+          this._scrobbleParams(fromTs, toTs, pageIndex * pageSize, (pageIndex + 1) * pageSize),
+        );
+        pages[pageIndex] = rows;
+      }
+    };
+    await Promise.all(
+      Array.from({ length: Math.min(NAVIDROME_SCRABBLE_CONCURRENCY, totalPages - 1) }, worker),
+    );
+    const scrobbles = [];
+    for (const page of pages) {
+      if (page) {
+        scrobbles.push(...page);
+      }
     }
     return scrobbles;
   }
 
   async fetchSong(id) {
-    const data = await this.requestJson(`/api/song/${encodeURIComponent(id)}`);
+    const data = await this._requestJson(`/api/song/${encodeURIComponent(id)}`);
     return data && typeof data === 'object' ? data : null;
+  }
+
+  async fetchSongs(ids) {
+    const results = new Map();
+    const chunkSize = 200;
+    const chunks = [];
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      chunks.push(ids.slice(i, i + chunkSize));
+    }
+    const worker = async (chunk) => {
+      const params = new URLSearchParams();
+      for (const id of chunk) {
+        params.append('id', id);
+      }
+      const rows = await this._requestArray('/api/song', params);
+      for (const row of rows) {
+        if (row && row.id) {
+          results.set(row.id, row);
+        }
+      }
+    };
+    await Promise.all(chunks.map(worker));
+    return results;
   }
 }

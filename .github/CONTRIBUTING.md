@@ -4,6 +4,13 @@ hey, thanks for wanting to help out :D
 
 make a wrapped is a small open source thing that turns your listenbrainz, last.fm, or navidrome history into a spotify wrapped style poster. it's a hobby project, not a company, so the rules are loose. just keep them in mind.
 
+## branches
+
+two long-lived branches, keep it simple:
+
+- `main` is the release line. only merges from `develop` land here, and a release is a `vX.Y.Z` tag on top. docker `:latest` and versioned tags build from it.
+- `develop` is where work actually happens. branch off it for features or fixes, then open a pr back into `develop`. every push to `develop` builds a `:develop` docker image so you can test it.
+
 ## setup
 
 clone, venv, install, run. the short version:
@@ -11,6 +18,7 @@ clone, venv, install, run. the short version:
 ```bash
 git clone https://github.com/DevMatei/make-a-wrapped.git
 cd make-a-wrapped
+git checkout develop
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -32,6 +40,7 @@ keep it readable. clarity beats cleverness.
 
 ## before you open a pr
 
+- prs go into `develop`, not `main`. `main` only gets releases.
 - for big changes, open an issue first so we can agree on the direction.
 - small stuff, like typos or copy fixes, can go straight to a pr.
 - keep prs focused. one feature or one fix per pr, not a kitchen sink.

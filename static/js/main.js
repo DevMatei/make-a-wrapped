@@ -16,6 +16,8 @@ import {
   SERVICE_LABELS,
 } from './constants.js';
 import { createCanvasRenderer } from './canvas-renderer.js';
+import { fetchTemplate, fetchTemplateList, loadSelectedTemplate, setSelectedSlug } from './templates/store.js';
+import { loadFonts, templateFontFamilies } from './fonts.js';
 import { createServiceSelector } from './service-selector.js';
 import { createPeriodSelector, loadPeriodDescriptor } from './period-selector.js';
 import { NavidromeClient } from './navidrome-client.js';
@@ -75,8 +77,7 @@ const artworkOffsetXInput = document.getElementById('artwork-offset-x');
 const artworkOffsetYInput = document.getElementById('artwork-offset-y');
 const artworkSourceInputs = document.querySelectorAll('input[name="artwork-source"]');
 const artworkOverrideInput = document.getElementById('artwork-override');
-const artworkReleaseInput = Array.from(artworkSourceInputs).find((input) => input.value === 'release');
-const artworkReleaseLabel = artworkReleaseInput ? artworkReleaseInput.closest('.artwork-source__option') : null;
+
 const navidromeFields = document.getElementById('navidrome-fields');
 const navidromeServerInput = document.getElementById('navidrome-server');
 const navidromePasswordInput = document.getElementById('navidrome-password');
@@ -105,6 +106,11 @@ const SERVICE_USERNAME_COPY = {
     label: 'Last.fm username',
     placeholder: 'e.g. yourlastfmname',
     emptyMessage: 'Enter a Last.fm username to get started.',
+  },
+  librefm: {
+    label: 'Libre.fm username (beta)',
+    placeholder: 'e.g. yourlibrefmname',
+    emptyMessage: 'Enter a Libre.fm username to get started.',
   },
   navidrome: {
     label: 'Navidrome username',
@@ -412,7 +418,6 @@ function handleServiceChange(nextValue) {
   if (turnstileWrapper) {
     turnstileWrapper.hidden = Boolean(isNavidrome || !isTurnstileEnabled());
   }
-  disableReleaseArtworkOption(selectedService !== 'listenbrainz');
   if (!isNavidrome) {
     clearNavidromeState();
   }
@@ -675,10 +680,8 @@ updateArtworkSourceControls(state.artworkSource);
 
 artistImg.crossOrigin = 'anonymous';
 
-canvasRenderer.preloadBackgrounds(() => drawCanvas());
-
 form.addEventListener('submit', generateWrapped);
-themeSelect.addEventListener('change', () => drawCanvas());
+themeSelect.addEventListener('change', handleTemplateChange);
 
 downloadBtn.addEventListener('click', () => {
   const link = document.createElement('a');
@@ -787,6 +790,7 @@ restoreStoredArtwork();
 restoreArtworkOverride();
 setArtworkEditorEnabled(state.customArtworkActive || state.artworkOverrideActive);
 restoreTurnstileTokenFromSession();
+initTemplateSystem();
 
 window.addEventListener('load', () => {
   initThemeSwitcher();
@@ -840,6 +844,81 @@ function drawCanvas() {
     imageTransform: state.imageTransform,
     period: state.activeRange,
   });
+}
+
+function redrawWithTemplate() {
+  canvasRenderer.preloadBackgrounds(() => drawCanvas());
+}
+
+async function applyTemplate(template, { persist = true } = {}) {
+  if (!template) {
+    return;
+  }
+  canvasRenderer.setTemplate(template);
+  if (persist) {
+    setSelectedSlug(template.slug);
+  }
+  if (themeSelect) {
+    themeSelect.value = template.slug;
+  }
+  drawCanvas();
+  await loadFonts(templateFontFamilies(template));
+  redrawWithTemplate();
+}
+
+async function handleTemplateChange() {
+  if (!themeSelect) {
+    return;
+  }
+  const slug = themeSelect.value;
+  try {
+    const template = await fetchTemplate(slug);
+    await applyTemplate(template);
+  } catch (error) {
+    console.warn('Template unavailable', error);
+    setStatus('That template is unavailable right now.', 'error');
+  }
+}
+
+async function populateTemplateSelect() {
+  if (!themeSelect) {
+    return;
+  }
+  const list = await fetchTemplateList();
+  const current = themeSelect.value;
+  themeSelect.innerHTML = '';
+  const fragments = list.map((template) => {
+    const option = document.createElement('option');
+    option.value = template.slug;
+    option.textContent = template.origin === 'community' ? `${template.name} (community)` : template.name;
+    return option;
+  });
+  themeSelect.append(...fragments);
+  if (fragments.some((option) => option.value === current)) {
+    themeSelect.value = current;
+  }
+}
+
+async function initTemplateSystem() {
+  try {
+    const selected = await loadSelectedTemplate();
+    canvasRenderer.setTemplate(selected.template);
+    if (themeSelect) {
+      themeSelect.value = selected.slug;
+    }
+    drawCanvas();
+    await loadFonts(templateFontFamilies(selected.template));
+    redrawWithTemplate();
+    const browseBtn = document.getElementById('browse-templates');
+    if (browseBtn) {
+      browseBtn.addEventListener('click', () => {
+        window.location.href = '/marketplace';
+      });
+    }
+    populateTemplateSelect();
+  } catch (error) {
+    console.error('Template system initialisation failed', error);
+  }
 }
 
 function toggleDownload(enabled) {
@@ -1137,15 +1216,26 @@ function handleTurnstileFailure(message, status) {
   return false;
 }
 
+function isTransientStatus(status) {
+  return status === 429 || status === 500 || status === 502 || status === 503 || status === 504;
+}
+
 async function fetchWithTurnstileRetry(fetcher) {
-  let retried = false;
+  let turnstileRetried = false;
+  let statusRetries = 0;
   while (true) {
     try {
       return await fetcher();
     } catch (error) {
+      const status = error && error.status;
+      if (isTransientStatus(status) && statusRetries < 3) {
+        statusRetries += 1;
+        await new Promise((resolve) => window.setTimeout(resolve, 600 * statusRetries));
+        continue;
+      }
       const message = (error && error.message) || '';
       const expired = Boolean(error && (error.__turnstileExpired || message.toLowerCase().includes('verification')));
-      if (!expired || retried || !isTurnstileEnabled()) {
+      if (!expired || turnstileRetried || !isTurnstileEnabled()) {
         if (isLikelyNetworkError(error) || (error && error.name === 'TypeError')) {
           const baseMessage = 'Network error while contacting the selected service. Check your connection and try again.';
           const extra = error && error.message ? ` (${error.message})` : '';
@@ -1156,7 +1246,7 @@ async function fetchWithTurnstileRetry(fetcher) {
         }
         throw error;
       }
-      retried = true;
+      turnstileRetried = true;
       await refreshTurnstileToken();
     }
   }
@@ -1171,9 +1261,6 @@ function updateArtworkSourceControls(value) {
 function setArtworkSource(value, { persist = true, refresh = true } = {}) {
   const next = value === 'release' ? 'release' : 'artist';
   const changed = state.artworkSource !== next;
-  if (next === 'release' && isNavidromeSelected()) {
-    return;
-  }
   state.artworkSource = next;
   if (persist) {
     writeLocal(ARTWORK_SOURCE_KEY, next);
@@ -1210,20 +1297,6 @@ function setArtworkSource(value, { persist = true, refresh = true } = {}) {
       downloadError.hidden = false;
       toggleDownload(false);
     });
-}
-
-function disableReleaseArtworkOption(disabled) {
-  if (!artworkReleaseInput) {
-    return;
-  }
-  artworkReleaseInput.disabled = Boolean(disabled);
-  if (artworkReleaseLabel) {
-    artworkReleaseLabel.setAttribute('aria-disabled', String(Boolean(disabled)));
-    artworkReleaseLabel.classList.toggle('is-disabled', Boolean(disabled));
-  }
-  if (disabled && state.artworkSource !== 'artist') {
-    setArtworkSource('artist', { persist: false, refresh: false });
-  }
 }
 
 function handleArtworkTransformChange() {
@@ -1651,7 +1724,9 @@ async function fetchJson(path) {
         err.__turnstileExpired = true;
         throw err;
       }
-      throw new Error(errorMessage);
+      const err = new Error(errorMessage);
+      err.status = response.status;
+      throw err;
     }
     return response.json();
   };
@@ -1668,7 +1743,9 @@ async function fetchText(path) {
         err.__turnstileExpired = true;
         throw err;
       }
-      throw new Error(errorMessage);
+      const err = new Error(errorMessage);
+      err.status = response.status;
+      throw err;
     }
     return response.text();
   };
@@ -1790,6 +1867,7 @@ async function loadCoverArt(username) {
         }
         const unavailable = new Error(errorMessage || 'Artist image unavailable');
         unavailable.__turnstileExpired = false;
+        unavailable.status = res.status;
         throw unavailable;
       }
       const blobResult = await res.blob();
@@ -1970,7 +2048,9 @@ async function updateListenBrainzSections(username, sections) {
               err.__turnstileExpired = true;
               throw err;
             }
-            throw new Error(errorMessage);
+            const err = new Error(errorMessage);
+            err.status = response.status;
+            throw err;
           }
           const text = await response.text();
           const periodMeta = readResponsePeriod(response);
@@ -2013,7 +2093,9 @@ async function updateListenBrainzSections(username, sections) {
               err.__turnstileExpired = true;
               throw err;
             }
-            throw new Error(errorMessage);
+            const err = new Error(errorMessage);
+            err.status = response.status;
+            throw err;
           }
           const text = await response.text();
           const periodMeta = readResponsePeriod(response);

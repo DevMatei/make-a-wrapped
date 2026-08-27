@@ -31,6 +31,14 @@ class TTLCache:
         value = self._lookup(key)
         return default if value is _MISS else value
 
+    def pop(self, key: Hashable, default: Any = None) -> Any:
+        with self._lock:
+            entry = self._data.pop(key, None)
+            self._inflight.pop(key, None)
+        if entry is None:
+            return default
+        return entry[1]
+
     def set(self, key: Hashable, value: Any) -> None:
         with self._lock:
             self._data[key] = (time.time(), value)

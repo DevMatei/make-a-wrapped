@@ -17,14 +17,11 @@ from .config import (
     IMAGE_CONCURRENCY,
     IMAGE_QUEUE_LIMIT,
     IMAGE_QUEUE_TIMEOUT,
-    LASTFM_API,
-    LASTFM_API_KEY,
 )
 from .date_range import DateRange
 from .http import (
     cover_art_session,
     image_session,
-    lastfm_session,
     request_with_handling,
 )
 from .listenbrainz import (
@@ -33,7 +30,7 @@ from .listenbrainz import (
     get_top_tracks_payload,
     normalise_count,
 )
-from .lastfm import get_lastfm_top_artists
+from .lastfm import _needs_aggregation, _resolve_lastfm_period, _resolve_provider, get_lastfm_top_artists
 from .musicbrainz import (
     extract_artist_mbid,
     extract_wikidata_qid,
@@ -49,6 +46,7 @@ logger = logging.getLogger("wrapped_fm")
 SAFE_IMAGE_HOST_SUFFIXES = (
     "wikimedia.org",
     "last.fm",
+    "libre.fm",
     "coverartarchive.org",
     "archive.org",
     "musicbrainz.org",
@@ -252,12 +250,14 @@ def _fetch_lastfm_payload(
     artist_name: Optional[str] = None,
     artist_mbid: Optional[str] = None,
     extra_params: Optional[Dict[str, str]] = None,
+    service: Optional[str] = None,
 ) -> Dict:
-    if not LASTFM_API_KEY:
+    provider = _resolve_provider(service)
+    if not provider.api_key:
         return {}
     params: Dict[str, str] = {
         "method": method,
-        "api_key": LASTFM_API_KEY,
+        "api_key": provider.api_key,
         "format": "json",
         "autocorrect": "1",
     }
@@ -268,9 +268,9 @@ def _fetch_lastfm_payload(
     if extra_params:
         params.update(extra_params)
     try:
-        response = request_with_handling(lastfm_session, LASTFM_API, params=params)
+        response = request_with_handling(provider.session, provider.api, params=params)
     except Exception as exc:
-        logger.debug("Last.fm %s failed: %s", method, exc)
+        logger.debug("music service %s failed: %s", method, exc)
         return {}
     if response.status_code == 404 or not response.ok:
         return {}
@@ -283,12 +283,13 @@ def _fetch_lastfm_payload(
     return payload
 
 
-def _lookup_lastfm_album_image(artist_name: str, artist_mbid: Optional[str]) -> Optional[str]:
+def _lookup_lastfm_album_image(artist_name: str, artist_mbid: Optional[str], service: Optional[str] = None) -> Optional[str]:
     payload = _fetch_lastfm_payload(
         "artist.gettopalbums",
         artist_name=artist_name,
         artist_mbid=artist_mbid,
         extra_params={"limit": "5"},
+        service=service,
     )
     top_albums = (payload.get("topalbums") or {}).get("album") or []
     for album in top_albums:
@@ -299,19 +300,52 @@ def _lookup_lastfm_album_image(artist_name: str, artist_mbid: Optional[str]) -> 
 
 
 @lru_cache(maxsize=256)
-def _download_lastfm_artist_image(artist_name: str, artist_mbid: Optional[str]) -> Optional[Tuple[str, bytes]]:
-    if not LASTFM_API_KEY or not artist_name:
+def _is_lastfm_family(service: str) -> bool:
+    return service in ("lastfm", "librefm")
+
+
+def _download_lastfm_user_top_album_image(
+    username: str,
+    service: str,
+    range_obj: Optional[DateRange] = None,
+) -> Optional[Tuple[str, bytes]]:
+    provider = _resolve_provider(service)
+    if not provider or not provider.api_key or not username:
+        return None
+    if _needs_aggregation(range_obj):
+        return None
+    period = _resolve_lastfm_period(range_obj)
+    payload = _fetch_lastfm_payload(
+        "user.gettopalbums",
+        extra_params={"user": username, "period": period, "limit": "3"},
+        service=service,
+    )
+    albums = (payload.get("topalbums") or {}).get("album") or []
+    for album in albums:
+        image_url = _select_lastfm_image(album.get("image") or [])
+        if image_url:
+            art = _fetch_binary_image(image_url)
+            if art:
+                return art
+    return None
+
+
+@lru_cache(maxsize=256)
+def _download_lastfm_artist_image(artist_name: str, artist_mbid: Optional[str], service: str = "lastfm") -> Optional[Tuple[str, bytes]]:
+    provider = _resolve_provider(service)
+    if not provider.api_key or not artist_name:
         return None
 
     payload = _fetch_lastfm_payload(
         "artist.getinfo",
         artist_name=artist_name,
         artist_mbid=artist_mbid,
+        service=service,
     )
     artist_info = (payload or {}).get("artist") or {}
     image_url = _select_lastfm_image(artist_info.get("image") or [])
     if not image_url and artist_name:
-        image_url = _lookup_lastfm_album_image(artist_name, artist_mbid)
+        image_url = _lookup_lastfm_album_image(artist_name, artist_mbid, service=service)
     if not image_url:
         return None
 
@@ -327,9 +361,9 @@ def _collect_artist_candidates(
     service: str = "listenbrainz",
     range_obj: Optional[DateRange] = None,
 ) -> List[Tuple[str, Optional[str]]]:
-    if service == "lastfm":
+    if service in ("lastfm", "librefm"):
         # mbids are only needed by the MusicBrainz fallback; resolve them lazily there
-        artists = get_lastfm_top_artists(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj)
+        artists = get_lastfm_top_artists(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj, service=service)
         return [(name, None) for name in artists]
 
     artists = get_top_artists_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj)
@@ -448,11 +482,7 @@ def fetch_top_artist_image(
         raise ImageQueueBusyError
 
     try:
-        preference_order = []
-        if preferred_source == "release" and service == "listenbrainz":
-            preference_order = ["release", "artist"]
-        else:
-            preference_order = ["artist", "release"]
+        preference_order = ["release", "artist"] if preferred_source == "release" else ["artist", "release"]
 
         artist_candidates: List[Tuple[str, Optional[str]]] = []
 
@@ -463,11 +493,18 @@ def fetch_top_artist_image(
                     if art:
                         content_type, content = art
                         return ImageResult(content_type or "image/jpeg", content, max(queue_position - 1, 0))
+            elif source == "release" and _is_lastfm_family(service):
+                art = _download_lastfm_user_top_album_image(username, service, range_obj=range_obj)
+                if art:
+                    content_type, content = art
+                    return ImageResult(content_type or "image/jpeg", content, max(queue_position - 1, 0))
             else:
                 if not artist_candidates:
                     artist_candidates = _collect_artist_candidates(username, service=service, range_obj=range_obj)
+                # artist art always comes from Last.fm first (best photo quality),
+                # regardless of which scrobble service was actually selected
                 for artist_name, artist_mbid in artist_candidates:
-                    art = _download_lastfm_artist_image(artist_name, artist_mbid)
+                    art = _download_lastfm_artist_image(artist_name, artist_mbid, service="lastfm")
                     if art:
                         content_type, content = art
                         return ImageResult(content_type or "image/jpeg", content, max(queue_position - 1, 0))

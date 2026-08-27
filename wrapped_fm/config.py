@@ -11,6 +11,7 @@ def _env_bool(name: str, default: str = "false") -> bool:
     return os.getenv(name, default).strip().lower() in {"1", "true", "yes", "on"}
 
 
+SITE_URL = os.getenv("SITE_URL", "https://wrapped.devmatei.com").rstrip("/")
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
     level=getattr(logging, LOG_LEVEL, logging.INFO),
@@ -51,6 +52,23 @@ LASTFM_USER_AGENT = os.getenv(
     "LASTFM_USER_AGENT",
     "make-a-wrapped/1.0 (+https://github.com/devmatei/make-a-wrapped)",
 )
+LIBREFM_API = os.getenv("LIBREFM_API", "https://libre.fm/2.0/")
+LIBREFM_API_KEY = os.getenv(
+    "LIBREFM_API_KEY",
+    "17f000cbcbe6ff46d06b98ab3581160c",
+)
+LIBREFM_API_SECRET = os.getenv(
+    "LIBREFM_API_SECRET",
+    "",
+)
+LIBREFM_USER_AGENT = os.getenv(
+    "LIBREFM_USER_AGENT",
+    "make-a-wrapped/1.0 (+https://github.com/devmatei/make-a-wrapped)",
+)
+# libre.fm throttles hard per IP (burst of a few requests then a cooldown), so we
+# pace upstream calls and keep the per-wrapped fan-out tiny. tune if self-hosting.
+LIBREFM_MIN_INTERVAL = float(os.getenv("LIBREFM_MIN_INTERVAL", "2.0"))
+LIBREFM_DURATION_LOOKUP_LIMIT = int(os.getenv("LIBREFM_DURATION_LOOKUP_LIMIT", "3"))
 DEFAULT_RATE_LIMIT = os.getenv("APP_RATE_LIMIT", "90 per minute")
 STATS_RATE_LIMIT = os.getenv("APP_STATS_RATE_LIMIT", "45 per minute")
 IMAGE_RATE_LIMIT = os.getenv("APP_IMAGE_RATE_LIMIT", "15 per minute")
@@ -58,6 +76,13 @@ RATE_LIMIT_STORAGE = os.getenv("RATE_LIMIT_STORAGE", "memory://")
 RATE_LIMIT_SALT = os.getenv("APP_RATE_LIMIT_SALT", "")
 TRUST_PROXY_HEADERS = _env_bool("APP_TRUST_PROXY_HEADERS", "false")
 WRAPPED_COUNT_FILE = Path(os.getenv("WRAPPED_COUNT_FILE", "data/wrapped-count.txt"))
+TEMPLATE_LIBRARY_DIR = Path(os.getenv("TEMPLATE_LIBRARY_DIR", "data/templates"))
+TEMPLATE_SUBMISSION_DIR = Path(os.getenv("TEMPLATE_SUBMISSION_DIR", "data/template-submissions"))
+TEMPLATE_CREATOR_DIR = Path(os.getenv("TEMPLATE_CREATOR_DIR", "data/template-creators"))
+TEMPLATE_ASSET_DIR = Path(os.getenv("TEMPLATE_ASSET_DIR", "data/template-assets"))
+TEMPLATE_OFFICIAL_DIR = Path(__file__).resolve().parent.parent / "static" / "templates"
+TEMPLATE_ASSET_MAX_BYTES = int(os.getenv("TEMPLATE_ASSET_MAX_BYTES", str(10 * 1024 * 1024)))
+TEMPLATE_REVIEW_KEY = os.getenv("TEMPLATE_REVIEW_KEY")
 TURNSTILE_SITE_KEY = os.getenv("TURNSTILE_SITE_KEY")
 TURNSTILE_SECRET_KEY = os.getenv("TURNSTILE_SECRET_KEY")
 TURNSTILE_VERIFY_URL = os.getenv(

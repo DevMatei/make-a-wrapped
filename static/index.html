@@ -127,6 +127,9 @@
         ]
       }
     </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Bebas+Neue&family=Archivo+Black&family=Caveat:wght@400;700&family=Monoton&display=swap">
     <link rel="stylesheet" href="style.css">
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
     <script type="module" src="js/main.js"></script>
@@ -185,7 +188,26 @@
             </form>
             <div class="form__secondary-grid">
               <div class="form__secondary">
-                <label class="form__label" for="color">card theme</label>
+                <div class="form__label-row">
+                  <label class="form__label" for="color">template</label>
+                  <button
+                    type="button"
+                    id="browse-templates"
+                    class="form__browse"
+                    title="browse all templates"
+                  >
+                    browse
+                    <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true">
+                      <path
+                        d="M8 6h8M8 12h8M8 18h5"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                      />
+                    </svg>
+                  </button>
+                </div>
                 <select id="color" name="color">
                   <option value="black">midnight</option>
                   <option value="black_new">midnight (new)</option>
@@ -253,6 +275,18 @@
                         data-dropdown-option
                       >
                         Last.fm
+                      </button>
+                    </li>
+                    <li>
+                      <button
+                        type="button"
+                        class="service-select__option"
+                        role="option"
+                        data-value="librefm"
+                        data-label="Libre.fm (beta)"
+                        data-dropdown-option
+                      >
+                        Libre.fm (beta)
                       </button>
                     </li>
                     <li>
@@ -462,7 +496,7 @@
                   </label>
                   <label class="artwork-source__option">
                     <input type="radio" name="artwork-source" value="release">
-                    <span>top release cover (listenbrainz only)</span>
+                    <span>top release cover</span>
                   </label>
                 </div>
               </div>
@@ -538,7 +572,7 @@
               you're not stuck waiting for december either, generate one for any month, last year, whatever period you want. share <a href="https://wrapped.devmatei.com" target="_blank" rel="noopener noreferrer">wrapped.devmatei.com</a> with your friends if you want.
             </p>
             <p>
-              on last.fm or self-hosting? there's more about the <a href="/lastfm-wrapped">last.fm wrapped</a> and the <a href="/navidrome-wrapped">navidrome wrapped</a> specifically.
+              on last.fm or self-hosting? there's more about the <a href="/lastfm-wrapped">last.fm wrapped</a>, the <a href="/navidrome-wrapped">navidrome wrapped</a>, and the <a href="/templates">wrapped templates</a> specifically.
             </p>
           </div>
         </section>

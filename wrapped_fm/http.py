@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from typing import Dict, Optional
 
@@ -17,12 +18,45 @@ from .config import (
     HTTP_TIMEOUT,
     LASTFM_API,
     LASTFM_USER_AGENT,
+    LIBREFM_MIN_INTERVAL,
+    LIBREFM_USER_AGENT,
     LISTENBRAINZ_API,
     LISTENBRAINZ_USER_AGENT,
     MUSICBRAINZ_API,
     MUSICBRAINZ_USER_AGENT,
     WIKIDATA_ENTITY_API,
 )
+
+
+class _RatePacer:
+    """Serialises outbound requests for a session with a minimum interval."""
+
+    def __init__(self, min_interval: float) -> None:
+        self.min_interval = min_interval
+        self._next = 0.0
+        self._lock = threading.Lock()
+
+    def wait(self) -> None:
+        with self._lock:
+            now = time.monotonic()
+            delay = max(0.0, self._next - now)
+            self._next = max(now, self._next) + self.min_interval
+        if delay:
+            time.sleep(delay)
+
+
+def _pace(session: requests.Session) -> None:
+    pacer = getattr(session, "_upstream_pacer", None)
+    if pacer is not None:
+        pacer.wait()
+
+
+def _retry_after_seconds(response: RequestsResponse, default: float = 5.0) -> float:
+    value = response.headers.get("Retry-After", "").strip()
+    try:
+        return max(1.0, float(value))
+    except (TypeError, ValueError):
+        return default
 
 
 def _configure_session(
@@ -112,6 +146,20 @@ lastfm_aggregate_session.headers.update(
 )
 _configure_no_retry_session(lastfm_aggregate_session)
 
+librefm_session = requests.Session()
+librefm_session.headers.update(
+    {"User-Agent": LIBREFM_USER_AGENT, "Accept": "application/json"}
+)
+librefm_session._upstream_pacer = _RatePacer(LIBREFM_MIN_INTERVAL)
+_configure_session(librefm_session)
+
+librefm_aggregate_session = requests.Session()
+librefm_aggregate_session.headers.update(
+    {"User-Agent": LIBREFM_USER_AGENT, "Accept": "application/json"}
+)
+librefm_aggregate_session._upstream_pacer = _RatePacer(LIBREFM_MIN_INTERVAL)
+_configure_no_retry_session(librefm_aggregate_session)
+
 musicbrainz_aggregate_session = requests.Session()
 musicbrainz_aggregate_session.headers.update(
     {"User-Agent": MUSICBRAINZ_USER_AGENT, "Accept": "application/json"}
@@ -134,8 +182,10 @@ def request_with_handling(
     allow_redirects: bool = True,
 ) -> RequestsResponse:
     """Perform a GET request with shared retry and error handling."""
+    _pace(session)
     last_exc: Optional[Exception] = None
-    for attempt in range(3):
+    attempts = 0
+    while True:
         try:
             response = session.get(
                 url,
@@ -143,8 +193,22 @@ def request_with_handling(
                 timeout=timeout or HTTP_TIMEOUT,
                 allow_redirects=allow_redirects,
             )
-            return response
         except RequestException as exc:
             last_exc = exc
-            time.sleep(0.3 * (attempt + 1))
-    abort(502, description=f"Upstream request failed: {last_exc}")
+            if attempts >= 3:
+                abort(502, description=f"Upstream request failed: {last_exc}")
+            attempts += 1
+            time.sleep(0.4 * attempts)
+            _pace(session)
+            continue
+        if response.status_code == 429 and attempts < 5:
+            attempts += 1
+            time.sleep(_retry_after_seconds(response))
+            _pace(session)
+            continue
+        if response.status_code in (500, 502, 503, 504) and attempts < 4:
+            attempts += 1
+            time.sleep(0.5 * attempts)
+            _pace(session)
+            continue
+        return response

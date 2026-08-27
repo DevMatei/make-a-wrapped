@@ -8,3 +8,8 @@ __pycache__
 data/wrapped-count.txt
 data/badges/
 .dev.log
+data/templates/
+data/template-submissions/
+data/template-creators/
+data/template-assets/
+data/template-uses.json

@@ -90,22 +90,23 @@ def _format_minutes(raw: str) -> str:
 
 
 def _fetch_value(service: str, username: str, badge_type: str, range_obj: DateRange) -> str:
+    is_lastfm_family = service in ("lastfm", "librefm")
     if badge_type == "minutes":
-        if service == "lastfm":
-            return _format_minutes(estimate_lastfm_listen_minutes(username, range_obj=range_obj))
+        if is_lastfm_family:
+            return _format_minutes(estimate_lastfm_listen_minutes(username, range_obj=range_obj, service=service))
         return _format_minutes(estimate_total_listen_minutes(username, range_obj=range_obj))
     if badge_type == "genre":
-        if service == "lastfm":
-            return get_lastfm_top_genre(username, range_obj=range_obj)
+        if is_lastfm_family:
+            return get_lastfm_top_genre(username, range_obj=range_obj, service=service)
         return get_top_genre(username, range_obj=range_obj)
     if badge_type == "track":
-        if service == "lastfm":
-            names = get_lastfm_top_tracks(username, 1, range_obj=range_obj)
+        if is_lastfm_family:
+            names = get_lastfm_top_tracks(username, 1, range_obj=range_obj, service=service)
             return names[0] if names else "no listens yet"
         tracks = get_top_tracks_payload(username, 1, range_obj=range_obj)
         return tracks[0].get("track_name", "no listens yet") if tracks else "no listens yet"
-    if service == "lastfm":
-        names = get_lastfm_top_artists(username, 1, range_obj=range_obj)
+    if is_lastfm_family:
+        names = get_lastfm_top_artists(username, 1, range_obj=range_obj, service=service)
         return names[0] if names else "no listens yet"
     artists = get_top_artists_payload(username, 1, range_obj=range_obj)
     return artists[0].get("artist_name", "no listens yet") if artists else "no listens yet"
@@ -121,7 +122,12 @@ def get_badge_value(service: str, username: str, badge_type: str, range_obj: Dat
             logger.warning("Badge value failed for %s/%s: %s", service, username, exc)
             return "unavailable"
 
-    return _badge_cache.get_or_compute(key, compute)
+    value = _badge_cache.get_or_compute(key, compute)
+    # don't cache transient upstream failures or empty fallbacks, or one flaky
+    # upstream response (very common on libre.fm) poisons the badge for the TTL
+    if value in {"unavailable"} or value == "no listens yet":
+        _badge_cache.pop(key, None)
+    return value
 
 
 def _is_light_color(color: str) -> bool:

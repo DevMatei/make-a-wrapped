@@ -1,0 +1,180 @@
+{
+  "version": 1,
+  "slug": "purple",
+  "name": "Twilight",
+  "creator": {
+    "id": "official",
+    "name": "Make a Wrapped",
+    "website": "https://wrapped.devmatei.com"
+  },
+  "meta": {
+    "category": "vibrant",
+    "tags": [
+      "vibrant",
+      "purple"
+    ],
+    "featured": false
+  },
+  "canvas": {
+    "width": 1080,
+    "height": 1920
+  },
+  "palette": {
+    "label": "#efe7ff",
+    "value": "#ffffff"
+  },
+  "background": {
+    "type": "image",
+    "src": "/img/purple.png"
+  },
+  "artwork": {
+    "enabled": true,
+    "contain": true,
+    "x": 268,
+    "y": 244,
+    "size": 544,
+    "borderRadius": 32,
+    "frame": true,
+    "frameWidth": 10
+  },
+  "elements": [
+    {
+      "id": "artists-heading",
+      "kind": "text",
+      "text": "Top Artists",
+      "x": 112,
+      "y": 1080,
+      "font": {
+        "family": "Nunito",
+        "weight": 400,
+        "size": 40
+      },
+      "color": "label",
+      "baseline": "top",
+      "align": "left"
+    },
+    {
+      "id": "tracks-heading",
+      "kind": "text",
+      "text": "Top Tracks",
+      "x": 590,
+      "y": 1080,
+      "font": {
+        "family": "Nunito",
+        "weight": 400,
+        "size": 40
+      },
+      "color": "label",
+      "baseline": "top",
+      "align": "left"
+    },
+    {
+      "id": "artists-list",
+      "kind": "list",
+      "slot": "artists",
+      "x": 112,
+      "y": 1180,
+      "font": {
+        "family": "Nunito",
+        "weight": 700,
+        "size": 40
+      },
+      "color": "value",
+      "lineHeight": 72,
+      "maxWidth": 454,
+      "minFontSize": 40,
+      "ellipsize": true,
+      "prefix": true,
+      "baseline": "top",
+      "align": "left"
+    },
+    {
+      "id": "tracks-list",
+      "kind": "list",
+      "slot": "tracks",
+      "x": 590,
+      "y": 1180,
+      "font": {
+        "family": "Nunito",
+        "weight": 700,
+        "size": 40
+      },
+      "color": "value",
+      "lineHeight": 72,
+      "maxWidth": 378,
+      "minFontSize": 40,
+      "ellipsize": true,
+      "prefix": true,
+      "baseline": "top",
+      "align": "left"
+    },
+    {
+      "id": "minutes-label",
+      "kind": "text",
+      "text": "Minutes Listened",
+      "x": 112,
+      "y": 1700,
+      "font": {
+        "family": "Nunito",
+        "weight": 400,
+        "size": 40
+      },
+      "color": "label",
+      "baseline": "top",
+      "align": "left"
+    },
+    {
+      "id": "genre-label",
+      "kind": "text",
+      "text": "Top Genre",
+      "x": 590,
+      "y": 1700,
+      "font": {
+        "family": "Nunito",
+        "weight": 400,
+        "size": 40
+      },
+      "color": "label",
+      "baseline": "top",
+      "align": "left"
+    },
+    {
+      "id": "minutes-value",
+      "kind": "slot",
+      "slot": "minutes",
+      "x": 112,
+      "y": 1775,
+      "font": {
+        "family": "Nunito",
+        "weight": 700,
+        "size": 68
+      },
+      "color": "value",
+      "maxWidth": 454,
+      "minFontSize": 44,
+      "ellipsize": true,
+      "prefix": false,
+      "baseline": "top",
+      "align": "left"
+    },
+    {
+      "id": "genre-value",
+      "kind": "slot",
+      "slot": "genre",
+      "x": 590,
+      "y": 1775,
+      "font": {
+        "family": "Nunito",
+        "weight": 700,
+        "size": 68
+      },
+      "color": "value",
+      "maxWidth": 378,
+      "minFontSize": 40,
+      "ellipsize": true,
+      "prefix": false,
+      "baseline": "top",
+      "align": "left"
+    }
+  ]
+}
