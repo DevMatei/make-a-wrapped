@@ -18,6 +18,8 @@ Spotify Wrapped-style recap generator for ListenBrainz, Last.fm, Libre.fm, and N
 
 * pulls from ListenBrainz, Last.fm, Libre.fm, Navidrome, MusicBrainz, Cover Art Archive, and Wikidata. all public, no tokens needed (except the optional Last.fm key you'd already have for artwork anyway)
 * artist art tries Last.fm first, falls back to MusicBrainz/Wikidata, and if all else fails there's a built-in editor to upload/zoom/position your own image (saved in local storage, or temporarily on the server for 1 hour)
+* a data-driven template system, so the built-in themes and community templates all render from the same format
+* a [template library](/marketplace) to browse featured/newest/popular templates and use any of them, plus a [visual editor](/editor) so artists can design their own Wrapped poster without knowing the format - both still in **beta**
 * rate limits are in so your server doesn't get nuked
 * there's a live counter of total wraps ever generated (idk it seemed cool)
 * officially listed on the [ListenBrainz Enabled Applications](https://wiki.musicbrainz.org/ListenBrainz_Enabled_Applications) page :D
@@ -106,6 +108,20 @@ sudo docker compose up -d
 `APP_RATE_LIMIT_SALT`, `APP_TRUST_PROXY_HEADERS`
 `BADGE_CACHE_TTL` (seconds, default 6h), `BADGE_CACHE_SIZE`
 `BADGE_SNAPSHOT_DIR`, `BADGE_SNAPSHOT_TTL_SECONDS` (default 60 days), `BADGE_SNAPSHOT_MAX_COUNT`
+
+### community templates (beta)
+
+templates live as little JSON documents in `static/templates/` (official) and `data/templates/` (approved community). the renderer consumes the same format, so anything the editor makes runs everywhere the built-in themes do. the marketplace, editor and submission flow are still **beta** - expect rough edges.
+
+* `/templates` - a page that explains what templates are and how to use them.
+* `/marketplace` - browse templates. search, filter by category, sort by featured/newest/popular, and hit "use this template" to jump straight into the generator. you can also export any template as JSON.
+* `/editor` - the visual template editor. position, resize and configure text, lists, stats, background and artwork on a live Wrapped canvas, then submit it for review. export/import templates as JSON to share them.
+* `/admin` - moderation. community submissions land in a `pending_review` state and only appear publicly after a maintainer approves them.
+
+creators are attributed by a key held in their browser (the same kind of ownership mechanism the badge snapshots use), so the same artist can submit many templates without re-registering, and nobody can casually claim someone else's identity. to enable the review API set `TEMPLATE_REVIEW_KEY` (see `.env.example`); leave it empty to disable moderation entirely.
+
+> [!NOTE]
+> **libre.fm** integration is marked **beta/unstable**. the service throttles hard per IP and its API is less predictable than last.fm, so wrapped generation can be slower or occasionally flaky. treat it as experimental.
 
 ### why it exists
 
