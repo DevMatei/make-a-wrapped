@@ -29,7 +29,7 @@ export const SECTION_LABELS = {
 export const SERVICE_LABELS = {
   listenbrainz: 'ListenBrainz',
   lastfm: 'Last.fm',
-  librefm: 'Libre.fm',
+  librefm: 'Libre.fm (beta)',
   navidrome: 'Navidrome',
 };
 
