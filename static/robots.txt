@@ -5,5 +5,7 @@ Disallow: /top/
 Disallow: /time/
 Disallow: /artwork/
 Disallow: /metrics/
+Disallow: /admin
+Disallow: /template-assets/
 
 Sitemap: https://wrapped.devmatei.com/sitemap.xml
