@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import logging
+import os
 
 from flask import (
     Blueprint,
@@ -16,6 +17,7 @@ from flask import (
     send_file,
 )
 
+from . import templates as template_store
 from .badge import badge_label, build_badge, normalise_badge_color, normalise_badge_type, render_badge_svg
 from .badge_store import (
     BadgeStoreFullError,
@@ -26,7 +28,10 @@ from .badge_store import (
 from .config import (
     BADGE_SNAPSHOT_TTL_SECONDS,
     IMAGE_RATE_LIMIT,
+    SITE_URL,
     STATS_RATE_LIMIT,
+    TEMPLATE_ASSET_MAX_BYTES,
+    TEMPLATE_REVIEW_KEY,
     TEMP_ARTWORK_MAX_BYTES,
     TEMP_ARTWORK_TTL_SECONDS,
     TURNSTILE_ENABLED,
@@ -205,6 +210,208 @@ def _all_time_fallback_range():
 @bp.route("/")
 def root() -> Response:
     return current_app.send_static_file("index.html")
+
+
+@bp.route("/templates")
+def templates_page() -> Response:
+    return current_app.send_static_file("templates.html")
+
+
+@bp.route("/marketplace")
+def marketplace_page() -> Response:
+    page_path = os.path.join(str(current_app.static_folder), "marketplace.html")
+    try:
+        with open(page_path, "r", encoding="utf-8") as handle:
+            html = handle.read()
+    except OSError:
+        return current_app.send_static_file("marketplace.html")
+    try:
+        templates = template_store.list_templates()
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Template list failed for marketplace SEO: %s", exc)
+        templates = []
+    items = [
+        {
+            "@type": "ListItem",
+            "position": index + 1,
+            "item": {
+                "@type": "CreativeWork",
+                "name": template.get("name") or "Untitled",
+                "alternateName": template.get("slug"),
+                "url": f"{SITE_URL}/?template={template['slug']}",
+                "author": {
+                    "@type": "Person",
+                    "name": (template.get("creator") or {}).get("name") or "Make a Wrapped",
+                },
+                "isAccessibleForFree": True,
+            },
+        }
+        for index, template in enumerate(templates)
+        if template.get("slug")
+    ]
+    seo = {
+        "@context": "https://schema.org",
+        "@type": "CollectionPage",
+        "name": "Make a Wrapped template library",
+        "url": f"{SITE_URL}/marketplace",
+        "description": "Official and community templates for your ListenBrainz, Last.fm, Libre.fm, or Navidrome wrapped. Pick one or make your own.",
+        "isAccessibleForFree": True,
+        "mainEntity": {
+            "@type": "ItemList",
+            "numberOfItems": len(items),
+            "itemListElement": items,
+        },
+    }
+    json_ld = f'<script type="application/ld+json">\n{json.dumps(seo)}\n</script>'
+    html = html.replace("<!--MARKETPLACE_SEO-->", json_ld)
+    response = current_app.response_class(html, mimetype="text/html")
+    response.headers["Cache-Control"] = "public, max-age=300"
+    return response
+
+
+@bp.route("/editor")
+def editor_page() -> Response:
+    return current_app.send_static_file("editor.html")
+
+
+@bp.route("/admin")
+def admin_page() -> Response:
+    return current_app.send_static_file("admin.html")
+
+
+@bp.route("/api/templates", methods=["GET"])
+def list_templates_api() -> Response:
+    try:
+        templates = template_store.list_templates()
+    except Exception as exc:  # pragma: no cover - defensive
+        logger.warning("Template listing failed: %s", exc)
+        templates = []
+    response = jsonify({"templates": templates})
+    response.headers["Cache-Control"] = "public, max-age=300"
+    return response
+
+
+@bp.route("/api/templates/<slug>", methods=["GET"])
+def get_template_api(slug: str) -> Response:
+    try:
+        template = template_store.get_template(slug)
+    except template_store.TemplateUnavailableError:
+        abort(404, description="Template not found.")
+    response = jsonify({"template": template})
+    response.headers["Cache-Control"] = "public, max-age=300"
+    return response
+
+
+@bp.route("/api/templates/<slug>/use", methods=["POST"])
+@rate_limit(STATS_RATE_LIMIT)
+def record_template_use_api(slug: str) -> Response:
+    if not template_store.resolve_template_exists(slug):
+        abort(404, description="Template not found.")
+    count = template_store.record_template_use(slug)
+    return jsonify({"ok": True, "uses": count})
+
+
+@bp.route("/api/templates/submit", methods=["POST"])
+@require_turnstile
+@rate_limit(STATS_RATE_LIMIT)
+def submit_template_api() -> Response:
+    payload = request.get_json(silent=True) or {}
+    try:
+        submission = template_store.submit_template(payload)
+    except template_store.TemplateInvalidError as exc:
+        abort(400, description=str(exc))
+    except template_store.CreatorInvalidError as exc:
+        abort(400, description=str(exc))
+    return jsonify({
+        "ok": True,
+        "submission_id": submission["submission_id"],
+        "status": submission["status"],
+    })
+
+
+@bp.route("/api/templates/asset", methods=["POST"])
+@require_turnstile
+@rate_limit(IMAGE_RATE_LIMIT)
+def upload_template_asset_api() -> Response:
+    slug = (request.form.get("slug") or "").strip().lower()
+    uploaded_file = request.files.get("asset")
+    if uploaded_file is None or uploaded_file.filename == "":
+        abort(400, description="Missing asset file")
+    data = uploaded_file.read()
+    if not data:
+        abort(400, description="Empty asset file")
+    if len(data) > TEMPLATE_ASSET_MAX_BYTES:
+        abort(413, description="Asset exceeds the size limit")
+    content_type = (uploaded_file.mimetype or "").split(";")[0].strip().lower()
+    if content_type not in ALLOWED_ARTWORK_TYPES:
+        abort(400, description="Asset must be a PNG, JPEG, WebP, or GIF image")
+    try:
+        result = template_store.store_template_asset(slug, uploaded_file.filename, data)
+    except template_store.TemplateInvalidError as exc:
+        abort(400, description=str(exc))
+    return jsonify({"ok": True, "url": result["filename"]})
+
+
+@bp.route("/template-assets/<path:rel_path>", methods=["GET"])
+def fetch_template_asset(rel_path: str) -> Response:
+    absolute_path = template_store.resolve_template_asset_path(f"/template-assets/{rel_path}")
+    if not absolute_path or not os.path.isfile(absolute_path):
+        abort(404, description="Asset not found.")
+    content_type = "image/png"
+    if rel_path.endswith(".jpg"):
+        content_type = "image/jpeg"
+    elif rel_path.endswith(".webp"):
+        content_type = "image/webp"
+    try:
+        with open(absolute_path, "rb") as handle:
+            data = handle.read()
+    except OSError:
+        abort(404, description="Asset not found.")
+    response = send_file(
+        io.BytesIO(data),
+        mimetype=content_type,
+        as_attachment=False,
+        download_name=os.path.basename(rel_path),
+    )
+    response.headers["Cache-Control"] = "public, max-age=3600"
+    response.headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; sandbox"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+def _require_reviewer() -> None:
+    if not TEMPLATE_REVIEW_KEY:
+        abort(404, description="Template review is disabled.")
+    auth = request.headers.get("Authorization", "")
+    token = auth[7:].strip() if auth.startswith("Bearer ") else ""
+    if not token or token != TEMPLATE_REVIEW_KEY:
+        abort(401, description="Review key is required.")
+
+
+@bp.route("/api/templates/review", methods=["POST"])
+@rate_limit(STATS_RATE_LIMIT)
+def review_templates_api() -> Response:
+    _require_reviewer()
+    payload = request.get_json(silent=True) or {}
+    action = (payload.get("action") or "list").strip().lower()
+    if action == "list":
+        return jsonify({"pending": template_store.get_pending_submissions()})
+    submission_id = payload.get("submission_id") or ""
+    if action == "approve":
+        try:
+            template_store.approve_submission(submission_id)
+        except template_store.TemplateUnavailableError as exc:
+            abort(404, description=str(exc))
+        except template_store.TemplateInvalidError as exc:
+            abort(400, description=str(exc))
+        return jsonify({"ok": True, "action": "approved"})
+    if action == "reject":
+        try:
+            template_store.reject_submission(submission_id)
+        except template_store.TemplateUnavailableError as exc:
+            abort(404, description=str(exc))
+        return jsonify({"ok": True, "action": "rejected"})
+    abort(400, description="Unknown review action.")
 
 
 @bp.route("/lastfm-wrapped")
