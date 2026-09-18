@@ -7,9 +7,14 @@ on:
       - develop
     tags:
       - 'v*'
+  pull_request:
+    branches:
+      - main
+      - develop
 
 jobs:
   Deploy:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-22.04
     permissions:
       contents: read
@@ -46,3 +51,57 @@ jobs:
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+  Preview:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v5
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to ghcr.io
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: DevMatei
+          password: ${{ secrets.GHCR_TOKEN }}
+      - name: Compute image tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/devmatei/make-a-wrapped
+          tags: |
+            type=raw,value=pr-${{ github.event.pull_request.number }}
+      - name: Build and Push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      - name: Comment preview image
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE: ghcr.io/devmatei/make-a-wrapped:pr-${{ github.event.pull_request.number }}
+        run: |
+          BODY="PR preview image is ready for testing: \`$IMAGE\`
+          \`\`\`
+          docker pull $IMAGE
+          docker run --rm -p 8000:8000 --env-file .env $IMAGE
+          \`\`\`
+          then open http://localhost:8000"
+          EXISTING=$(gh pr view ${{ github.event.pull_request.number }} --json comments --jq '[.comments[] | select(.author.login == "github-actions[bot]" and (.body | contains("PR preview image")))][0].id // empty')
+          if [ -n "$EXISTING" ]; then
+            gh api "repos/${{ github.repository }}/issues/comments/$EXISTING" -X PATCH -f body="$BODY" > /dev/null
+          else
+            gh pr comment ${{ github.event.pull_request.number }} --body "$BODY"
+          fi
