@@ -2,17 +2,11 @@
 
 Spotify Wrapped-style recap generator for ListenBrainz, Last.fm, Libre.fm, and Navidrome. Built with Flask.
 
-> [!IMPORTANT]
-> Rebranded to Make a Wrapped (was ListenBrainz Wrapped).
-> Site's back up. if something's broken, open a [GitHub issue](https://github.com/DevMatei/make-a-wrapped/issues/new/choose).
->
-> New 2025 templates are out!
-
 <img width="3241" height="1362" alt="Make a Wrapped, shareable stats for your scrobbles" src="image.png" />
 
 ## 🌐 website
 
-[wrapped.devmatei.com](https://wrapped.devmatei.com/) - built by [devmatei.com](https://devmatei.com)
+[Make a Wrapped](https://wrapped.devmatei.com/) - built by [devmatei.com](https://devmatei.com)
 
 ## 💡 why it's cool
 
@@ -127,7 +121,7 @@ creators are attributed by a key held in their browser (the same kind of ownersh
 
 I self-host my music library on Navidrome and don't use Spotify, but all my friends post their Wrapped every year and everyone's like "wait what's that?" when you show them a ListenBrainz stats page. so I built this. same vibe, works with open music platforms.
 
-go flex your scrobbles at [wrapped.devmatei.com](https://wrapped.devmatei.com) :)
+go flex your scrobbles at [Make a Wrapped](https://wrapped.devmatei.com) :)
 
 ### about me
 

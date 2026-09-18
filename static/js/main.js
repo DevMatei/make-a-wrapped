@@ -451,18 +451,18 @@ function readNavidromeCredentials(username) {
 
 const NAVIDROME_METHOD_HINTS = {
   legacy: 'legacy scans all your songs through the subsonic api and counts play counts.',
-  experimental: 'experimental pulls real per-play scrobble history via the native api. needs an unreleased navidrome build (master only), may break, and could be removed.',
+  experimental: 'experimental pulls real per-play scrobble history via the native api. requires navidrome 0.64.0 or above. if it does not work, try the legacy method.',
 };
 
 function readNavidromeMethod() {
   const select = document.getElementById('navidrome-method');
-  return select && select.value === 'experimental' ? 'experimental' : 'legacy';
+  return select && select.value === 'legacy' ? 'legacy' : 'experimental';
 }
 
 function updateNavidromeMethodHint() {
   const hint = document.getElementById('navidrome-method-hint');
   if (hint) {
-    hint.textContent = NAVIDROME_METHOD_HINTS[readNavidromeMethod()] || NAVIDROME_METHOD_HINTS.legacy;
+    hint.textContent = NAVIDROME_METHOD_HINTS[readNavidromeMethod()] || NAVIDROME_METHOD_HINTS.experimental;
   }
 }
 
