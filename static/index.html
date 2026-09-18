@@ -85,6 +85,15 @@
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
+        "@type": "WebSite",
+        "name": "Make a Wrapped",
+        "alternateName": ["Wrapped", "wrapped.devmatei.com"],
+        "url": "https://wrapped.devmatei.com/"
+      }
+    </script>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
         "@type": "Organization",
         "name": "Make a Wrapped",
         "url": "https://wrapped.devmatei.com/",
@@ -123,6 +132,22 @@
               "@type": "Answer",
               "text": "Make a Wrapped supports ListenBrainz, Last.fm, and Navidrome (via Subsonic API)."
             }
+          },
+          {
+            "@type": "Question",
+            "name": "How is Make a Wrapped different from Spotify Wrapped?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "Spotify Wrapped only works for Spotify and only appears in December. Make a Wrapped works with ListenBrainz, Last.fm, Libre.fm and Navidrome, and you can generate a poster for any month or year at any time."
+            }
+          },
+          {
+            "@type": "Question",
+            "name": "Do I need to log in or share my password?",
+            "acceptedAnswer": {
+              "@type": "Answer",
+              "text": "No. Last.fm and ListenBrainz only need a public username. Navidrome runs fully in your browser, so your server password never touches the Make a Wrapped backend."
+            }
           }
         ]
       }
@@ -143,7 +168,10 @@
           <div class="card__body">
             <h1>make a wrapped</h1>
             <p class="intro-copy">
-              your friends post spotify wrapped every year and you're sitting there with your listenbrainz/last.fm/navidrome stats like "i have taste too". now you can prove it, whenever you want, not just in december. drop your username, pick a service and a time frame (this year, last month, a random month from 2 years ago, whatever), and get a poster with your top artists, tracks, listening time, and genre.
+              make a wrapped is a free open source wrapped generator for listenbrainz, last.fm, libre.fm and navidrome. your friends post spotify wrapped every year and you are sitting there with your scrobbles like "i have taste too". now you can prove it, whenever you want, not just in december. drop your username, pick a service and a time frame (this year, last month, a random month from 2 years ago, whatever), and get a poster with your top artists, tracks, listening time, and genre.
+            </p>
+            <p class="intro-copy">
+              no login for public stats, navidrome stays fully in your browser, and the whole thing is agpl so you can self host it. officially listed on the listenbrainz enabled applications page.
             </p>
             <form id="wrapped-form" class="form" autocomplete="off" novalidate>
               <label class="form__label" id="username-label" for="username">music username</label>
@@ -425,12 +453,12 @@
               <label class="form__label" for="navidrome-method">stats method</label>
               <div class="form__field-group">
                 <select id="navidrome-method" name="navidrome-method">
-                  <option value="legacy" selected>Legacy (Subsonic scan)</option>
-                  <option value="experimental">Experimental (Native API)</option>
+                  <option value="experimental" selected>Experimental (Native API)</option>
+                  <option value="legacy">Legacy (Subsonic scan)</option>
                 </select>
               </div>
               <p class="service-fields__hint" id="navidrome-method-hint">
-                legacy scans all your songs through the subsonic api and counts play counts.
+                experimental pulls real per-play scrobble history via the native api. requires navidrome 0.64.0 or above. if it does not work, try the legacy method.
               </p>
               <p class="service-fields__hint">
                 use your normal login or create an app-specific token. nothing leaves your browser.
@@ -539,6 +567,16 @@
         data-fallback-text="your project could be here"
       ></div>
 
+      <section class="card" aria-label="quick answers about make a wrapped">
+        <div class="card__body">
+          <h2>quick answers</h2>
+          <p><strong>what is make a wrapped?</strong> a free open source tool that turns listenbrainz, last.fm, libre.fm or navidrome history into a spotify wrapped style poster.</p>
+          <p><strong>how is it different from spotify wrapped?</strong> spotify wrapped is spotify only and december only. this works with open platforms and any month or year.</p>
+          <p><strong>do i need to log in?</strong> nope. public stats just need a username. navidrome runs in your browser so your password never hits our backend.</p>
+          <p><strong>is it free?</strong> yep, agpl-3.0. self host it if you want. more on the <a href="/lastfm-wrapped">last.fm wrapped</a> and <a href="/navidrome-wrapped">navidrome wrapped</a> pages.</p>
+        </div>
+      </section>
+
       <footer class="footer-bento">
         <section class="card card--repo" aria-label="Project links">
           <div class="card__body">
@@ -569,7 +607,7 @@
               everyone posts their spotify wrapped every year and if you share a listenbrainz or last.fm one people go "wait what's that?". this bridges that gap. i swapped spotify for navidrome but still wanted that wrapped moment. now you can have it too.
             </p>
             <p>
-              you're not stuck waiting for december either, generate one for any month, last year, whatever period you want. share <a href="https://wrapped.devmatei.com" target="_blank" rel="noopener noreferrer">wrapped.devmatei.com</a> with your friends if you want.
+              you're not stuck waiting for december either, generate one for any month, last year, whatever period you want. share <a href="https://wrapped.devmatei.com">make a wrapped</a> with your friends if you want.
             </p>
             <p>
               on last.fm or self-hosting? there's more about the <a href="/lastfm-wrapped">last.fm wrapped</a>, the <a href="/navidrome-wrapped">navidrome wrapped</a>, and the <a href="/templates">wrapped templates</a> specifically.
