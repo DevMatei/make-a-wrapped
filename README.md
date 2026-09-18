@@ -6,7 +6,7 @@ Spotify Wrapped-style recap generator for ListenBrainz, Last.fm, Libre.fm, and N
 
 ## 🌐 website
 
-[wrapped.devmatei.com](https://wrapped.devmatei.com/) - built by [devmatei.com](https://devmatei.com)
+[Make a Wrapped](https://wrapped.devmatei.com/) - built by [devmatei.com](https://devmatei.com)
 
 ## 💡 why it's cool
 
@@ -121,7 +121,7 @@ creators are attributed by a key held in their browser (the same kind of ownersh
 
 I self-host my music library on Navidrome and don't use Spotify, but all my friends post their Wrapped every year and everyone's like "wait what's that?" when you show them a ListenBrainz stats page. so I built this. same vibe, works with open music platforms.
 
-go flex your scrobbles at [wrapped.devmatei.com](https://wrapped.devmatei.com) :)
+go flex your scrobbles at [Make a Wrapped](https://wrapped.devmatei.com) :)
 
 ### about me
 
