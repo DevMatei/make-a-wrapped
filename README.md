@@ -2,7 +2,7 @@
 
 Spotify Wrapped-style recap generator for ListenBrainz, Last.fm, Libre.fm, and Navidrome. Built with Flask.
 
-<img width="3241" height="1362" alt="Make a Wrapped, shareable stats for your scrobbles" src="image.png" />
+<img width="1600" height="1020" alt="Make a Wrapped website, showing the wrapped generator and poster preview" src="image.png" />
 
 ## 🌐 website
 
