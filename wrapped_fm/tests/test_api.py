@@ -166,12 +166,23 @@ class WrappedApiTests(unittest.TestCase):
         self.increment_count.assert_called_once_with()
         self.record_template_use.assert_called_once_with("black")
 
-    def test_rejects_unknown_data_fields_with_json_error(self):
-        response = self.post({"data": {"artists": ["A"], "plays": 10}})
+    def test_rejects_invalid_custom_data(self):
+        oversized_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8 + (5000).to_bytes(4, "big") + (5000).to_bytes(4, "big")
+        oversized_artwork = "data:image/png;base64," + base64.b64encode(oversized_png).decode("ascii")
+        cases = [
+            ("unknown field", {"artists": ["A"], "plays": 10}, "Unsupported data fields"),
+            ("too many artists", {"artists": [f"Artist {n}" for n in range(11)]}, "at most 10"),
+            ("negative minutes", {"artists": ["A"], "minutes": "-10"}, "non-negative"),
+            ("oversized artwork", {"artists": ["A"], "artwork": oversized_artwork}, "pixel image limit"),
+        ]
 
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.get_json()["error"]["code"], "bad_request")
-        self.assertIn("Unsupported data fields", response.get_json()["error"]["message"])
+        for name, data, message in cases:
+            with self.subTest(name=name):
+                response = self.post({"data": data})
+
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(response.get_json()["error"]["code"], "bad_request")
+                self.assertIn(message, response.get_json()["error"]["message"])
 
     def test_api_unknown_route_returns_json_error(self):
         response = self.client.get("/api/v1/unknown")
@@ -190,95 +201,54 @@ class WrappedApiTests(unittest.TestCase):
         self.assertEqual(response.get_json()["error"]["code"], "internal_error")
         self.assertNotIn("private detail", response.get_data(as_text=True))
 
-    def test_rejects_more_than_ten_ranked_items(self):
-        response = self.post({"data": {"artists": [f"Artist {n}" for n in range(11)]}})
+    def test_rejects_invalid_source_template_and_output_options(self):
+        cases = [
+            ("invalid period", {"source": {"type": "provider", "provider": "listenbrainz", "username": "fan", "range": {"preset": "specific_month", "month": 13, "year": 2025}}}, 400, "source.range is not a valid period"),
+            ("missing template", {"data": {"artists": ["A"]}, "template": "missing-template"}, 404, "Template not found"),
+            ("Navidrome provider", {"source": {"type": "provider", "provider": "navidrome", "username": "fan"}}, 400, "browser-only"),
+            ("provider limit", {"source": {"type": "provider", "provider": "listenbrainz", "username": "fan", "limit": 11}}, 400, "source.limit"),
+            ("artwork source", {"data": {"artists": ["A"]}, "artwork": {"provider": "listenbrainz", "username": "fan", "source": "cover"}}, 400, "artwork.source"),
+        ]
 
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("at most 10", response.get_json()["error"]["message"])
+        for name, payload, status, message in cases:
+            with self.subTest(name=name):
+                response = self.post(payload)
 
-    def test_rejects_negative_minutes(self):
-        response = self.post({"data": {"artists": ["A"], "minutes": "-10"}})
+                self.assertEqual(response.status_code, status)
+                self.assertIn(message, response.get_json()["error"]["message"])
 
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("non-negative", response.get_json()["error"]["message"])
+    def test_rejects_malformed_request_bodies_and_formats(self):
+        oversized_body = b"{" + b" " * api.MAX_API_REQUEST_BYTES + b"}"
+        cases = [
+            ("oversized body", lambda: self.client.post("/api/v1/wrapped", data=oversized_body, content_type="application/json"), 413, "code", "request_entity_too_large"),
+            ("wrong content type", lambda: self.client.post("/api/v1/wrapped", data="{}", content_type="text/plain"), 415, "code", "unsupported_media_type"),
+            ("invalid JSON", lambda: self.client.post("/api/v1/wrapped", data="{", content_type="application/json"), 400, "code", "bad_request"),
+            ("browser format", lambda: self.post({"data": {"artists": ["A"]}, "format": "html"}), 400, "message", "format must be png or svg"),
+        ]
 
-    def test_rejects_artwork_with_too_many_pixels(self):
-        oversized_png = b"\x89PNG\r\n\x1a\n" + b"\x00" * 8 + (5000).to_bytes(4, "big") + (5000).to_bytes(4, "big")
-        artwork = "data:image/png;base64," + base64.b64encode(oversized_png).decode("ascii")
-        response = self.post({"data": {"artists": ["Artist"], "artwork": artwork}})
+        for name, send, status, field, expected in cases:
+            with self.subTest(name=name):
+                response = send()
 
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("pixel image limit", response.get_json()["error"]["message"])
+                self.assertEqual(response.status_code, status)
+                self.assertIn(expected, response.get_json()["error"][field])
 
-    def test_rejects_invalid_period_and_template(self):
-        period_response = self.post({
-            "source": {
-                "type": "provider",
-                "provider": "listenbrainz",
-                "username": "fan",
-                "range": {"preset": "specific_month", "month": 13, "year": 2025},
-            },
-        })
-        template_response = self.post({"data": {"artists": ["A"]}, "template": "missing-template"})
-
-        self.assertEqual(period_response.status_code, 400)
-        self.assertEqual(template_response.status_code, 404)
-
-    def test_navidrome_is_not_accepted_server_side(self):
-        response = self.post({
-            "source": {"type": "provider", "provider": "navidrome", "username": "fan"},
-        })
-
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("browser-only", response.get_json()["error"]["message"])
-
-    def test_rejects_oversized_body(self):
-        body = b"{" + b" " * api.MAX_API_REQUEST_BYTES + b"}"
-        response = self.client.post("/api/v1/wrapped", data=body, content_type="application/json")
-
-        self.assertEqual(response.status_code, 413)
-        self.assertEqual(response.get_json()["error"]["code"], "request_entity_too_large")
-
-    def test_rejects_invalid_content_type_and_json(self):
-        type_response = self.client.post("/api/v1/wrapped", data="{}", content_type="text/plain")
-        json_response = self.client.post("/api/v1/wrapped", data="{", content_type="application/json")
-
-        self.assertEqual(type_response.status_code, 415)
-        self.assertEqual(json_response.status_code, 400)
-
-    def test_rejects_browser_render_formats(self):
-        response = self.post({"data": {"artists": ["A"]}, "format": "html"})
-
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("png or svg", response.get_json()["error"]["message"])
-
-    def test_rejects_invalid_provider_limit_and_artwork_options(self):
-        count_response = self.post({"source": {"type": "provider", "provider": "listenbrainz", "username": "fan", "limit": 11}})
-        source_response = self.post({
-            "data": {"artists": ["A"]},
-            "artwork": {"provider": "listenbrainz", "username": "fan", "source": "cover"},
-        })
-
-        self.assertEqual(count_response.status_code, 400)
-        self.assertEqual(source_response.status_code, 400)
-
-    def test_returns_busy_error_when_render_slots_are_full(self):
+    def test_render_queue_handles_full_and_waiting_slots(self):
         with mock.patch.object(api, "_render_slots") as slots:
             slots.acquire.return_value = False
-            response = self.post({"data": {"artists": ["A"]}})
+            busy_response = self.post({"data": {"artists": ["A"]}})
 
-        self.assertEqual(response.status_code, 503)
-        self.assertIn("queue", response.get_json()["error"]["message"])
+        self.assertEqual(busy_response.status_code, 503)
+        self.assertIn("queue", busy_response.get_json()["error"]["message"])
 
-    def test_renderer_queue_waits_for_a_slot(self):
         with (
             mock.patch.object(api, "_render_slots") as slots,
             mock.patch.object(api, "_render_image", return_value=b"generated image"),
         ):
             slots.acquire.side_effect = [False, True]
-            response = self.post({"data": {"artists": ["A"]}})
+            waiting_response = self.post({"data": {"artists": ["A"]}})
 
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(waiting_response.status_code, 200)
 
     def test_api_rate_limit_blocks_the_sixteenth_request(self):
         self.app.config["RATELIMIT_ENABLED"] = True
