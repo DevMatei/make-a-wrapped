@@ -59,14 +59,24 @@ def init_rate_limiter(app: Flask) -> None:
         storage_uri=RATE_LIMIT_STORAGE,
         strategy="moving-window",
         headers_enabled=True,
+        in_memory_fallback_enabled=True,
+        swallow_errors=True,
     )
     limiter.init_app(app)
 
 
+def apply_registered_limits(app: Flask) -> None:
+    if limiter is None:
+        return
+    for endpoint, view in app.view_functions.items():
+        limit_value = getattr(view, "__wrapped_rate_limit__", None)
+        if limit_value:
+            app.view_functions[endpoint] = limiter.limit(limit_value)(view)
+
+
 def rate_limit(limit_value: str):
     def decorator(func):
-        if limiter:
-            return limiter.limit(limit_value)(func)
+        func.__wrapped_rate_limit__ = limit_value
         return func
 
     return decorator

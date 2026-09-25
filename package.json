@@ -1,0 +1,14 @@
+{
+  "name": "make-a-wrapped",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "render-wrapped": "node scripts/render-wrapped.mjs"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "1.0.9"
+  }
+}

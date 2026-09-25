@@ -1,6 +1,7 @@
 # ignore api keys
 key
 __pycache__
+node_modules/
 .venv
 .env
 .DS_Store
