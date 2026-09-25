@@ -19,6 +19,11 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
+try:
+    import fcntl
+except ImportError:
+    fcntl = None
+
 from .config import (
     TEMPLATE_ASSET_DIR,
     TEMPLATE_CREATOR_DIR,
@@ -457,11 +462,23 @@ def get_template_uses(slug: str) -> int:
 
 def record_template_use(slug: str) -> int:
     with _store_lock:
-        uses = read_uses_map()
-        count = int(uses.get(slug, 0)) + 1
-        uses[slug] = count
-        os.makedirs(os.path.dirname(_uses_path()), exist_ok=True)
-        _write_json(_uses_path(), uses)
+        path = _uses_path()
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        if fcntl is None:
+            return _record_template_use_unlocked(path, slug)
+        with open(f"{path}.lock", "a", encoding="utf-8") as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                return _record_template_use_unlocked(path, slug)
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+
+
+def _record_template_use_unlocked(path: str, slug: str) -> int:
+    uses = read_uses_map()
+    count = int(uses.get(slug, 0)) + 1
+    uses[slug] = count
+    _write_json(path, uses)
     return count
 
 

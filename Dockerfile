@@ -2,6 +2,14 @@ FROM python:3.14-slim
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends nodejs npm \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY package.json package-lock.json ./
+
+RUN npm ci --omit=dev --no-audit --no-fund
+
 COPY requirements.txt ./
 
 RUN pip install --no-cache-dir -r requirements.txt
@@ -16,4 +24,4 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:8000", "--timeout", "120", "wrapped-fm:app"]
+CMD ["gunicorn", "--worker-class", "gthread", "--workers", "4", "--threads", "8", "--backlog", "512", "-b", "0.0.0.0:8000", "--timeout", "180", "wrapped-fm:app"]

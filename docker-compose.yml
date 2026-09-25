@@ -1,9 +1,24 @@
 services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
   make-a-wrapped:
     image: ghcr.io/devmatei/make-a-wrapped:latest
+    build: .
     restart: unless-stopped
     ports:
       - "8000:8000"
     volumes:
       - ./data:/app/data
     env_file: ".env"
+    environment:
+      RATE_LIMIT_STORAGE: redis://redis:6379/0
+    depends_on:
+      redis:
+        condition: service_healthy

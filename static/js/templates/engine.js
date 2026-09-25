@@ -187,14 +187,14 @@ function drawArtwork(ctx, template, art, artTransform) {
   const destSize = config.size;
   const imgWidth = art.naturalWidth;
   const imgHeight = art.naturalHeight;
-  const containScale = config.contain ? Math.min(destSize / imgWidth, destSize / imgHeight) : 1;
+  const fitScale = config.contain ? Math.min(destSize / imgWidth, destSize / imgHeight) : Math.max(destSize / imgWidth, destSize / imgHeight);
   const transform = artTransform || {};
   const scale = transform.allowTransform && Number.isFinite(transform.scale) ? transform.scale : 1;
   const offsetX = transform.allowTransform && Number.isFinite(transform.offsetX) ? transform.offsetX : 0;
   const offsetY = transform.allowTransform && Number.isFinite(transform.offsetY) ? transform.offsetY : 0;
 
-  const drawWidth = imgWidth * containScale * scale;
-  const drawHeight = imgHeight * containScale * scale;
+  const drawWidth = imgWidth * fitScale * scale;
+  const drawHeight = imgHeight * fitScale * scale;
   const drawX = destX + (destSize - drawWidth) / 2 + offsetX;
   const drawY = destY + (destSize - drawHeight) / 2 + offsetY;
   const radius = Number.isFinite(config.borderRadius) ? config.borderRadius : 32;
@@ -288,13 +288,74 @@ function drawElement(ctx, template, element, data) {
   ctx.restore();
 }
 
-export function renderTemplate(ctx, template, { data = {}, art = null, artTransform = {}, showElements = true } = {}) {
+function drawWatermark(ctx, template, luminance) {
+  const { width, height } = template.canvas;
+  const label = 'make a wrapped · wrapped.devmatei.com';
+  const baseFontSize = 30;
+  const minimumFontSize = 12;
+  const paddingX = 14;
+  const paddingY = 9;
+  ctx.save();
+  ctx.font = `600 ${baseFontSize}px Nunito`;
+  const scale = Math.min(1, Math.max(minimumFontSize / baseFontSize, (width - 24) / (ctx.measureText(label).width + paddingX * 2)));
+  const fontSize = baseFontSize * scale;
+  ctx.font = `600 ${fontSize}px Nunito`;
+  const textWidth = ctx.measureText(label).width;
+  const boxWidth = textWidth + paddingX * 2;
+  const boxHeight = fontSize + paddingY * 2;
+  const x = Math.max(8, width - boxWidth - 24);
+  const y = Math.max(4, height - boxHeight - 24);
+  const textColor = luminance > 0.5 ? '#111111' : '#ffffff';
+  const backgroundColor = luminance > 0.5 ? 'rgba(255, 255, 255, 0.72)' : 'rgba(0, 0, 0, 0.5)';
+  ctx.globalAlpha = 0.94;
+  ctx.fillStyle = backgroundColor;
+  if (typeof ctx.roundRect === 'function') {
+    ctx.beginPath();
+    ctx.roundRect(x, y, boxWidth, boxHeight, boxHeight / 2);
+    ctx.fill();
+  } else {
+    ctx.fillRect(x, y, boxWidth, boxHeight);
+  }
+  ctx.font = `600 ${fontSize}px Nunito`;
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'middle';
+  ctx.fillStyle = textColor;
+  ctx.fillText(label, width - 24 - paddingX, y + boxHeight / 2);
+  ctx.restore();
+}
+
+function sampleLuminance(ctx, template) {
+  const { width, height } = template.canvas;
+  const label = 'make a wrapped · wrapped.devmatei.com';
+  ctx.save();
+  ctx.font = `600 ${Math.min(30, width * 0.06)}px Nunito`;
+  const labelWidth = Math.min(width - 24, ctx.measureText(label).width + 28);
+  ctx.restore();
+  const x = Math.max(0, width - labelWidth - 24);
+  const y = Math.max(0, height - 54);
+  try {
+    const pixels = ctx.getImageData(x, y, Math.max(1, Math.ceil(labelWidth)), 1).data;
+    let total = 0;
+    for (let index = 0; index < pixels.length; index += 4) {
+      total += (0.2126 * pixels[index] + 0.7152 * pixels[index + 1] + 0.0722 * pixels[index + 2]) / 255;
+    }
+    return total / Math.max(1, pixels.length / 4);
+  } catch {
+    return 0;
+  }
+}
+
+export function renderTemplate(ctx, template, { data = {}, art = null, artTransform = {}, showElements = true, watermark = true } = {}) {
   const canvas = template.canvas || DEFAULT_CANVAS;
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   drawBackground(ctx, template);
+  const watermarkLuminance = watermark ? sampleLuminance(ctx, template) : 0;
   drawArtwork(ctx, template, art, artTransform);
   if (showElements) {
     drawElements(ctx, template, data);
+  }
+  if (watermark) {
+    drawWatermark(ctx, template, watermarkLuminance);
   }
 }
 

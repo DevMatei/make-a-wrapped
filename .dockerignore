@@ -4,6 +4,7 @@
 .env.*
 !.env.example
 .venv
+node_modules
 __pycache__
 **/__pycache__
 *.pyc

@@ -23,13 +23,13 @@ If you found a data leak, auth bypass, injection, or anything that could put a u
 
 ## Supported Versions
 
-Only the latest release is actively maintained for security fixes. Older versions and unreleased builds (like the experimental Navidrome Native API mode) are not guaranteed to receive patches.
+Only the latest release is actively maintained for security fixes. Older versions and unreleased builds are not guaranteed to receive patches.
 
 | Version | Supported |
 | --- | --- |
 | Latest release | Yes |
 | Older releases | No |
-| `master` / unreleased features | No, use at your own risk |
+| `develop` / unreleased features | No, use at your own risk |
 
 ## Response
 
