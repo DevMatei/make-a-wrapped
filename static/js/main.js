@@ -385,10 +385,9 @@ function handleServiceChange(nextValue) {
   const selectedService = nextValue || getSelectedService();
   const isNavidrome = selectedService === 'navidrome';
   const copy = getUsernameCopy(selectedService);
-  const navCopy = getUsernameCopy('navidrome');
   if (usernameLabel) {
-    usernameLabel.textContent = isNavidrome ? navCopy.label : copy.label;
-    usernameLabel.setAttribute('for', isNavidrome && navidromeUsernameInput ? 'navidrome-username' : 'username');
+    usernameLabel.textContent = copy.label;
+    usernameLabel.hidden = isNavidrome;
   }
   if (usernameField) {
     usernameField.hidden = isNavidrome;
@@ -400,15 +399,7 @@ function handleServiceChange(nextValue) {
     }
   }
   if (navidromeUsernameInput) {
-    navidromeUsernameInput.hidden = !isNavidrome;
-    if (typeof navidromeUsernameInput.required === 'boolean') {
-      navidromeUsernameInput.required = isNavidrome;
-    } else if (isNavidrome) {
-      navidromeUsernameInput.setAttribute('required', 'required');
-    } else {
-      navidromeUsernameInput.removeAttribute('required');
-    }
-    navidromeUsernameInput.placeholder = navCopy.placeholder;
+    navidromeUsernameInput.required = isNavidrome;
   }
   if (navidromeFields) {
     navidromeFields.hidden = !isNavidrome;

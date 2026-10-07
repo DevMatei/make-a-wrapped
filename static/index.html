@@ -175,6 +175,52 @@
             </p>
             <form id="wrapped-form" class="form" autocomplete="off" novalidate>
               <label class="form__label" id="username-label" for="username">music username</label>
+              <div id="navidrome-fields" class="service-fields service-fields--navidrome" hidden>
+                <div class="service-fields__grid">
+                  <label class="service-fields__field service-fields__field--wide">
+                    <span class="form__label">navidrome server url</span>
+                    <input
+                      id="navidrome-server"
+                      name="navidrome-server"
+                      type="url"
+                      placeholder="https://navidrome.example.com"
+                      autocomplete="url"
+                      inputmode="url"
+                    >
+                  </label>
+                  <label class="service-fields__field">
+                    <span class="form__label">username</span>
+                    <input
+                      id="navidrome-username"
+                      name="navidrome-username"
+                      type="text"
+                      placeholder="e.g. alice"
+                      autocomplete="username"
+                      minlength="2"
+                    >
+                  </label>
+                  <label class="service-fields__field">
+                    <span class="form__label">password or app token</span>
+                    <input
+                      id="navidrome-password"
+                      name="navidrome-password"
+                      type="password"
+                      placeholder="stored locally, never shared"
+                      autocomplete="current-password"
+                    >
+                  </label>
+                  <label class="service-fields__field service-fields__field--wide">
+                    <span class="form__label">stats method</span>
+                    <select id="navidrome-method" name="navidrome-method">
+                      <option value="experimental" selected>Experimental (Native API)</option>
+                      <option value="legacy">Legacy (Subsonic scan)</option>
+                    </select>
+                  </label>
+                </div>
+                <p class="service-fields__hint" id="navidrome-method-hint">
+                  experimental pulls real per-play scrobble history via the native api (navidrome 0.64.0+). if it does not work, try legacy.
+                </p>
+              </div>
               <div class="form__field-group">
                 <input
                   id="username"
@@ -184,15 +230,6 @@
                   required
                   minlength="2"
                   autocomplete="off"
-                >
-                <input
-                  id="navidrome-username"
-                  name="navidrome-username"
-                  type="text"
-                  placeholder="e.g. alice"
-                  autocomplete="username"
-                  minlength="2"
-                  hidden
                 >
                 <button id="submit" type="submit" class="btn">generate</button>
               </div>
@@ -424,45 +461,6 @@
                   </p>
                 </div>
               </div>
-            </div>
-            <div id="navidrome-fields" class="service-fields service-fields--navidrome" hidden>
-              <p class="service-fields__description">
-                connect to your navidrome server directly. everything runs in your browser, credentials never leave this page.
-              </p>
-              <label class="form__label" for="navidrome-server">navidrome server url</label>
-              <div class="form__field-group">
-                <input
-                  id="navidrome-server"
-                  name="navidrome-server"
-                  type="url"
-                  placeholder="https://navidrome.example.com"
-                  autocomplete="url"
-                  inputmode="url"
-                >
-              </div>
-              <label class="form__label" for="navidrome-password">password or app token</label>
-              <div class="form__field-group">
-                <input
-                  id="navidrome-password"
-                  name="navidrome-password"
-                  type="password"
-                  placeholder="stored locally, never shared"
-                  autocomplete="current-password"
-                >
-              </div>
-              <label class="form__label" for="navidrome-method">stats method</label>
-              <div class="form__field-group">
-                <select id="navidrome-method" name="navidrome-method">
-                  <option value="experimental" selected>Experimental (Native API)</option>
-                  <option value="legacy">Legacy (Subsonic scan)</option>
-                </select>
-              </div>
-              <p class="service-fields__hint" id="navidrome-method-hint">
-                experimental pulls real per-play scrobble history via the native api. requires navidrome 0.64.0 or above. if it does not work, try the legacy method.
-              </p>
-              <p class="service-fields__hint">
-                use your normal login or create an app-specific token. nothing leaves your browser.
-              </p>
             </div>
             <div class="actions">
               <button id="download" type="button" class="btn btn--secondary" aria-disabled="true">
