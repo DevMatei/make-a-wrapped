@@ -1,11 +1,6 @@
 let sampleArtPromise = null;
 
-function drawSampleArt(seedName) {
-  const size = 600;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
+export function paintSampleArt(ctx, size, seedName) {
   const hue = (seedName || 'Make a Wrapped').split('').reduce((sum, char) => sum + char.charCodeAt(0), 0) % 360;
 
   ctx.save();
@@ -50,6 +45,14 @@ function drawSampleArt(seedName) {
   ctx.arc(cx, cy, size * 0.035, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
+}
+
+function drawSampleArt(seedName) {
+  const size = 600;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  paintSampleArt(canvas.getContext('2d'), size, seedName);
   return canvas;
 }
 

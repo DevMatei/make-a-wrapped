@@ -4,12 +4,13 @@ from __future__ import annotations
 
 import base64
 import json
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from wrapped_fm import api
+from wrapped_fm import api, catalog
 from wrapped_fm.app import create_app
 
 
@@ -268,6 +269,148 @@ class WrappedApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 204)
         self.assertEqual(response.headers["Access-Control-Allow-Origin"], "*")
+
+
+class TemplateCatalogApiTests(unittest.TestCase):
+    def setUp(self):
+        self.app = create_app()
+        self.app.config.update(TESTING=True, RATELIMIT_ENABLED=False)
+        self.client = self.app.test_client()
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        library = Path(self.tmp.name) / "library"
+        library.mkdir()
+        for index, slug in enumerate(["neon-dream", "soft-paper", "retro-wave"]):
+            template = json.loads((Path(api.template_store.TEMPLATE_OFFICIAL_DIR) / "black.json").read_text())
+            template.update({"slug": slug, "name": slug.replace("-", " ").title()})
+            template["meta"] = {"category": "retro" if slug == "retro-wave" else "soft", "tags": ["test"], "featured": False}
+            (library / f"{slug}.json").write_text(json.dumps({
+                "slug": slug,
+                "template": template,
+                "creator": {"id": "cabc", "name": "tester", "website": "javascript:alert(1)"},
+                "created_at": f"2026-0{index + 1}-01T00:00:00Z",
+            }))
+        patches = [
+            mock.patch.object(api.template_store, "TEMPLATE_LIBRARY_DIR", library),
+            mock.patch.object(api.template_store, "read_uses_map", return_value={"retro-wave": 7}),
+            mock.patch.object(api.template_store, "read_wrapped_count", return_value=0),
+            mock.patch.object(api, "TEMPLATE_PREVIEW_DIR", Path(self.tmp.name) / "previews"),
+        ]
+        for patch in patches:
+            patch.start()
+            self.addCleanup(patch.stop)
+        catalog.clear_cache()
+        self.addCleanup(catalog.clear_cache)
+
+    def get_json(self, url, **headers):
+        response = self.client.get(url, headers=headers)
+        return response, response.get_json()
+
+    def test_cursor_pages_cover_every_template_once(self):
+        _, first = self.get_json("/api/v1/templates")
+        total = first["page"]["total"]
+
+        for sort in catalog.SORTS:
+            with self.subTest(sort=sort):
+                slugs, cursor = [], None
+                while True:
+                    url = f"/api/v1/templates?limit=2&sort={sort}" + (f"&cursor={cursor}" if cursor else "")
+                    response, body = self.get_json(url)
+                    self.assertEqual(response.status_code, 200)
+                    slugs += [item["slug"] for item in body["templates"]]
+                    cursor = body["page"]["next_cursor"]
+                    self.assertEqual(body["page"]["has_more"], cursor is not None)
+                    if not cursor:
+                        break
+                self.assertEqual(len(slugs), total)
+                self.assertEqual(len(set(slugs)), total)
+
+    def test_sorting_and_filters(self):
+        _, newest = self.get_json("/api/v1/templates?origin=community&sort=newest")
+        _, popular = self.get_json("/api/v1/templates?origin=community")
+        _, retro = self.get_json("/api/v1/templates?category=retro")
+        _, search = self.get_json("/api/v1/templates?q=soft%20PAPER")
+
+        self.assertEqual([item["slug"] for item in newest["templates"]], ["retro-wave", "soft-paper", "neon-dream"])
+        self.assertEqual(popular["templates"][0]["slug"], "retro-wave")
+        self.assertEqual([item["slug"] for item in retro["templates"]], ["retro-wave"])
+        self.assertEqual([item["slug"] for item in search["templates"]], ["soft-paper"])
+
+    def test_entries_expose_links_and_only_safe_creator_fields(self):
+        _, body = self.get_json("/api/v1/templates?q=neon")
+        entry = body["templates"][0]
+
+        self.assertEqual(entry["creator"], {"name": "tester", "id": "cabc"})
+        self.assertIn(f"/api/v1/templates/neon-dream/preview.png?v={entry['version']}", entry["links"]["preview"])
+        self.assertTrue(entry["links"]["use"].endswith("/?template=neon-dream"))
+
+    def test_rejects_invalid_catalog_queries(self):
+        _, first = self.get_json("/api/v1/templates?limit=1")
+        cases = [
+            ("unknown param", "/api/v1/templates?page=2", "Unsupported query parameters"),
+            ("limit too big", "/api/v1/templates?limit=51", "limit"),
+            ("bad sort", "/api/v1/templates?sort=random", "sort"),
+            ("bad category", "/api/v1/templates?category=loud", "category"),
+            ("bad featured", "/api/v1/templates?featured=yes", "featured"),
+            ("garbage cursor", "/api/v1/templates?cursor=%%%", "cursor is invalid"),
+            ("cursor from other query", f"/api/v1/templates?sort=name&cursor={first['page']['next_cursor']}", "different query"),
+        ]
+
+        for name, url, message in cases:
+            with self.subTest(name=name):
+                response, body = self.get_json(url)
+
+                self.assertEqual(response.status_code, 400)
+                self.assertIn(message, body["error"]["message"])
+
+    def test_catalog_supports_conditional_requests_and_cors(self):
+        response = self.client.get("/api/v1/templates")
+        repeat = self.client.get("/api/v1/templates", headers={"If-None-Match": response.headers["ETag"]})
+
+        self.assertIn("public", response.headers["Cache-Control"])
+        self.assertEqual(response.headers["Access-Control-Allow-Origin"], "*")
+        self.assertIn("ETag", response.headers["Access-Control-Expose-Headers"])
+        self.assertEqual(repeat.status_code, 304)
+
+    def test_template_detail_includes_definition(self):
+        response, body = self.get_json("/api/v1/templates/neon-dream")
+        missing, error = self.get_json("/api/v1/templates/not-a-template")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(body["template"]["slug"], "neon-dream")
+        self.assertIn("elements", body["template"]["definition"])
+        self.assertNotIn("creator", body["template"]["definition"])
+        self.assertEqual(missing.status_code, 404)
+        self.assertEqual(error["error"]["code"], "not_found")
+
+    def test_preview_is_rendered_once_and_cached(self):
+        _, body = self.get_json("/api/v1/templates/neon-dream")
+        version = body["template"]["version"]
+        with mock.patch.object(api, "_render_image", return_value=b"\x89PNG preview") as render:
+            first = self.client.get(f"/api/v1/templates/neon-dream/preview.png?size=sm&v={version}")
+            second = self.client.get("/api/v1/templates/neon-dream/preview.png?size=sm")
+            revalidated = self.client.get(
+                "/api/v1/templates/neon-dream/preview.png?size=sm",
+                headers={"If-None-Match": second.headers["ETag"]},
+            )
+
+        render.assert_called_once()
+        self.assertEqual(render.call_args.kwargs["output_width"], catalog.PREVIEW_SIZES["sm"])
+        self.assertTrue(render.call_args.kwargs["sample_art"])
+        self.assertEqual(first.mimetype, "image/png")
+        self.assertEqual(second.data, b"\x89PNG preview")
+        self.assertIn("immutable", first.headers["Cache-Control"])
+        self.assertNotIn("immutable", second.headers["Cache-Control"])
+        self.assertEqual(revalidated.status_code, 304)
+
+    def test_preview_rejects_bad_options_and_busy_renderer(self):
+        bad_size = self.client.get("/api/v1/templates/neon-dream/preview.png?size=xl")
+        with mock.patch.object(api, "_acquire_render_slot", return_value=False):
+            busy = self.client.get("/api/v1/templates/neon-dream/preview.png")
+
+        self.assertEqual(bad_size.status_code, 400)
+        self.assertEqual(busy.status_code, 503)
+        self.assertTrue(busy.headers.get("Retry-After"))
 
 
 if __name__ == "__main__":
