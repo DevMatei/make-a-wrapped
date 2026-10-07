@@ -4,41 +4,37 @@ from __future__ import annotations
 
 import datetime as _dt
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from wrapped_fm import date_range, listenbrainz
 
 
-REFERENCE = _dt.datetime(2025, 7, 8, 12, 0, tzinfo=_dt.timezone.utc)
+START = int(_dt.datetime(2025, 6, 1, tzinfo=_dt.timezone.utc).timestamp())
+END = int(_dt.datetime(2025, 7, 1, tzinfo=_dt.timezone.utc).timestamp())
+JUNE = date_range.DateRange(
+    preset="specific_month", label="June 2025", kind="month", start_ts=START, end_ts=END,
+    lb_range=None, lastfm_period=None, is_custom=True,
+)
 
 
-def _listen(artist, track, listened_at, release=None, recording_mbid=None, release_mbid=None, artist_mbid=None):
-    additional = {}
-    if recording_mbid:
-        additional["recording_mbid"] = recording_mbid
-    if release_mbid:
-        additional["release_mbid"] = release_mbid
-    if artist_mbid:
-        additional["artist_mbids"] = [artist_mbid]
+def _listen(artist, track, listened_at):
     return {
         "listened_at": listened_at,
-        "track_metadata": {
-            "artist_name": artist,
-            "track_name": track,
-            "release_name": release,
-            "additional_info": additional,
-        },
+        "track_metadata": {"artist_name": artist, "track_name": track, "release_name": None, "additional_info": {}},
     }
 
 
-class _StubResponse:
-    def __init__(self, payload, status_code=200):
-        self._payload = payload
-        self.status_code = status_code
-        self.ok = 200 <= status_code < 300
+def _pages(*pages):
+    responses = iter(pages)
 
-    def json(self):
-        return self._payload
+    def fake_get(url, params=None, timeout=None):
+        listens = next(responses, None)
+        if listens is None:
+            return SimpleNamespace(ok=True, status_code=204, json=lambda: {"payload": {"listens": []}})
+        return SimpleNamespace(ok=True, status_code=200, json=lambda: {"payload": {"listens": listens}})
+
+    return patch.object(listenbrainz.listenbrainz_aggregate_session, "get", side_effect=fake_get)
 
 
 class ListenBrainzAggregationTests(unittest.TestCase):
@@ -46,120 +42,38 @@ class ListenBrainzAggregationTests(unittest.TestCase):
         listenbrainz.listenbrainz_cache.clear()
         listenbrainz.aggregation_cache.clear()
 
-    def _patched_session(self, pages):
-        queue = iter([_StubResponse(p) for p in pages])
-
-        def fake_get(url, params=None, timeout=None):
-            try:
-                return next(queue)
-            except StopIteration:
-                return _StubResponse({"payload": {"listens": []}}, status_code=204)
-
-        return patch.object(listenbrainz.listenbrainz_aggregate_session, "get", side_effect=fake_get)
-
     def test_aggregate_listens_in_range_uses_pagination(self):
-        start = int(_dt.datetime(2025, 6, 1, tzinfo=_dt.timezone.utc).timestamp())
-        end = int(_dt.datetime(2025, 7, 1, tzinfo=_dt.timezone.utc).timestamp())
-        span = end - start - 60
-        all_timestamps = [start + (i * span) // 1500 for i in range(1500)]
-        page1_desc = sorted(all_timestamps[-1000:], reverse=True)
-        page2_desc = sorted(all_timestamps[:500], reverse=True)
-        page1_listens = [_listen("Alpha", f"Track {ts}", ts) for ts in page1_desc]
-        page2_listens = [_listen("Alpha", f"Track {ts}", ts) for ts in page2_desc]
-        pages = [
-            {"payload": {"listens": page1_listens}},
-            {"payload": {"listens": page2_listens}},
-        ]
-        range_obj = date_range.DateRange(
-            preset="specific_month",
-            label="June 2025",
-            kind="month",
-            start_ts=start,
-            end_ts=end,
-            lb_range=None,
-            lastfm_period=None,
-            is_custom=True,
-        )
-        with self._patched_session(pages):
-            aggregated = listenbrainz._aggregate_listens_in_range("testuser", range_obj)
+        span = END - START - 60
+        timestamps = [START + (i * span) // 1500 for i in range(1500)]
+        pages = [sorted(timestamps[-1000:], reverse=True), sorted(timestamps[:500], reverse=True)]
+
+        with _pages(*[[_listen("Alpha", f"Track {ts}", ts) for ts in page] for page in pages]):
+            aggregated = listenbrainz._aggregate_listens_in_range("testuser", JUNE)
 
         self.assertEqual(aggregated.total_listen_count, 1500)
         self.assertFalse(aggregated.reached_limit)
         self.assertEqual(aggregated.top_artists[0]["artist_name"], "Alpha")
         self.assertEqual(aggregated.top_artists[0]["listen_count"], 1500)
 
-    def test_aggregate_skips_listens_outside_window(self):
-        start = int(_dt.datetime(2025, 6, 1, tzinfo=_dt.timezone.utc).timestamp())
-        end = int(_dt.datetime(2025, 7, 1, tzinfo=_dt.timezone.utc).timestamp())
-        outside_before = start - 1000
-        outside_after = end + 1000
+    def test_aggregate_payload_filters_window_and_limits_count(self):
         listens = [
-            _listen("Inside", "T1", start + 100),
-            _listen("Before", "T2", outside_before),
-            _listen("After", "T3", outside_after),
-        ]
-        pages = [{"payload": {"listens": listens}}]
-        range_obj = date_range.DateRange(
-            preset="specific_month",
-            label="June 2025",
-            kind="month",
-            start_ts=start,
-            end_ts=end,
-            lb_range=None,
-            lastfm_period=None,
-            is_custom=True,
-        )
-        with self._patched_session(pages):
-            aggregated = listenbrainz._aggregate_listens_in_range("testuser", range_obj)
+            _listen("Alpha", "T1", START + 100),
+            _listen("Alpha", "T2", START + 200),
+            _listen("Before", "T3", START - 1000),
+            _listen("After", "T4", END + 1000),
+        ] + [_listen(f"Artist {i}", f"Track {i}", START + 300 + i) for i in range(10)]
 
-        self.assertEqual(aggregated.total_listen_count, 1)
-        self.assertEqual(aggregated.top_artists[0]["artist_name"], "Inside")
+        with _pages(listens):
+            payload = listenbrainz._aggregate_payload_for_range("testuser", "artists", JUNE, count=5)
 
-    def test_aggregate_payload_shape_for_artists(self):
-        start = int(_dt.datetime(2025, 6, 1, tzinfo=_dt.timezone.utc).timestamp())
-        end = int(_dt.datetime(2025, 7, 1, tzinfo=_dt.timezone.utc).timestamp())
-        listens = [
-            _listen("Alpha", "T1", start + 100),
-            _listen("Alpha", "T2", start + 200),
-            _listen("Beta", "T3", start + 300),
-        ]
-        range_obj = date_range.DateRange(
-            preset="specific_month",
-            label="June 2025",
-            kind="month",
-            start_ts=start,
-            end_ts=end,
-            lb_range=None,
-            lastfm_period=None,
-            is_custom=True,
-        )
-        with self._patched_session([{"payload": {"listens": listens}}]):
-            payload = listenbrainz._aggregate_payload_for_range("testuser", "artists", range_obj)
-        self.assertIn("artists", payload)
-        self.assertEqual(payload["artists"][0]["artist_name"], "Alpha")
-        self.assertEqual(payload["artists"][0]["listen_count"], 2)
-        self.assertEqual(payload["_meta"]["total_listen_count"], 3)
+        names = [artist["artist_name"] for artist in payload["artists"]]
+        self.assertEqual(len(names), 5)
+        self.assertEqual((names[0], payload["artists"][0]["listen_count"]), ("Alpha", 2))
+        self.assertNotIn("Before", names)
+        self.assertNotIn("After", names)
+        self.assertEqual(payload["_meta"]["total_listen_count"], 12)
         self.assertFalse(payload["_meta"]["reached_limit"])
-
-    def test_aggregate_respects_count_limit(self):
-        start = int(_dt.datetime(2025, 6, 1, tzinfo=_dt.timezone.utc).timestamp())
-        end = int(_dt.datetime(2025, 7, 1, tzinfo=_dt.timezone.utc).timestamp())
-        listens = [_listen(f"Artist {i}", f"Track {i}", start + i) for i in range(20)]
-        range_obj = date_range.DateRange(
-            preset="specific_month",
-            label="June 2025",
-            kind="month",
-            start_ts=start,
-            end_ts=end,
-            lb_range=None,
-            lastfm_period=None,
-            is_custom=True,
-        )
-        with self._patched_session([{"payload": {"listens": listens}}]):
-            payload = listenbrainz._aggregate_payload_for_range("testuser", "artists", range_obj, count=5)
-        self.assertEqual(len(payload["artists"]), 5)
 
 
 if __name__ == "__main__":
     unittest.main()
-
