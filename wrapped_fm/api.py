@@ -6,6 +6,7 @@ import base64
 import copy
 import json
 import logging
+import os
 import re
 import struct
 import subprocess
@@ -15,14 +16,19 @@ from pathlib import Path
 from flask import Blueprint, Response, abort, current_app, jsonify, request
 from werkzeug.exceptions import HTTPException
 
+from . import catalog
 from . import templates as template_store
 from .config import (
     API_RENDER_CONCURRENCY,
     API_RENDER_QUEUE_LIMIT,
     API_RENDER_QUEUE_TIMEOUT,
+    CATALOG_RATE_LIMIT,
     IMAGE_RATE_LIMIT,
+    PREVIEW_RATE_LIMIT,
+    SITE_URL,
     TEMPLATE_ASSET_DIR,
     TEMPLATE_ASSET_MAX_BYTES,
+    TEMPLATE_PREVIEW_DIR,
 )
 from .date_range import resolve_preset
 from .genres import get_top_genre
@@ -60,8 +66,17 @@ DEFAULT_PROVIDER_ITEM_COUNT = 5
 MAX_TEXT_LENGTH = 120
 PROVIDER_SERVICES = {"listenbrainz", "lastfm", "librefm"}
 CUSTOM_FIELDS = {"artists", "tracks", "minutes", "genre", "period", "artwork"}
+PREVIEW_DATA = {
+    "artists": ["Phoebe Bridgers", "Tame Impala", "Radiohead", "Fleetwood Mac", "Kendrick Lamar"],
+    "tracks": ["Motion Sickness", "The Less I Know the Better", "Weird Fishes", "Dreams", "Money Trees"],
+    "minutes": "48,213",
+    "genre": "Indie Rock",
+    "period": {"label": "Sample"},
+}
 _render_slots = threading.BoundedSemaphore(API_RENDER_CONCURRENCY)
 _render_waiters = threading.BoundedSemaphore(API_RENDER_QUEUE_LIMIT)
+_preview_locks: dict[str, threading.Lock] = {}
+_preview_locks_guard = threading.Lock()
 
 
 def _acquire_render_slot() -> bool:
@@ -117,8 +132,9 @@ def api_internal_error_response(error: Exception) -> Response:
 
 def _add_api_cors_headers(response: Response) -> Response:
     response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, If-None-Match"
+    response.headers["Access-Control-Expose-Headers"] = "ETag, Retry-After"
     response.headers["Access-Control-Max-Age"] = "600"
     return response
 
@@ -472,7 +488,15 @@ def _artwork_options(value, source_info: dict | None, range_obj) -> tuple[dict, 
     return {"type": "provider", "provider": provider, "username": username, "source": art_source}, selected_range_obj
 
 
-def _render_image(template: dict, data: dict, image_data: bytes | None, output_format: str) -> bytes:
+def _render_image(
+    template: dict,
+    data: dict,
+    image_data: bytes | None,
+    output_format: str,
+    *,
+    sample_art: bool = False,
+    output_width: int | None = None,
+) -> bytes:
     canvas = template.get("canvas")
     if not isinstance(canvas, dict):
         abort(422, description="Selected template has an invalid canvas size.")
@@ -498,6 +522,8 @@ def _render_image(template: dict, data: dict, image_data: bytes | None, output_f
         "data": data,
         "assets": assets,
         "format": output_format,
+        "sampleArt": sample_art,
+        "outputWidth": output_width,
     }).encode("utf-8")
     project_root = Path(__file__).resolve().parent.parent
     renderer = project_root / "scripts" / "render-wrapped.mjs"
@@ -593,4 +619,121 @@ def generate_wrapped_api() -> Response:
     response.headers["Content-Disposition"] = f'attachment; filename="{filename}"'
     response.headers["Cache-Control"] = "no-store"
     response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+def _template_or_404(slug: str) -> dict:
+    if not template_store.resolve_template_exists(slug):
+        abort(404, description="Template not found.")
+    try:
+        return template_store.get_template(slug)
+    except template_store.TemplateUnavailableError:
+        abort(404, description="Template not found.")
+
+
+def _cacheable_json(body: dict, max_age: int) -> Response:
+    response = jsonify(body)
+    response.headers["Cache-Control"] = f"public, max-age={max_age}, stale-while-revalidate={max_age * 5}"
+    response.add_etag()
+    return response.make_conditional(request)
+
+
+@bp.route("/templates", methods=["GET"])
+@rate_limit(CATALOG_RATE_LIMIT)
+def list_templates_api() -> Response:
+    try:
+        query = catalog.parse_query(request.args)
+        body = catalog.page(query)
+    except catalog.CatalogQueryError as exc:
+        abort(400, description=str(exc))
+    return _cacheable_json(body, 60)
+
+
+@bp.route("/templates/<slug>", methods=["GET"])
+@rate_limit(CATALOG_RATE_LIMIT)
+def get_template_api(slug: str) -> Response:
+    if set(request.args):
+        abort(400, description=f"Unsupported query parameters: {', '.join(sorted(request.args))}.")
+    template = _template_or_404(slug)
+    entry = catalog.find_entry(slug)
+    if entry is None:
+        abort(404, description="Template not found.")
+    definition = {key: value for key, value in copy.deepcopy(template).items() if key not in {"origin", "status", "creator"}}
+    background = definition.get("background")
+    if isinstance(background, dict) and isinstance(background.get("src"), str) and background["src"].startswith("/"):
+        background["src"] = f"{SITE_URL}{background['src']}"
+    return _cacheable_json({"template": {**entry, "definition": definition}}, 300)
+
+
+def _preview_lock(key: str) -> threading.Lock:
+    with _preview_locks_guard:
+        return _preview_locks.setdefault(key, threading.Lock())
+
+
+def _store_preview(path: Path, image_bytes: bytes, slug: str, size: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f"{path.name}.{os.getpid()}.{threading.get_ident()}.tmp")
+    tmp_path.write_bytes(image_bytes)
+    os.replace(tmp_path, path)
+    pattern = re.compile(rf"{re.escape(slug)}-[0-9a-f]{{16}}-{size}\.png")
+    for stale in path.parent.iterdir():
+        if stale != path and pattern.fullmatch(stale.name):
+            stale.unlink(missing_ok=True)
+
+
+def _preview_bytes(slug: str, template: dict, fingerprint: str, size: str) -> bytes:
+    path = Path(TEMPLATE_PREVIEW_DIR) / f"{slug}-{fingerprint}-{size}.png"
+    try:
+        return path.read_bytes()
+    except OSError:
+        pass
+    with _preview_lock(path.name):
+        try:
+            return path.read_bytes()
+        except OSError:
+            pass
+        if not _acquire_render_slot():
+            abort(503, description="The render queue is full or timed out. Retry shortly.")
+        try:
+            image_bytes = _render_image(
+                template,
+                PREVIEW_DATA,
+                None,
+                "png",
+                sample_art=True,
+                output_width=catalog.PREVIEW_SIZES[size],
+            )
+        finally:
+            _render_slots.release()
+        try:
+            _store_preview(path, image_bytes, slug, size)
+        except OSError:
+            logger.exception("Could not cache template preview for %s", slug)
+        return image_bytes
+
+
+@bp.route("/templates/<slug>/preview.png", methods=["GET"])
+@rate_limit(PREVIEW_RATE_LIMIT)
+def template_preview_api(slug: str) -> Response:
+    unknown = set(request.args) - {"size", "v"}
+    if unknown:
+        abort(400, description=f"Unsupported query parameters: {', '.join(sorted(unknown))}.")
+    size = request.args.get("size", "md")
+    if size not in catalog.PREVIEW_SIZES:
+        abort(400, description="size must be sm, md, or lg.")
+    template = _template_or_404(slug)
+    fingerprint = catalog.template_fingerprint(template)
+
+    response = current_app.response_class(mimetype="image/png")
+    response.set_etag(f"{fingerprint}-{size}")
+    if request.args.get("v") == fingerprint:
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    else:
+        response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=3600"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Cross-Origin-Resource-Policy"] = "cross-origin"
+    if request.if_none_match.contains(f"{fingerprint}-{size}"):
+        response.status_code = 304
+        return response
+    response.set_data(_preview_bytes(slug, template, fingerprint, size))
     return response

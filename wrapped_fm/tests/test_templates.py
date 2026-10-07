@@ -31,153 +31,119 @@ def _valid_template(slug: str = "test-slug", name: str = "Test Template") -> dic
     }
 
 
-class StoreIsolationTests(unittest.TestCase):
-    def setUp(self):
-        self.tmp = tempfile.mkdtemp()
-        self._originals = {}
-        for attr in ("TEMPLATE_LIBRARY_DIR", "TEMPLATE_SUBMISSION_DIR",
-                     "TEMPLATE_CREATOR_DIR", "TEMPLATE_ASSET_DIR", "TEMPLATE_OFFICIAL_DIR"):
-            self._originals[attr] = getattr(store, attr)
-            setattr(store, attr, os.path.join(self.tmp, attr.replace("TEMPLATE_", "").lower()))
-        os.makedirs(store.TEMPLATE_OFFICIAL_DIR, exist_ok=True)
-
-    def tearDown(self):
-        for attr, value in self._originals.items():
-            setattr(store, attr, value)
+def _with(**changes) -> dict:
+    template = _valid_template()
+    for path, value in changes.items():
+        target = template
+        *parents, key = path.split("__")
+        for parent in parents:
+            target = target[int(parent)] if parent.isdigit() else target[parent]
+        target[key] = value
+    return template
 
 
 class TemplateValidationTests(unittest.TestCase):
-    def test_creator_id_deterministic(self):
+    def test_creator_ids(self):
         secret = token_urlsafe(24)
-        first = store.creator_id_for_secret(secret)
-        second = store.creator_id_for_secret(secret)
-        self.assertEqual(first, second)
-        self.assertTrue(first.startswith("c"))
-        self.assertEqual(len(first), 13)
+        creator_id = store.creator_id_for_secret(secret)
 
-    def test_creator_id_rejects_short_secret(self):
+        self.assertEqual(creator_id, store.creator_id_for_secret(secret))
+        self.assertTrue(creator_id.startswith("c"))
+        self.assertEqual(len(creator_id), 13)
         with self.assertRaises(CreatorInvalidError):
             store.creator_id_for_secret("short")
 
-    def test_validate_template_rejects_bad_slug(self):
-        with self.assertRaises(TemplateInvalidError):
-            store.validate_template(_valid_template(slug="Bad Slug!"))
-        with self.assertRaises(TemplateInvalidError):
-            store.validate_template(_valid_template(slug=""))
+    def test_rejects_invalid_templates(self):
+        cases = {
+            "bad slug": _with(slug="Bad Slug!"),
+            "empty slug": _with(slug=""),
+            "blank name": _with(name="  "),
+            "no elements": _with(elements=[]),
+            "bad slot": _with(elements__1__slot="notavalidslot"),
+            "external background": _with(background={"type": "image", "src": "https://evil.example/x.png"}),
+        }
 
-    def test_validate_template_rejects_missing_name(self):
-        template = _valid_template()
-        template["name"] = "  "
-        with self.assertRaises(TemplateInvalidError):
-            store.validate_template(template)
+        for name, template in cases.items():
+            with self.subTest(name=name), self.assertRaises(TemplateInvalidError):
+                store.validate_template(template)
 
-    def test_validate_template_requires_elements(self):
-        template = _valid_template()
-        template["elements"] = []
-        with self.assertRaises(TemplateInvalidError):
-            store.validate_template(template)
+    def test_strips_script_text(self):
+        result = store.validate_template(_with(elements__0__text="<script>alert(1)</script>"))
 
-    def test_validate_template_rejects_bad_slot(self):
-        template = _valid_template()
-        template["elements"][1]["slot"] = "notavalidslot"
-        with self.assertRaises(TemplateInvalidError):
-            store.validate_template(template)
-
-    def test_validate_template_rejects_external_background(self):
-        template = _valid_template()
-        template["background"] = {"type": "image", "src": "https://evil.example/x.png"}
-        with self.assertRaises(TemplateInvalidError):
-            store.validate_template(template)
-
-    def test_validate_template_sanitises_xss_text(self):
-        template = _valid_template()
-        template["elements"][0]["text"] = "<script>alert(1)</script>"
-        result = store.validate_template(template)
         self.assertNotIn("<script", result["elements"][0]["text"])
 
-
-class BaselineUsesTests(unittest.TestCase):
     def test_official_baseline_distributes_total_to_weights(self):
-        with mock.patch("wrapped_fm.templates.read_wrapped_count", return_value=1000):
+        with mock.patch.object(store, "read_wrapped_count", return_value=1000):
             baseline = store._official_baseline_uses()
-        self.assertEqual(baseline["black"], 300)
-        self.assertEqual(baseline["black_new"], 120)
-        self.assertEqual(baseline["white_new"], 80)
+
+        self.assertEqual((baseline["black"], baseline["black_new"], baseline["white_new"]), (300, 120, 80))
         self.assertEqual(sum(baseline.values()), 1000)
 
 
-class SubmissionAndReviewTests(StoreIsolationTests):
-    def _submit(self, template=None, creator=None):
-        payload = {
-            "creator": creator or {"id": "anything", "secret": token_urlsafe(24), "name": "Matei", "website": "https://devmatei.com"},
-            "template": template or _valid_template(),
-        }
-        return store.submit_template(payload)
+class SubmissionAndReviewTests(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        for attr in ("TEMPLATE_LIBRARY_DIR", "TEMPLATE_SUBMISSION_DIR", "TEMPLATE_CREATOR_DIR", "TEMPLATE_ASSET_DIR", "TEMPLATE_OFFICIAL_DIR"):
+            patch = mock.patch.object(store, attr, os.path.join(tmp.name, attr.lower()))
+            patch.start()
+            self.addCleanup(patch.stop)
+        os.makedirs(store.TEMPLATE_OFFICIAL_DIR)
 
-    def test_submit_enters_pending_review(self):
+    def _submit(self, template=None, creator=None):
+        creator = creator or {"id": "anything", "secret": token_urlsafe(24), "name": "Matei", "website": "https://devmatei.com"}
+        return store.submit_template({"creator": creator, "template": template or _valid_template()})
+
+    def _pending_ids(self):
+        return [item["submission_id"] for item in store.get_pending_submissions()]
+
+    def test_submit_approve_and_record_uses(self):
         submission = self._submit()
         self.assertEqual(submission["status"], "pending_review")
-        self.assertIn(submission["submission_id"], [s["submission_id"] for s in store.get_pending_submissions()])
-        self.assertNotIn(submission["template"]["slug"], [t["slug"] for t in store.list_templates()])
+        self.assertIn(submission["submission_id"], self._pending_ids())
+        self.assertNotIn("test-slug", [t["slug"] for t in store.list_templates()])
 
-    def test_submit_links_same_creator(self):
-        secret = token_urlsafe(24)
-        creator = {"id": "", "secret": secret, "name": "Matei"}
+        store.approve_submission(submission["submission_id"])
+        store.record_template_use("test-slug")
+        store.record_template_use("test-slug")
+
+        self.assertIn("test-slug", [t["slug"] for t in store.list_templates()])
+        self.assertNotIn(submission["submission_id"], self._pending_ids())
+        self.assertEqual(store.get_template_uses("test-slug"), 2)
+        collision = self._submit(template=_valid_template(name="Collision"))
+        with self.assertRaises(TemplateInvalidError):
+            store.approve_submission(collision["submission_id"])
+
+    def test_creator_identity_is_linked_and_cannot_be_impersonated(self):
+        creator = {"id": "", "secret": token_urlsafe(24), "name": "Matei"}
         first = self._submit(creator=dict(creator))
-        second = self._submit(template=_valid_template(slug="another", name="Another"), creator=dict(creator))
+        second = self._submit(template=_valid_template(slug="another"), creator=dict(creator))
+
         self.assertEqual(first["creator"]["id"], second["creator"]["id"])
         self.assertTrue(store.get_creator(first["creator"]["id"])["name"])
-
-    def test_submit_rejects_impersonation(self):
-        real = self._submit()
         with self.assertRaises(CreatorInvalidError):
-            self._submit(creator={"id": real["creator"]["id"], "secret": token_urlsafe(24), "name": "Imposter"})
+            self._submit(creator={"id": first["creator"]["id"], "secret": token_urlsafe(24), "name": "Imposter"})
 
-    def test_approve_moves_to_library(self):
-        submission = self._submit()
-        library = store.approve_submission(submission["submission_id"])
-        slugs = [t["slug"] for t in store.list_templates()]
-        self.assertIn(library["slug"], slugs)
-        self.assertNotIn(submission["submission_id"], [s["submission_id"] for s in store.get_pending_submissions()])
-
-    def test_approve_rejects_slug_collision(self):
-        submission = self._submit()
-        store.approve_submission(submission["submission_id"])
-        again = self._submit(template=_valid_template(slug="test-slug", name="Collision"))
-        with self.assertRaises(TemplateInvalidError):
-            store.approve_submission(again["submission_id"])
-
-    def test_reject_removes_submission(self):
+    def test_reject_and_missing_lookups(self):
         submission = self._submit()
         store.reject_submission(submission["submission_id"])
-        self.assertNotIn(submission["submission_id"], [s["submission_id"] for s in store.get_pending_submissions()])
-        with self.assertRaises(TemplateUnavailableError):
-            store.reject_submission(submission["submission_id"])
 
-    def test_approve_missing_submission_raises(self):
-        with self.assertRaises(TemplateUnavailableError):
-            store.approve_submission("doesnotexist")
+        self.assertNotIn(submission["submission_id"], self._pending_ids())
+        for call in (
+            lambda: store.reject_submission(submission["submission_id"]),
+            lambda: store.approve_submission("doesnotexist"),
+            lambda: store.get_template("nope"),
+        ):
+            with self.assertRaises(TemplateUnavailableError):
+                call()
 
-    def test_record_use_increments(self):
-        submission = self._submit()
-        store.approve_submission(submission["submission_id"])
-        self.assertEqual(store.get_template_uses("test-slug"), 0)
-        store.record_template_use("test-slug")
-        store.record_template_use("test-slug")
-        self.assertEqual(store.get_template_uses("test-slug"), 2)
-
-    def test_get_template_rejects_missing(self):
-        with self.assertRaises(TemplateUnavailableError):
-            store.get_template("nope")
-
-    def test_store_template_asset_validates_name(self):
-        with self.assertRaises(TemplateInvalidError):
-            store.store_template_asset("valid-slug", "evil.txt", b"x")
-
-    def test_store_template_asset_normalises_extension(self):
+    def test_template_assets(self):
         result = store.store_template_asset("valid-slug", "my-art (1).jpg", b"x")
+
         self.assertEqual(result["filename"], "/template-assets/valid-slug/background.jpg")
         self.assertTrue(os.path.exists(os.path.join(store.TEMPLATE_ASSET_DIR, "valid-slug", "background.jpg")))
+        with self.assertRaises(TemplateInvalidError):
+            store.store_template_asset("valid-slug", "evil.txt", b"x")
 
 
 if __name__ == "__main__":
