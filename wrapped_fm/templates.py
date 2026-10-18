@@ -52,6 +52,7 @@ CATEGORIES = (
 
 _NAME_MAX = 60
 _SEGMENT_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,48}$")
+_LOOKUP_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,48}$")
 _HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 _DANGEROUS_STRINGS = ("javascript:", "vbscript:", "<script", "data:text/html")
 
@@ -420,7 +421,7 @@ def _official_baseline_uses() -> Dict[str, int]:
 
 
 def resolve_template_exists(slug: str) -> bool:
-    return _valid_slug(slug) and (
+    return isinstance(slug, str) and bool(_LOOKUP_RE.match(slug)) and (
         os.path.exists(os.path.join(TEMPLATE_OFFICIAL_DIR, f"{slug}.json"))
         or os.path.exists(os.path.join(TEMPLATE_LIBRARY_DIR, f"{slug}.json"))
     )
