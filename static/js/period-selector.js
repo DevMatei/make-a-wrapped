@@ -9,7 +9,6 @@ const PERIOD_PRESET_VALUES = new Set([
   'all_time',
 ]);
 
-const FALLBACK_RANGE = { preset: 'last_month', month: null, year: null };
 const SPECIFIC_MONTH_VALUE = 'specific_month';
 
 function clone(value) {
@@ -19,19 +18,32 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
-function defaultFromDescriptors(descriptor) {
+function previousMonth() {
   const now = new Date();
-  const prevMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-  const fallbackMonth = prevMonth.getUTCMonth() + 1;
-  const fallbackYear = prevMonth.getUTCFullYear();
-  const fallback = descriptor && descriptor.defaults ? descriptor.defaults : null;
-  if (!fallback) {
-    return { preset: 'last_month', month: fallbackMonth, year: fallbackYear };
+  const prev = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
+  return { month: prev.getUTCMonth() + 1, year: prev.getUTCFullYear() };
+}
+
+function maxMonthFrom(descriptor) {
+  const max = descriptor && descriptor.maxSpecificMonth;
+  if (max && Number.isFinite(Number(max.month)) && Number.isFinite(Number(max.year))) {
+    return { month: Number(max.month), year: Number(max.year) };
   }
+  const now = new Date();
+  return { month: now.getUTCMonth() + 1, year: now.getUTCFullYear() };
+}
+
+function isFinishedMonth(month, year, descriptor) {
+  const max = maxMonthFrom(descriptor);
+  return year < max.year || (year === max.year && month < max.month);
+}
+
+function defaultFromDescriptor(descriptor) {
+  const preset = descriptor && descriptor.defaults && descriptor.defaults.preset;
   return {
-    preset: 'last_month',
-    month: fallbackMonth,
-    year: fallbackYear,
+    preset: PERIOD_PRESET_VALUES.has(preset) ? preset : 'this_year',
+    month: null,
+    year: null,
   };
 }
 
@@ -67,58 +79,34 @@ function buildQueryString(selection) {
 }
 
 function validateSelection(selection, descriptor) {
-  if (!selection) return defaultFromDescriptors(descriptor);
-  const safe = defaultFromDescriptors(descriptor);
-  if (!PERIOD_PRESET_VALUES.has(selection.preset)) {
-    return safe;
+  if (!selection || !PERIOD_PRESET_VALUES.has(selection.preset)) {
+    return defaultFromDescriptor(descriptor);
   }
-  safe.preset = selection.preset;
-  if (selection.preset === SPECIFIC_MONTH_VALUE) {
-    const month = Number(selection.month);
-    const year = Number(selection.year);
-    if (!Number.isFinite(month) || month < 1 || month > 12) {
-      return safe;
-    }
-    if (!Number.isFinite(year) || year < 1970 || year > 9999) {
-      return safe;
-    }
-    const max = descriptor && descriptor.maxSpecificMonth;
-    if (max) {
-      const maxYear = Number(max.year);
-      const maxMonth = Number(max.month);
-      if (year > maxYear || (year === maxYear && month >= maxMonth)) {
-        safe.month = maxMonth;
-        safe.year = maxYear;
-      } else {
-        safe.month = month;
-        safe.year = year;
-      }
-    } else {
-      safe.month = month;
-      safe.year = year;
-    }
+  if (selection.preset !== SPECIFIC_MONTH_VALUE) {
+    return { preset: selection.preset, month: null, year: null };
   }
-  return safe;
+  const month = Number(selection.month);
+  const year = Number(selection.year);
+  const valid = Number.isInteger(month) && month >= 1 && month <= 12
+    && Number.isInteger(year) && year >= 1970
+    && isFinishedMonth(month, year, descriptor);
+  if (!valid) {
+    return { preset: SPECIFIC_MONTH_VALUE, ...previousMonth() };
+  }
+  return { preset: SPECIFIC_MONTH_VALUE, month, year };
 }
 
 export function createPeriodSelector({ descriptor, onChange } = {}) {
-  const dropdown = document.querySelector('[data-period-dropdown]');
-  const toggle = dropdown ? dropdown.querySelector('[data-period-toggle]') : null;
-  const menu = dropdown ? dropdown.querySelector('[data-period-menu]') : null;
-  const options = dropdown
-    ? Array.from(dropdown.querySelectorAll('[data-period-option]'))
-    : [];
-  const currentLabel = dropdown ? dropdown.querySelector('.period-select__current') : null;
+  const select = document.getElementById('period-select');
   const specificGroup = document.querySelector('[data-period-specific]');
-  const specificMonthSelect = document.getElementById('period-specific-month');
-  const specificYearSelect = document.getElementById('period-specific-year');
+  const monthSelect = document.getElementById('period-specific-month');
+  const yearSelect = document.getElementById('period-specific-year');
 
   let _descriptor = descriptor || null;
-  let current = defaultFromDescriptors(_descriptor);
+  let current = defaultFromDescriptor(_descriptor);
 
   function emit() {
-    const snapshot = clone(current);
-    if (onChange) onChange(snapshot);
+    if (onChange) onChange(clone(current));
   }
 
   function getSelection() {
@@ -133,182 +121,84 @@ export function createPeriodSelector({ descriptor, onChange } = {}) {
     return `${path}${separator}${query}`;
   }
 
-  function updateLabel() {
-    if (!currentLabel) return;
-    if (current.preset === SPECIFIC_MONTH_VALUE && current.month && current.year) {
-      const monthName = specificMonthSelect
-        ? specificMonthSelect.options[specificMonthSelect.selectedIndex]?.text
-        : '';
-      const label = monthName ? `${monthName} ${current.year}` : `${current.month}/${current.year}`;
-      currentLabel.textContent = label;
-    } else {
-      const presetLabel = options.find((opt) => opt.dataset.value === current.preset)?.dataset.label
-        || current.preset;
-      currentLabel.textContent = presetLabel;
+  function monthEntries() {
+    if (_descriptor && Array.isArray(_descriptor.months) && _descriptor.months.length) {
+      return _descriptor.months.map((entry) => ({ value: Number(entry.value), label: String(entry.label).toLowerCase() }));
     }
+    return Array.from({ length: 12 }, (_, i) => ({
+      value: i + 1,
+      label: new Date(2000, i, 1).toLocaleString(undefined, { month: 'long' }).toLowerCase(),
+    }));
   }
 
-  function populateSpecificSelectors() {
-    if (!specificMonthSelect || !specificYearSelect || !_descriptor) return;
-    if (!specificMonthSelect.options.length) {
-      _descriptor.months.forEach((entry) => {
-        const opt = document.createElement('option');
-        opt.value = entry.value;
-        opt.textContent = entry.label;
-        specificMonthSelect.appendChild(opt);
-      });
-    }
-    if (!specificYearSelect.options.length) {
-      _descriptor.years.forEach((year) => {
-        const opt = document.createElement('option');
-        opt.value = String(year);
-        opt.textContent = String(year);
-        specificYearSelect.appendChild(opt);
-      });
-    }
+  function yearEntries() {
+    const max = maxMonthFrom(_descriptor);
+    const years = _descriptor && Array.isArray(_descriptor.years) && _descriptor.years.length
+      ? _descriptor.years.map(Number)
+      : Array.from({ length: 10 }, (_, i) => max.year - i);
+    return years.filter((year) => year < max.year || (year === max.year && max.month > 1));
   }
 
-  function refreshSpecificVisibility() {
+  function fillOptions(target, entries, selected) {
+    target.replaceChildren(...entries.map((entry) => {
+      const option = document.createElement('option');
+      option.value = String(entry.value);
+      option.textContent = entry.label;
+      return option;
+    }));
+    target.value = String(selected);
+  }
+
+  function renderSpecific() {
     if (!specificGroup) return;
     const visible = current.preset === SPECIFIC_MONTH_VALUE;
-    specificGroup.classList.toggle('is-visible', visible);
-    if (visible) {
-      populateSpecificSelectors();
-      const now = new Date();
-      const prevMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-      const fallbackMonth = prevMonth.getUTCMonth() + 1;
-      const fallbackYear = prevMonth.getUTCFullYear();
-      if (specificMonthSelect) {
-        specificMonthSelect.value = current.month ? String(current.month) : String(fallbackMonth);
-      }
-      if (specificYearSelect) {
-        specificYearSelect.value = current.year ? String(current.year) : String(fallbackYear);
-      }
-      if (specificMonthSelect && current.month) specificMonthSelect.value = String(current.month);
-      if (specificYearSelect && current.year) specificYearSelect.value = String(current.year);
-      updateSpecificMax();
-    }
-  }
-
-  function updateSpecificMax() {
-    if (!specificMonthSelect || !specificYearSelect || !_descriptor?.maxSpecificMonth) return;
-    const maxYear = Number(_descriptor.maxSpecificMonth.year);
-    const maxMonth = Number(_descriptor.maxSpecificMonth.month);
-    Array.from(specificYearSelect.options).forEach((opt) => {
-      const year = Number(opt.value);
-      if (year > maxYear) {
-        opt.disabled = true;
-      } else {
-        opt.disabled = false;
-      }
-    });
-    Array.from(specificMonthSelect.options).forEach((opt) => {
-      const month = Number(opt.value);
-      const selectedYear = Number(specificYearSelect.value);
-      if (selectedYear >= maxYear && month >= maxMonth) {
-        opt.disabled = true;
-      } else {
-        opt.disabled = false;
-      }
-    });
+    specificGroup.hidden = !visible;
+    if (!visible || !monthSelect || !yearSelect) return;
+    const years = yearEntries();
+    fillOptions(yearSelect, years.map((year) => ({ value: year, label: String(year) })), current.year);
+    const months = monthEntries().filter((entry) => isFinishedMonth(entry.value, current.year, _descriptor));
+    fillOptions(monthSelect, months, current.month);
   }
 
   function applySelection(selection) {
     current = validateSelection(selection, _descriptor);
-    options.forEach((opt) => {
-      const active = opt.dataset.value === current.preset;
-      opt.classList.toggle('is-active', active);
-      opt.setAttribute('aria-selected', String(active));
-    });
-    refreshSpecificVisibility();
-    updateLabel();
+    if (select) select.value = current.preset;
+    renderSpecific();
     writeStored(current);
-  }
-
-  function openDropdown() {
-    if (!dropdown) return;
-    dropdown.classList.add('is-open');
-    if (toggle) toggle.setAttribute('aria-expanded', 'true');
-    if (menu) menu.setAttribute('aria-hidden', 'false');
-  }
-
-  function closeDropdown() {
-    if (!dropdown) return;
-    dropdown.classList.remove('is-open');
-    if (toggle) toggle.setAttribute('aria-expanded', 'false');
-    if (menu) menu.setAttribute('aria-hidden', 'true');
-  }
-
-  function toggleDropdown() {
-    if (!dropdown) return;
-    if (dropdown.classList.contains('is-open')) {
-      closeDropdown();
-    } else {
-      openDropdown();
-    }
   }
 
   function init(desc) {
     if (desc) _descriptor = desc;
-    if (!dropdown) return;
-    populateSpecificSelectors();
-    const stored = readStored();
-    applySelection(stored || defaultFromDescriptors(_descriptor));
+    if (!select) return;
+    applySelection(readStored() || defaultFromDescriptor(_descriptor));
 
-    if (toggle) {
-      toggle.addEventListener('click', (event) => {
-        event.stopPropagation();
-        toggleDropdown();
+    select.addEventListener('change', () => {
+      const preset = select.value;
+      if (!PERIOD_PRESET_VALUES.has(preset)) return;
+      const next = preset === SPECIFIC_MONTH_VALUE
+        ? { preset, month: current.month, year: current.year }
+        : { preset };
+      applySelection(next);
+      emit();
+    });
+
+    if (monthSelect) {
+      monthSelect.addEventListener('change', () => {
+        applySelection({ ...current, month: Number(monthSelect.value) });
+        emit();
       });
     }
-
-    options.forEach((opt) => {
-      opt.addEventListener('click', (event) => {
-        event.stopPropagation();
-        const value = opt.dataset.value;
-        if (!value || !PERIOD_PRESET_VALUES.has(value)) return;
-        const next = { ...current, preset: value };
-        if (value !== SPECIFIC_MONTH_VALUE) {
-          next.month = null;
-          next.year = null;
-        } else if (!next.month || !next.year) {
-          const now = new Date();
-          const prevMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
-          next.month = prevMonth.getUTCMonth() + 1;
-          next.year = prevMonth.getUTCFullYear();
+    if (yearSelect) {
+      yearSelect.addEventListener('change', () => {
+        const year = Number(yearSelect.value);
+        let month = current.month;
+        if (!isFinishedMonth(month, year, _descriptor)) {
+          month = maxMonthFrom(_descriptor).month - 1;
         }
-        applySelection(next);
-        closeDropdown();
-        emit();
-      });
-    });
-
-    document.addEventListener('click', (event) => {
-      if (dropdown && !dropdown.contains(event.target)) {
-        closeDropdown();
-      }
-    });
-    document.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') closeDropdown();
-    });
-
-    if (specificMonthSelect) {
-      specificMonthSelect.addEventListener('change', () => {
-        const next = { ...current, month: Number(specificMonthSelect.value) };
-        applySelection(next);
+        applySelection({ ...current, year, month });
         emit();
       });
     }
-    if (specificYearSelect) {
-      specificYearSelect.addEventListener('change', () => {
-        const next = { ...current, year: Number(specificYearSelect.value) };
-        applySelection(next);
-        updateSpecificMax();
-        emit();
-      });
-    }
-
-    if (menu) menu.setAttribute('aria-hidden', 'true');
   }
 
   return {
@@ -316,7 +206,6 @@ export function createPeriodSelector({ descriptor, onChange } = {}) {
     getSelection,
     withRange,
     applySelection,
-    closeDropdown,
   };
 }
 
