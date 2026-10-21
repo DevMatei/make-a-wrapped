@@ -22,8 +22,6 @@ import { createServiceSelector } from './service-selector.js';
 import { createPeriodSelector, loadPeriodDescriptor } from './period-selector.js';
 import { NavidromeClient } from './navidrome-client.js';
 import {
-  formatSectionListForStatus,
-  parseSectionSelection,
   formatRankedList,
   sanitiseRankedArray,
   normaliseGenreLabel,
@@ -39,7 +37,8 @@ import {
   writeSession,
   removeSession,
 } from './storage.js';
-import { initThemeSwitcher } from './theme-switcher.js';
+import { getSampleArt } from './templates/sample-art.js';
+import { getSampleData } from './templates/sample-data.js';
 
 const canvas = document.getElementById('canvas');
 const themeSelect = document.getElementById('color');
@@ -47,6 +46,12 @@ const form = document.getElementById('wrapped-form');
 const usernameField = document.getElementById('username');
 const navidromeUsernameInput = document.getElementById('navidrome-username');
 const usernameLabel = document.getElementById('username-label');
+const usernameWrap = document.getElementById('username-field');
+const posterTag = document.getElementById('poster-tag');
+const posterEl = document.getElementById('poster');
+const downloadHint = document.getElementById('download-hint');
+const counterLine = document.getElementById('counter-line');
+const artworkSourceHint = document.getElementById('artwork-source-hint');
 const serviceHiddenInput = document.getElementById('service');
 const turnstileWrapper = document.getElementById('turnstile-wrapper');
 const turnstileContainer = document.getElementById('turnstile-container');
@@ -98,32 +103,32 @@ const canvasRenderer = createCanvasRenderer({ canvas, themeSelect, artistImg });
 
 const SERVICE_USERNAME_COPY = {
   listenbrainz: {
-    label: 'ListenBrainz username',
+    label: 'listenbrainz username',
     placeholder: 'e.g. devmatei',
-    emptyMessage: 'Enter a ListenBrainz username to get started.',
+    emptyMessage: 'enter your listenbrainz username first.',
   },
   lastfm: {
-    label: 'Last.fm username',
-    placeholder: 'e.g. yourlastfmname',
-    emptyMessage: 'Enter a Last.fm username to get started.',
+    label: 'last.fm username',
+    placeholder: 'e.g. rj',
+    emptyMessage: 'enter your last.fm username first.',
   },
   librefm: {
-    label: 'Libre.fm username (beta)',
-    placeholder: 'e.g. yourlibrefmname',
-    emptyMessage: 'Enter a Libre.fm username to get started.',
+    label: 'libre.fm username',
+    placeholder: 'e.g. mattl',
+    emptyMessage: 'enter your libre.fm username first.',
   },
   navidrome: {
-    label: 'Navidrome username',
+    label: 'navidrome username',
     placeholder: 'e.g. alice',
-    emptyMessage: 'Enter your Navidrome username to get started.',
+    emptyMessage: 'enter your navidrome username first.',
   },
 };
 
 function getUsernameCopy(service) {
   return SERVICE_USERNAME_COPY[service] || {
-    label: 'Music username',
+    label: 'username',
     placeholder: 'e.g. devmatei',
-    emptyMessage: 'Enter a username to get started.',
+    emptyMessage: 'enter a username first.',
   };
 }
 
@@ -159,13 +164,13 @@ function buildFallbackRequestUrl(path) {
 
 function buildRangeFromSelection(selection) {
   if (!selection || !selection.preset) {
-    return { preset: 'this_year', startTs: null, endTs: null, label: 'This year', kind: 'year' };
+    return { preset: 'this_year', startTs: null, endTs: null, label: 'this year', kind: 'year' };
   }
   const descriptor = state.periodDescriptor || {};
   const defaults = descriptor.defaults || {};
   const label = selection.preset === 'specific_month' && selection.month && selection.year
     ? formatSpecificMonthLabel(selection.month, selection.year)
-    : selection.preset;
+    : (PRESET_LABELS[selection.preset] || selection.preset);
   let startTs = null;
   let endTs = null;
   if (selection.preset === 'this_year' || selection.preset === 'all_time') {
@@ -215,10 +220,19 @@ function buildRangeFromSelection(selection) {
   };
 }
 
+const PRESET_LABELS = {
+  this_year: 'this year',
+  last_year: 'last year',
+  last_12_months: 'the last 12 months',
+  this_month: 'this month',
+  last_month: 'last month',
+  all_time: 'all time',
+};
+
 function formatSpecificMonthLabel(month, year) {
   try {
     const date = new Date(Date.UTC(Number(year), Number(month) - 1, 1));
-    const monthName = date.toLocaleString(undefined, { month: 'long', timeZone: 'UTC' });
+    const monthName = date.toLocaleString(undefined, { month: 'long', timeZone: 'UTC' }).toLowerCase();
     return `${monthName} ${year}`;
   } catch (error) {
     return `${month}/${year}`;
@@ -311,7 +325,7 @@ async function buildBadgeUrl({ preview = false } = {}) {
   } else {
     const username = state.generatedData && state.generatedData.username;
     if (!username) {
-      throw new Error('Generate your wrapped first.');
+      throw new Error('make your wrapped first.');
     }
     path = `/badge/${encodeURIComponent(username)}`;
     params.set('service', getSelectedService());
@@ -377,7 +391,9 @@ function showBadgePanel() {
 
 function setActiveBadgeChip(list, attr, value) {
   list.forEach((el) => {
-    el.classList.toggle('is-active', el.dataset[attr] === value);
+    const active = el.dataset[attr] === value;
+    el.classList.toggle('is-active', active);
+    el.setAttribute('aria-pressed', String(active));
   });
 }
 
@@ -387,24 +403,20 @@ function handleServiceChange(nextValue) {
   const copy = getUsernameCopy(selectedService);
   if (usernameLabel) {
     usernameLabel.textContent = copy.label;
-    usernameLabel.hidden = isNavidrome;
+  }
+  if (usernameWrap) {
+    usernameWrap.hidden = isNavidrome;
   }
   if (usernameField) {
-    usernameField.hidden = isNavidrome;
-    if (typeof usernameField.required === 'boolean') {
-      usernameField.required = !isNavidrome;
-    }
-    if (!isNavidrome) {
-      usernameField.placeholder = copy.placeholder;
-    }
+    usernameField.required = !isNavidrome;
+    usernameField.placeholder = copy.placeholder;
+    clearInvalid(usernameField);
   }
   if (navidromeUsernameInput) {
     navidromeUsernameInput.required = isNavidrome;
   }
   if (navidromeFields) {
     navidromeFields.hidden = !isNavidrome;
-    navidromeFields.style.display = isNavidrome ? '' : 'none';
-    navidromeFields.setAttribute('aria-hidden', String(!isNavidrome));
   }
   if (turnstileWrapper) {
     turnstileWrapper.hidden = Boolean(isNavidrome || !isTurnstileEnabled());
@@ -415,34 +427,50 @@ function handleServiceChange(nextValue) {
   hideBadgePanel();
 }
 
+class FieldError extends Error {
+  constructor(message, field) {
+    super(message);
+    this.field = field;
+  }
+}
+
+function markInvalid(field) {
+  if (!field) return;
+  field.setAttribute('aria-invalid', 'true');
+  field.focus();
+}
+
+function clearInvalid(field) {
+  if (field) field.removeAttribute('aria-invalid');
+}
+
 function readNavidromeCredentials(username) {
   if (!navidromeServerInput || !navidromePasswordInput) {
-    throw new Error('Navidrome inputs unavailable.');
+    throw new Error('navidrome inputs are missing.');
   }
   const serverUrlRaw = navidromeServerInput.value.trim();
   const password = navidromePasswordInput.value;
   if (!serverUrlRaw) {
-    throw new Error('Enter your Navidrome server URL (including http:// or https://).');
+    throw new FieldError('enter your navidrome server url.', navidromeServerInput);
   }
   if (!/^https?:\/\//i.test(serverUrlRaw)) {
-    throw new Error('Include http:// or https:// in the Navidrome server URL.');
+    throw new FieldError('the server url needs http:// or https:// in front.', navidromeServerInput);
   }
   if (!username) {
-    throw new Error('Enter your Navidrome username to continue.');
+    throw new FieldError('enter your navidrome username.', navidromeUsernameInput);
   }
   if (!password) {
-    throw new Error('Enter your Navidrome password or app token.');
+    throw new FieldError('enter your navidrome password or app token.', navidromePasswordInput);
   }
-  const normalisedUrl = serverUrlRaw.replace(/\/+$/, '');
   return {
-    serverUrl: normalisedUrl,
+    serverUrl: serverUrlRaw.replace(/\/+$/, ''),
     password,
   };
 }
 
 const NAVIDROME_METHOD_HINTS = {
-  legacy: 'legacy scans all your songs through the subsonic api and counts play counts.',
-  experimental: 'experimental pulls real per-play scrobble history via the native api. requires navidrome 0.64.0 or above. if it does not work, try the legacy method.',
+  legacy: 'legacy scans your whole library through the subsonic api and uses play counts. slower, works on older servers.',
+  experimental: 'experimental pulls real per-play history through the native api (navidrome 0.64.0+). if it fails, try legacy.',
 };
 
 function readNavidromeMethod() {
@@ -487,16 +515,16 @@ function handleSectionNetworkFailure(section, fallbackMessage) {
   const helpText = 'check your connection and try again';
   switch (section) {
     case 'Top artists':
-      if (topArtistsEl) topArtistsEl.textContent = `couldn't load artists - ${helpText}`;
+      if (topArtistsEl) topArtistsEl.textContent = `couldn't load artists, ${helpText}`;
       break;
     case 'Top tracks':
-      if (topTracksEl) topTracksEl.textContent = `couldn't load tracks - ${helpText}`;
+      if (topTracksEl) topTracksEl.textContent = `couldn't load tracks, ${helpText}`;
       break;
     case 'Minutes listened':
       if (listenTimeEl) listenTimeEl.textContent = '0';
       break;
     case 'Top genre':
-      if (topGenreEl) topGenreEl.textContent = `couldn't load genre - ${helpText}`;
+      if (topGenreEl) topGenreEl.textContent = `couldn't load genre, ${helpText}`;
       break;
     default:
       break;
@@ -505,6 +533,7 @@ function handleSectionNetworkFailure(section, fallbackMessage) {
 const state = {
   coverObjectUrl: null,
   generatedData: null,
+  hasResult: false,
   isCoverReady: false,
   customArtworkUrl: null,
   customArtworkActive: false,
@@ -540,6 +569,12 @@ if (serviceHiddenInput) {
 }
 handleServiceChange(serviceSelector.getValue());
 
+[usernameField, navidromeServerInput, navidromeUsernameInput, navidromePasswordInput].forEach((input) => {
+  if (input) {
+    input.addEventListener('input', () => clearInvalid(input));
+  }
+});
+
 const periodSelector = createPeriodSelector({
   descriptor: state.periodDescriptor || null,
   onChange: (selection) => {
@@ -547,7 +582,9 @@ const periodSelector = createPeriodSelector({
     state.activeRange = buildRangeFromSelection(selection);
     if (state.generatedData && state.generatedData.username) {
       const label = state.activeRange?.label || 'new period';
-      setStatus(`period set to ${label}. click generate to refresh.`);
+      setStatus(`time frame set to ${label}. hit make my wrapped to update the poster.`);
+    } else {
+      drawCanvas();
     }
   },
 });
@@ -644,7 +681,7 @@ async function refreshTurnstileToken() {
       turnstileRefreshPromise = null;
       turnstileRefreshResolve = null;
       turnstileRefreshReject = null;
-      reject(new Error('Verification timed out. Please retry the challenge.'));
+      reject(new Error('the verification check timed out. try it again.'));
     }, 15000);
   });
 
@@ -784,8 +821,7 @@ restoreTurnstileTokenFromSession();
 initTemplateSystem();
 
 window.addEventListener('load', () => {
-  initThemeSwitcher();
-  toggleDownload(false);
+  syncDownload();
   const paint = () => window.requestAnimationFrame(drawCanvas);
   if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(paint).catch(paint);
@@ -827,7 +863,26 @@ window.addEventListener('load', () => {
     });
 });
 
+let sampleArt = null;
+getSampleArt().then((image) => {
+  sampleArt = image;
+  if (!state.hasResult) {
+    drawCanvas();
+  }
+});
+
 function drawCanvas() {
+  if (posterTag) {
+    posterTag.hidden = state.hasResult;
+  }
+  if (!state.hasResult) {
+    canvasRenderer.draw({
+      data: { ...getSampleData('short-names').data, username: 'sample' },
+      art: sampleArt,
+      period: state.activeRange,
+    });
+    return;
+  }
   canvasRenderer.draw({
     data: state.generatedData,
     isCoverReady: state.isCoverReady,
@@ -867,7 +922,7 @@ async function handleTemplateChange() {
     await applyTemplate(template);
   } catch (error) {
     console.warn('Template unavailable', error);
-    setStatus('That template is unavailable right now.', 'error');
+    setStatus("that template isn't available right now.", 'error');
   }
 }
 
@@ -875,17 +930,30 @@ async function populateTemplateSelect() {
   if (!themeSelect) {
     return;
   }
-  const list = await fetchTemplateList();
+  let list;
+  try {
+    list = await fetchTemplateList();
+  } catch (error) {
+    console.warn('Template list unavailable', error);
+    return;
+  }
   const current = themeSelect.value;
-  themeSelect.innerHTML = '';
-  const fragments = list.map((template) => {
-    const option = document.createElement('option');
-    option.value = template.slug;
-    option.textContent = template.origin === 'community' ? `${template.name} (community)` : template.name;
-    return option;
-  });
-  themeSelect.append(...fragments);
-  if (fragments.some((option) => option.value === current)) {
+  const groups = [
+    { label: 'built-in', items: list.filter((template) => template.origin !== 'community') },
+    { label: 'community', items: list.filter((template) => template.origin === 'community') },
+  ].filter((group) => group.items.length);
+  themeSelect.replaceChildren(...groups.map((group) => {
+    const optgroup = document.createElement('optgroup');
+    optgroup.label = group.label;
+    optgroup.append(...group.items.map((template) => {
+      const option = document.createElement('option');
+      option.value = template.slug;
+      option.textContent = template.name;
+      return option;
+    }));
+    return optgroup;
+  }));
+  if (list.some((template) => template.slug === current)) {
     themeSelect.value = current;
   }
 }
@@ -900,29 +968,30 @@ async function initTemplateSystem() {
     drawCanvas();
     await loadFonts(templateFontFamilies(selected.template));
     redrawWithTemplate();
-    const browseBtn = document.getElementById('browse-templates');
-    if (browseBtn) {
-      browseBtn.addEventListener('click', () => {
-        window.location.href = '/marketplace';
-      });
-    }
     populateTemplateSelect();
   } catch (error) {
     console.error('Template system initialisation failed', error);
   }
 }
 
-function toggleDownload(enabled) {
-  downloadBtn.disabled = !enabled;
-  downloadBtn.setAttribute('aria-disabled', String(!enabled));
+function syncDownload() {
+  const ready = Boolean(state.hasResult) && !isLoading();
+  downloadBtn.disabled = !ready;
+  downloadBtn.setAttribute('aria-disabled', String(!ready));
+  if (downloadHint) {
+    downloadHint.hidden = Boolean(state.hasResult);
+  }
+  if (downloadError) {
+    downloadError.hidden = !state.hasResult || state.isCoverReady;
+  }
 }
 
 function setLoading(isLoading) {
   loadingIndicator.hidden = !isLoading;
-  downloadBtn.setAttribute('aria-busy', String(isLoading));
-  if (isLoading) {
-    serviceSelector.closeDropdown();
+  if (!isLoading) {
+    loadingIndicator.textContent = '';
   }
+  downloadBtn.setAttribute('aria-busy', String(isLoading));
   form.querySelectorAll('input, button, select').forEach((element) => {
     if (element !== themeSelect) {
       element.disabled = isLoading;
@@ -941,11 +1010,26 @@ function setLoading(isLoading) {
       toggleArtworkReset(false);
     }
   }
+  syncDownload();
+}
+
+function isNarrowLayout() {
+  return window.matchMedia('(max-width: 960px)').matches;
+}
+
+function scrollIntoViewIfNarrow(element) {
+  if (element && isNarrowLayout()) {
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    element.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+  }
 }
 
 const GITHUB_ISSUES_URL = 'https://github.com/DevMatei/make-a-wrapped/issues/new';
 
 function setStatus(message, type = 'info') {
+  if (isLoading() && message && type !== 'error') {
+    loadingIndicator.textContent = message;
+  }
   if (!message) {
     statusMessage.hidden = true;
     statusMessage.innerHTML = '';
@@ -954,7 +1038,7 @@ function setStatus(message, type = 'info') {
   statusMessage.hidden = false;
   statusMessage.classList.toggle('error', type === 'error');
 
-  if (type === 'error' && message.includes('GitHub issue')) {
+  if (type === 'error' && message.includes('<a href=')) {
     statusMessage.innerHTML = message;
   } else {
     statusMessage.textContent = message;
@@ -962,38 +1046,40 @@ function setStatus(message, type = 'info') {
 }
 
 function formatErrorWithGuidance(error, context = '') {
-  const baseMessage = error.message || 'Something went wrong.';
+  const baseMessage = error.message || 'something went wrong.';
   const lowerMessage = baseMessage.toLowerCase();
+  const issueLink = `<a href="${GITHUB_ISSUES_URL}" target="_blank" rel="noopener noreferrer">open an issue on github</a>`;
 
-  if (lowerMessage.includes('network') || lowerMessage.includes('failed to fetch') || lowerMessage.includes('networkerror')) {
-    return `Couldn't reach the server. Check your internet connection and try again. If it keeps happening, the service might be temporarily down.`;
+  if (error.__emptyResult || lowerMessage.includes('navidrome')) {
+    return baseMessage;
+  }
+
+  if (lowerMessage.includes('network') || lowerMessage.includes('failed to fetch')) {
+    return "couldn't reach the server. check your connection and try again.";
   }
 
   if (lowerMessage.includes('timeout') || lowerMessage.includes('timed out')) {
-    return `The request took too long. This usually means the service is slow right now. Try again in a bit.`;
+    return 'that took too long, the music service is probably slow right now. try again in a bit.';
   }
 
   if (lowerMessage.includes('404') || lowerMessage.includes('not found')) {
-    return `Couldn't find that username. Double-check the spelling and make sure you picked the right service.`;
+    return "couldn't find that username. check the spelling and that you picked the right service.";
   }
 
   if (lowerMessage.includes('429') || lowerMessage.includes('rate limit')) {
-    return `Too many requests at once. Wait a minute and try again.`;
+    return 'too many requests right now. wait a minute and try again.';
   }
 
   if (lowerMessage.includes('503') || lowerMessage.includes('not configured')) {
-    return `This service isn't set up on the server right now. Try a different one, or check back later.`;
+    return "this service isn't set up on the server right now. try another one or check back later.";
   }
 
   if (lowerMessage.includes('502') || lowerMessage.includes('bad gateway')) {
-    return `The server got a bad response from the music service. This is usually temporary, try again in a moment.`;
+    return 'the music service sent back something broken. usually temporary, try again in a moment.';
   }
 
-  if (context) {
-    return `${context}: ${baseMessage} If this keeps happening, <a href="${GITHUB_ISSUES_URL}" target="_blank" rel="noopener noreferrer">open an issue on GitHub</a> and include what you were doing.`;
-  }
-
-  return `${baseMessage} If this keeps happening, <a href="${GITHUB_ISSUES_URL}" target="_blank" rel="noopener noreferrer">open an issue on GitHub</a> and include what you were doing.`;
+  const prefix = context ? `${context}: ` : '';
+  return `${prefix}${baseMessage} if it keeps happening, ${issueLink}.`;
 }
 
 async function loadClientConfig() {
@@ -1073,8 +1159,8 @@ async function initialiseTurnstile() {
     turnstileWrapper.hidden = false;
     updateTurnstileStatus(
       alreadyValidated
-        ? 'Verification already completed for this session. You can generate your wrapped.'
-        : 'Complete the verification to generate your wrapped.',
+        ? "verified, you're good to go."
+        : 'quick check before we fetch your stats.',
       alreadyValidated ? 'success' : 'info',
     );
     turnstileWidgetId = window.turnstile.render(turnstileContainer, {
@@ -1082,18 +1168,18 @@ async function initialiseTurnstile() {
       action: 'generate_wrapped',
       callback(token) {
         persistTurnstileToken(token);
-        updateTurnstileStatus('Verification completed for this session. Ready when you are.', 'success');
+        updateTurnstileStatus("verified, you're good to go.", 'success');
       },
       'expired-callback': () => {
         clearStoredTurnstileToken();
-        updateTurnstileStatus('Verification expired. Please try again.', 'warning');
+        updateTurnstileStatus('the check expired. do it once more.', 'warning');
         if (turnstileRefreshReject) {
           turnstileRefreshReject(new Error('Verification expired.'));
         }
       },
       'error-callback': () => {
         clearStoredTurnstileToken();
-        updateTurnstileStatus('Verification failed to load. Refresh to retry.', 'error');
+        updateTurnstileStatus("the check didn't load. refresh the page to retry.", 'error');
         if (turnstileRefreshReject) {
           turnstileRefreshReject(new Error('Verification failed to load.'));
         }
@@ -1102,7 +1188,7 @@ async function initialiseTurnstile() {
   } catch (error) {
     console.error('Unable to initialise Turnstile', error);
     turnstileWrapper.hidden = false;
-    updateTurnstileStatus('Verification service unavailable. Refresh and try again.', 'error');
+    updateTurnstileStatus("the verification service isn't responding. refresh and try again.", 'error');
   }
 }
 
@@ -1111,7 +1197,7 @@ function ensureTurnstileTokenAvailable() {
     return true;
   }
   if (hasFreshTurnstileToken()) {
-    updateTurnstileStatus('Verification already completed for this session. You can keep generating.', 'success');
+    updateTurnstileStatus("verified, you're good to go.", 'success');
     return true;
   }
   resetTurnstileToken();
@@ -1126,7 +1212,7 @@ function resetTurnstileToken() {
   if (window.turnstile && typeof window.turnstile.reset === 'function' && turnstileWidgetId !== null) {
     window.turnstile.reset(turnstileWidgetId);
   }
-  updateTurnstileStatus('Complete the verification to generate your wrapped.');
+  updateTurnstileStatus('quick check before we fetch your stats.');
 }
 
 async function ensureTurnstileToken(forceRefresh = false) {
@@ -1144,7 +1230,7 @@ function applyTurnstileHeaders(options = {}) {
     return options;
   }
   if (!hasFreshTurnstileToken()) {
-    throw new Error('Complete the verification challenge to continue.');
+    throw new Error('finish the verification check first.');
   }
   const mergedOptions = { ...options };
   const headers = new Headers(options.headers || {});
@@ -1273,20 +1359,18 @@ function setArtworkSource(value, { persist = true, refresh = true } = {}) {
 
   const username = state.generatedData.username;
   state.isCoverReady = false;
-  toggleDownload(false);
+  syncDownload();
   loadCoverArt(username)
     .then((ready) => {
       state.isCoverReady = ready;
       drawCanvas();
-      downloadError.hidden = ready;
-      toggleDownload(ready);
+      syncDownload();
     })
     .catch((error) => {
       console.error('Unable to refresh artwork source', error);
-      setStatus('Unable to refresh artwork for the selected source.', 'error');
+      setStatus("couldn't load art from that source.", 'error');
       state.isCoverReady = false;
-      downloadError.hidden = false;
-      toggleDownload(false);
+      syncDownload();
     });
 }
 
@@ -1336,11 +1420,18 @@ function toggleArtworkReset(enabled) {
 
 function setArtworkEditorEnabled(enabled) {
   if (artworkEditor) {
+    artworkEditor.hidden = !enabled;
     artworkEditor.setAttribute('aria-disabled', String(!enabled));
   }
   artworkEditorControls.forEach((input) => {
     input.disabled = !enabled;
   });
+  artworkSourceInputs.forEach((input) => {
+    input.disabled = state.customArtworkActive;
+  });
+  if (artworkSourceHint) {
+    artworkSourceHint.hidden = !state.customArtworkActive;
+  }
 }
 
 async function applyCustomArtwork() {
@@ -1350,15 +1441,14 @@ async function applyCustomArtwork() {
   const loaded = await loadImage(artistImg, state.customArtworkUrl);
   if (loaded) {
     state.isCoverReady = true;
-    downloadError.hidden = true;
-    toggleDownload(true);
+    syncDownload();
     setArtworkEditorEnabled(true);
     drawCanvas();
     return true;
   }
   setStatus(state.customArtworkPersistence === 'server'
-    ? 'Server-stored artwork expired. Please upload a new image.'
-    : 'Could not load that image. Try a different file.', 'error');
+    ? 'your uploaded image expired. upload it again.'
+    : "couldn't read that image. try another file.", 'error');
   resetArtworkUpload({ silent: true });
   return false;
 }
@@ -1369,12 +1459,12 @@ async function handleArtworkUpload(event) {
     return;
   }
   if (!file.type.startsWith('image/')) {
-    setStatus('Please select a valid image file.', 'error');
+    setStatus('that file isn\'t an image.', 'error');
     event.target.value = '';
     return;
   }
   if (file.size > MAX_ARTWORK_BYTES) {
-    setStatus('Image must be smaller than 6 MB.', 'error');
+    setStatus('images need to be under 6 mb.', 'error');
     event.target.value = '';
     return;
   }
@@ -1392,7 +1482,7 @@ async function handleArtworkUpload(event) {
     state.customArtworkPersistence = 'local';
     toggleArtworkReset(true);
     setArtworkEditorEnabled(true);
-    setStatus('Custom artwork saved to your browser.');
+    setStatus('image saved in your browser.');
     await applyCustomArtwork();
   } catch (error) {
     console.warn('Local artwork save failed, falling back to server.', error);
@@ -1400,7 +1490,7 @@ async function handleArtworkUpload(event) {
       await uploadArtworkToServer(file);
     } catch (uploadError) {
       console.error(uploadError);
-      setStatus('Something went wrong while loading the artwork.', 'error');
+      setStatus("couldn't load that image.", 'error');
       resetArtworkUpload({ silent: true });
     }
   }
@@ -1422,18 +1512,17 @@ function resetArtworkUpload(options = {}) {
   toggleArtworkReset(false);
   setArtworkEditorEnabled(state.artworkOverrideActive);
   if (!silent) {
-    setStatus('Custom artwork cleared. The next generation will fetch artwork automatically again.');
+    setStatus('back to automatic artwork.');
   }
   if (state.generatedData && state.generatedData.username) {
     loadCoverArt(state.generatedData.username).then((success) => {
       state.isCoverReady = success;
-      downloadError.hidden = success;
-      toggleDownload(success);
+      syncDownload();
       drawCanvas();
     });
   } else {
     state.isCoverReady = false;
-    toggleDownload(false);
+    syncDownload();
   }
 }
 
@@ -1517,11 +1606,14 @@ function updateWrappedCounter(count, since) {
     return;
   }
   wrappedCountEl.textContent = parsed.toLocaleString();
+  if (counterLine) {
+    counterLine.classList.add('is-ready');
+  }
   if (wrappedCountSinceEl && since) {
     let formatted = since;
     const parsedDate = new Date(since);
     if (!Number.isNaN(parsedDate.getTime())) {
-      formatted = parsedDate.toLocaleString(undefined, { month: 'short', year: 'numeric' });
+      formatted = parsedDate.toLocaleString(undefined, { month: 'short', year: 'numeric' }).toLowerCase();
     }
     wrappedCountSinceEl.textContent = formatted;
   }
@@ -1558,15 +1650,13 @@ async function recordWrappedGenerated() {
 
 async function generateWrapped(event) {
   event.preventDefault();
+  if (isLoading()) {
+    return;
+  }
   await ensureClientConfigLoaded();
   const selectedService = getSelectedService();
   const usernameInput = selectedService === 'navidrome' ? navidromeUsernameInput : usernameField;
   const username = usernameInput ? usernameInput.value.trim() : '';
-  if (!username) {
-    const copy = getUsernameCopy(selectedService);
-    setStatus(copy.emptyMessage || 'Enter a username to get started.', 'error');
-    return;
-  }
 
   let navidromeCredentials = null;
   if (selectedService === 'navidrome') {
@@ -1574,133 +1664,78 @@ async function generateWrapped(event) {
       navidromeCredentials = readNavidromeCredentials(username);
     } catch (credentialError) {
       setStatus(credentialError.message, 'error');
+      markInvalid(credentialError.field);
       return;
     }
+  } else if (!username) {
+    setStatus(getUsernameCopy(selectedService).emptyMessage, 'error');
+    markInvalid(usernameInput);
+    return;
+  }
+
+  if (selectedService !== 'navidrome' && !ensureTurnstileTokenAvailable()) {
+    setStatus('finish the verification check first.', 'error');
+    return;
+  }
+
+  if (selectedService === 'navidrome') {
     state.navidromeClient = new NavidromeClient(
       navidromeCredentials.serverUrl,
       username,
       navidromeCredentials.password,
       readNavidromeMethod(),
     );
-    setStatus(readNavidromeMethod() === 'experimental'
-      ? 'Navidrome: (experimental) pulling scrobble history via the native api.'
-      : 'Navidrome: scanning your library locally. This can take a minute for big collections.');
-  }
-
-  const hasExisting = Boolean(state.generatedData);
-  const sameProfile = hasExisting
-    && state.generatedData.username === username
-    && state.generatedData.service === selectedService;
-  let sectionsToRefresh = [...ALL_SECTIONS];
-
-  if (hasExisting) {
-    const existingLabel = `"${state.generatedData.username}" via ${getServiceLabel(state.generatedData.service || 'listenbrainz')}`;
-    const promptMessage = [
-      sameProfile
-        ? 'You already generated a wrapped for this selection.'
-        : `Current wrapped belongs to ${existingLabel}.`,
-      'Type:',
-        '- keep: keep the existing poster',
-        '- new: refresh everything',
-      '- or list sections to refresh (artists, tracks, time, genre, image)',
-    ].join('\n');
-    const choiceRaw = window.prompt(promptMessage, 'new');
-    if (choiceRaw === null) {
-      setStatus('Generation cancelled.');
-      return;
-    }
-    const choice = choiceRaw.trim().toLowerCase();
-    if (choice === 'keep' || choice === 'old' || choice === 'current') {
-      if (resultsCard) resultsCard.hidden = false;
-      drawCanvas();
-      downloadError.hidden = state.isCoverReady;
-      toggleDownload(state.isCoverReady);
-      setStatus('keeping your current wrapped.');
-      return;
-    }
-    if (choice && choice !== 'new') {
-      const parsed = parseSectionSelection(choice);
-      if (!parsed.length) {
-        setStatus('No valid sections selected; keeping current wrapped.');
-        toggleDownload(state.isCoverReady);
-        return;
-      }
-      sectionsToRefresh = parsed;
-    }
-  }
-
-  if (!hasExisting || !sameProfile) {
-    sectionsToRefresh = [...ALL_SECTIONS];
-  }
-
-  if (selectedService === 'navidrome' && sectionsToRefresh.some((section) => section !== 'image')) {
     state.navidromeStats = null;
   }
 
-  if (selectedService !== 'navidrome' && !ensureTurnstileTokenAvailable()) {
-    setStatus('please complete the verification challenge first.', 'error');
-    return;
-  }
+  const periodLabel = (state.activeRange && state.activeRange.label) || 'this year';
+  state.hasResult = false;
+  state.isCoverReady = Boolean(state.customArtworkActive && state.customArtworkUrl);
+  state.generatedData = { username, service: selectedService };
+  state.sectionWarnings = [];
+  hideBadgePanel();
 
-  const refreshImage = sectionsToRefresh.includes('image');
-
-  setStatus('starting up...');
   setLoading(true);
-  if ((!hasExisting || sectionsToRefresh.length === ALL_SECTIONS.length) && resultsCard) {
-    resultsCard.hidden = true;
-  }
-  if (refreshImage) {
-    downloadError.hidden = true;
-    if (state.customArtworkActive && state.customArtworkUrl) {
-      state.isCoverReady = true;
-      toggleDownload(true);
-    } else {
-      toggleDownload(false);
-      state.isCoverReady = false;
-    }
-  }
+  setStatus(selectedService === 'navidrome'
+    ? 'talking to your navidrome server...'
+    : 'fetching your top artists...');
+  scrollIntoViewIfNarrow(posterEl);
 
   try {
-    if (!state.generatedData) {
-      state.generatedData = {};
+    await updateSections(username, [...ALL_SECTIONS]);
+    const data = state.generatedData;
+    const hasArtists = Array.isArray(data.artists) && data.artists.length > 0;
+    const hasTracks = Array.isArray(data.tracks) && data.tracks.length > 0;
+    if (!hasArtists && !hasTracks) {
+      const empty = new Error(`no listens found for ${username} in ${periodLabel}. try a longer time frame.`);
+      empty.__emptyResult = true;
+      throw empty;
     }
-    state.generatedData.username = username;
-    state.generatedData.service = selectedService;
-
-    state.sectionWarnings = [];
-
-    if (sectionsToRefresh.includes('artists')) {
-      setStatus('fetching your top artists...');
-    }
-    await updateSections(username, sectionsToRefresh);
 
     setStatus('building your poster...');
+    state.hasResult = true;
     drawCanvas();
     if (resultsCard) resultsCard.hidden = false;
-    if (sectionsToRefresh.length === ALL_SECTIONS.length) {
-      await recordWrappedGenerated();
-    }
-    const periodLabel = state.activeRange && state.activeRange.label
-      ? state.activeRange.label
-      : (state.activePeriod && state.activePeriod.preset) || 'this period';
-    const baseLabel = sectionsToRefresh.length === ALL_SECTIONS.length
-      ? `done! wrapped generated for ${username} · ${periodLabel}.`
-      : `updated ${formatSectionListForStatus(sectionsToRefresh)} · ${periodLabel}.`;
+    await recordWrappedGenerated();
+
+    const baseLabel = `done. here's ${username}'s wrapped for ${periodLabel}.`;
     if (state.sectionWarnings.length) {
-      const affected = state.sectionWarnings.map((entry) => entry.section).join(', ');
-      setStatus(`${baseLabel} some sections couldn't load (${affected}). try refreshing those sections.`, 'error');
+      const affected = state.sectionWarnings.map((entry) => entry.section.toLowerCase()).join(', ');
+      setStatus(`${baseLabel} some parts didn't load (${affected}), try again in a bit.`, 'error');
     } else if (state.lowDataFallback) {
-      setStatus(`${baseLabel} not enough listens for ${periodLabel}, showing all time instead.`, 'info');
+      setStatus(`${baseLabel} not many listens in ${periodLabel}, so some of it uses all time.`);
     } else {
       setStatus(baseLabel);
     }
     showBadgePanel();
   } catch (error) {
     console.error(error);
+    state.hasResult = false;
+    state.generatedData = null;
+    drawCanvas();
     setStatus(formatErrorWithGuidance(error), 'error');
+    scrollIntoViewIfNarrow(statusMessage);
   } finally {
-    downloadError.hidden = state.isCoverReady;
-    toggleDownload(state.isCoverReady);
     setLoading(false);
   }
 }
@@ -1711,7 +1746,7 @@ async function fetchJson(path) {
     if (!response.ok) {
       const errorMessage = await parseError(response);
       if (handleTurnstileFailure(errorMessage, response.status)) {
-        const err = new Error('Verification expired. Please complete the challenge again.');
+        const err = new Error('verification expired. do the check again.');
         err.__turnstileExpired = true;
         throw err;
       }
@@ -1730,7 +1765,7 @@ async function fetchText(path) {
     if (!response.ok) {
       const errorMessage = await parseError(response);
       if (handleTurnstileFailure(errorMessage, response.status)) {
-        const err = new Error('Verification expired. Please complete the challenge again.');
+        const err = new Error('verification expired. do the check again.');
         err.__turnstileExpired = true;
         throw err;
       }
@@ -1793,7 +1828,7 @@ async function uploadArtworkToServer(file) {
     if (!res.ok) {
       const errorMessage = await parseError(res);
       if (handleTurnstileFailure(errorMessage, res.status)) {
-        const err = new Error('Verification expired. Please complete the challenge again.');
+        const err = new Error('verification expired. do the check again.');
         err.__turnstileExpired = true;
         throw err;
       }
@@ -1810,7 +1845,7 @@ async function uploadArtworkToServer(file) {
   persistServerToken(payload.token, payload.expires_in || 0);
   toggleArtworkReset(true);
   setArtworkEditorEnabled(true);
-  setStatus('Artwork stored server-side for up to 1 hour, then purged automatically.');
+  setStatus('image uploaded. it gets deleted from the server after an hour.');
   await applyCustomArtwork();
 }
 
@@ -1852,7 +1887,7 @@ async function loadCoverArt(username) {
       if (!res.ok) {
         const errorMessage = await parseError(res);
         if (handleTurnstileFailure(errorMessage, res.status)) {
-          const errTurn = new Error('Verification expired. Please complete the challenge again.');
+          const errTurn = new Error('verification expired. do the check again.');
           errTurn.__turnstileExpired = true;
           throw errTurn;
         }
@@ -1882,7 +1917,7 @@ async function loadCoverArt(username) {
         const { response, blob } = await requestArtistImage(sourceOption);
         const queuePosition = Number(response.headers.get('X-Image-Queue-Position'));
         if (Number.isFinite(queuePosition) && queuePosition > 0) {
-          setStatus(`Image queue is busy (position ${queuePosition}). Hang tight, we’ll grab the art asap.`);
+          setStatus(`art queue is busy, you're number ${queuePosition}. hang on.`);
           state.queueMessageVisible = true;
         } else if (state.queueMessageVisible) {
           setStatus('');
@@ -2035,7 +2070,7 @@ async function updateListenBrainzSections(username, sections) {
             const errorMessage = await parseError(response);
             const handled = handleTurnstileFailure(errorMessage, response.status);
             if (handled) {
-              const err = new Error('Verification expired. Please complete the challenge again.');
+              const err = new Error('verification expired. do the check again.');
               err.__turnstileExpired = true;
               throw err;
             }
@@ -2080,7 +2115,7 @@ async function updateListenBrainzSections(username, sections) {
             const errorMessage = await parseError(response);
             const handled = handleTurnstileFailure(errorMessage, response.status);
             if (handled) {
-              const err = new Error('Verification expired. Please complete the challenge again.');
+              const err = new Error('verification expired. do the check again.');
               err.__turnstileExpired = true;
               throw err;
             }
@@ -2120,9 +2155,6 @@ async function updateListenBrainzSections(username, sections) {
           state.isCoverReady = await applyCustomArtwork();
         } else {
           state.isCoverReady = await loadCoverArt(username);
-        }
-        if (!state.isCoverReady) {
-          recordSectionWarning('Artist image', state.imageWarningMessage || 'Fallback background used');
         }
       },
     });
@@ -2169,19 +2201,19 @@ async function updateListenBrainzSections(username, sections) {
 
 async function updateNavidromeSections(sections) {
   if (!state.navidromeClient) {
-    throw new Error('Navidrome connection unavailable. Enter your server details again.');
+    throw new Error('lost the navidrome connection. enter your server details again.');
   }
   const needsStats = !state.navidromeStats || sections.some((section) => section !== 'image');
   if (needsStats) {
     state.navidromeStats = await state.navidromeClient.stats((percent, message, step) => {
       const pct = Number.isFinite(percent) ? `${Math.round(percent)}%` : '';
       const prefix = step ? `${step}: ` : '';
-      setStatus(`Navidrome: ${prefix}${message} ${pct}`.trim());
+      setStatus(`${prefix}${message} ${pct}`.trim().toLowerCase());
     }, state.activeRange);
   }
   const stats = state.navidromeStats;
   if (!stats) {
-    throw new Error('Navidrome stats unavailable.');
+    throw new Error("couldn't get stats from navidrome.");
   }
   if (sections.includes('artists') || !Array.isArray(state.generatedData.artists)) {
     state.generatedData.artists = (stats.topArtistsByPlays || [])

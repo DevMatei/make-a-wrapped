@@ -28,14 +28,15 @@
     <meta name="twitter:image:alt" content="Make a Wrapped website, showing the wrapped generator and poster preview">
     <meta name="twitter:site" content="@devmatei">
     <meta name="twitter:creator" content="@devmatei">
-    <meta name="theme-color" content="#c084fc">
+    <meta name="theme-color" content="#15121f">
     <meta name="color-scheme" content="dark">
+    <script>try{var t=localStorage.getItem('wrapped-theme');document.documentElement.dataset.theme=/^(lavender|mint|sunset)$/.test(t)?t:'lavender'}catch(e){document.documentElement.dataset.theme='lavender'}</script>
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Make a Wrapped">
     <meta name="application-name" content="Make a Wrapped">
-    <meta name="msapplication-TileColor" content="#c084fc">
+    <meta name="msapplication-TileColor" content="#15121f">
     <meta name="msapplication-config" content="browserconfig.xml">
     <link rel="icon" type="image/svg+xml" href="favicon-lavender.svg">
     <link rel="icon" type="image/png" sizes="16x16" href="favicon-lavender-16.png">
@@ -157,121 +158,125 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Bebas+Neue&family=Archivo+Black&family=Caveat:wght@400;700&family=Monoton&display=swap">
     <link rel="stylesheet" href="style.css">
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
+    <script type="module" src="js/site.js"></script>
     <script type="module" src="js/main.js"></script>
     <!-- privacy respecting analytics powered by self-hosted unami -->
     <script defer src="https://analytics.devmatei.com/script.js" data-website-id="a24ad413-b9c9-4ade-95a0-2c0f6dea6db7"></script>
   </head>
   <body>
     <main class="page">
-      <div class="dashboard-grid">
-        <section class="card card--intro">
-          <div class="card__body">
-            <h1>make a wrapped</h1>
-            <p class="intro-copy">
-              make a wrapped is a free open source wrapped generator for listenbrainz, last.fm, libre.fm and navidrome. your friends post spotify wrapped every year and you are sitting there with your scrobbles like "i have taste too". now you can prove it, whenever you want, not just in december. drop your username, pick a service and a time frame (this year, last month, a random month from 2 years ago, whatever), and get a poster with your top artists, tracks, listening time, and genre.
-            </p>
-            <p class="intro-copy">
-              no login for public stats, navidrome stays fully in your browser, and the whole thing is agpl so you can self host it. officially listed on the listenbrainz enabled applications page.
-            </p>
-            <form id="wrapped-form" class="form" autocomplete="off" novalidate>
-              <label class="form__label" id="username-label" for="username">music username</label>
-              <div id="navidrome-fields" class="service-fields service-fields--navidrome" hidden>
-                <div class="service-fields__grid">
-                  <label class="service-fields__field service-fields__field--wide">
-                    <span class="form__label">navidrome server url</span>
-                    <input
-                      id="navidrome-server"
-                      name="navidrome-server"
-                      type="url"
-                      placeholder="https://navidrome.example.com"
-                      autocomplete="url"
-                      inputmode="url"
-                    >
-                  </label>
-                  <label class="service-fields__field">
-                    <span class="form__label">username</span>
-                    <input
-                      id="navidrome-username"
-                      name="navidrome-username"
-                      type="text"
-                      placeholder="e.g. alice"
-                      autocomplete="username"
-                      minlength="2"
-                    >
-                  </label>
-                  <label class="service-fields__field">
-                    <span class="form__label">password or app token</span>
-                    <input
-                      id="navidrome-password"
-                      name="navidrome-password"
-                      type="password"
-                      placeholder="stored locally, never shared"
-                      autocomplete="current-password"
-                    >
-                  </label>
-                  <label class="service-fields__field service-fields__field--wide">
-                    <span class="form__label">stats method</span>
-                    <select id="navidrome-method" name="navidrome-method">
-                      <option value="experimental" selected>Experimental (Native API)</option>
-                      <option value="legacy">Legacy (Subsonic scan)</option>
-                    </select>
-                  </label>
-                </div>
-                <p class="service-fields__hint" id="navidrome-method-hint">
-                  experimental pulls real per-play scrobble history via the native api (navidrome 0.64.0+). if it does not work, try legacy.
-                </p>
+      <div class="studio">
+        <div class="studio__controls">
+          <header class="intro">
+            <div class="intro__top">
+              <h1>make a wrapped</h1>
+              <div class="theme-dots" role="group" aria-label="site color">
+                <button type="button" class="theme-dot" data-theme-pick="lavender" aria-pressed="false" title="lavender"><span class="visually-hidden">lavender</span></button>
+                <button type="button" class="theme-dot" data-theme-pick="mint" aria-pressed="false" title="mint"><span class="visually-hidden">mint</span></button>
+                <button type="button" class="theme-dot" data-theme-pick="sunset" aria-pressed="false" title="sunset"><span class="visually-hidden">sunset</span></button>
               </div>
-              <div class="form__field-group">
+            </div>
+            <p>
+              a free open source wrapped generator for listenbrainz, last.fm, libre.fm and navidrome. your friends post spotify wrapped every year and you are sitting there with your scrobbles like "i have taste too". now you can prove it, whenever you want, not just in december.
+            </p>
+            <p class="intro__meta">
+              <span class="counter-line" id="counter-line"><span class="counter" id="wrapped-count">0</span> made so far · </span><a href="/marketplace">templates</a> · <a href="/editor">editor</a> · <a href="https://github.com/DevMatei/make-a-wrapped" target="_blank" rel="noopener noreferrer">github</a>
+            </p>
+          </header>
+
+          <form id="wrapped-form" class="generator" autocomplete="off" novalidate>
+            <fieldset class="field">
+              <legend class="label">where do you scrobble?</legend>
+              <div class="segmented" data-service-dropdown>
+                <label class="segmented__opt"><input type="radio" name="service-choice" value="listenbrainz" checked><span>listenbrainz</span></label>
+                <label class="segmented__opt"><input type="radio" name="service-choice" value="lastfm"><span>last.fm</span></label>
+                <label class="segmented__opt"><input type="radio" name="service-choice" value="librefm"><span>libre.fm <span class="tag">beta</span></span></label>
+                <label class="segmented__opt"><input type="radio" name="service-choice" value="navidrome"><span>navidrome</span></label>
+              </div>
+              <input type="hidden" id="service" name="service" value="listenbrainz">
+            </fieldset>
+
+            <div class="field" id="username-field">
+              <label class="label" id="username-label" for="username">listenbrainz username</label>
+              <input
+                id="username"
+                name="username"
+                type="text"
+                placeholder="e.g. devmatei"
+                required
+                minlength="2"
+                autocomplete="off"
+                autocapitalize="off"
+                spellcheck="false"
+              >
+            </div>
+
+            <div id="navidrome-fields" class="service-fields" hidden>
+              <div class="field field--wide">
+                <label class="label" for="navidrome-server">server url</label>
                 <input
-                  id="username"
-                  name="username"
-                  type="text"
-                  placeholder="e.g. devmatei"
-                  required
-                  minlength="2"
-                  autocomplete="off"
+                  id="navidrome-server"
+                  name="navidrome-server"
+                  type="url"
+                  placeholder="https://navidrome.example.com"
+                  autocomplete="url"
+                  inputmode="url"
+                  autocapitalize="off"
+                  spellcheck="false"
                 >
-                <button id="submit" type="submit" class="btn">generate</button>
               </div>
-              <p id="status-message" class="status-message" role="status" aria-live="polite" hidden></p>
-              <div id="turnstile-wrapper" class="form__turnstile" hidden>
-                <label class="form__label" id="turnstile-label">verification</label>
-                <div
-                  id="turnstile-container"
-                  class="turnstile-container"
-                  role="group"
-                  aria-labelledby="turnstile-label"
-                ></div>
-                <p
-                  id="turnstile-status"
-                  class="turnstile-status"
-                  role="status"
-                  aria-live="polite"
-                  hidden
-                ></p>
+              <div class="field">
+                <label class="label" for="navidrome-username">username</label>
+                <input
+                  id="navidrome-username"
+                  name="navidrome-username"
+                  type="text"
+                  placeholder="e.g. alice"
+                  autocomplete="username"
+                  autocapitalize="off"
+                  spellcheck="false"
+                  minlength="2"
+                >
               </div>
-            </form>
-            <div class="form__secondary-grid">
-              <div class="form__secondary">
-                <div class="form__label-row">
-                  <label class="form__label" for="color">template</label>
-                  <button
-                    type="button"
-                    id="browse-templates"
-                    class="form__browse"
-                    title="browse all templates"
-                  >
-                    browse
-                    <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true">
-                      <path
-                        d="M8 6h8M8 12h8M8 18h5"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                      />
-                    </svg>
-                  </button>
+              <div class="field">
+                <label class="label" for="navidrome-password">password or app token</label>
+                <input
+                  id="navidrome-password"
+                  name="navidrome-password"
+                  type="password"
+                  placeholder="only used in your browser"
+                  autocomplete="current-password"
+                >
+              </div>
+              <div class="field field--wide">
+                <label class="label" for="navidrome-method">stats method</label>
+                <select id="navidrome-method" name="navidrome-method">
+                  <option value="experimental" selected>experimental (native api)</option>
+                  <option value="legacy">legacy (subsonic scan)</option>
+                </select>
+              </div>
+              <p class="hint" id="navidrome-method-hint">
+                experimental pulls real per-play history through the native api (navidrome 0.64.0+). if it fails, try legacy.
+              </p>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label class="label" for="period-select">time frame</label>
+                <select id="period-select" name="period" data-period-dropdown>
+                  <option value="this_year">this year</option>
+                  <option value="last_year">last year</option>
+                  <option value="last_12_months">last 12 months</option>
+                  <option value="this_month">this month</option>
+                  <option value="last_month">last month</option>
+                  <option value="specific_month">pick a month…</option>
+                  <option value="all_time">all time</option>
+                </select>
+              </div>
+              <div class="field">
+                <div class="label-row">
+                  <label class="label" for="color">template</label>
+                  <a class="text-link" id="browse-templates" href="/marketplace">browse all</a>
                 </div>
                 <select id="color" name="color">
                   <option value="black">midnight</option>
@@ -282,395 +287,190 @@
                   <option value="pink">bloom</option>
                 </select>
               </div>
-              <div class="form__secondary">
-                <label class="form__label" for="service-select">wrapped service</label>
-                <div class="service-select" data-service-dropdown>
-                  <button
-                    type="button"
-                    id="service-select"
-                    class="service-select__toggle"
-                    aria-haspopup="listbox"
-                    aria-expanded="false"
-                    data-dropdown-toggle
-                  >
-                    <span class="service-select__current">ListenBrainz</span>
-                    <svg
-                      class="service-select__chevron"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path
-                        d="M6.5 9l5.5 5 5.5-5"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                    </svg>
-                  </button>
-                  <ul
-                    class="service-select__menu"
-                    role="listbox"
-                    aria-labelledby="service-select"
-                    data-dropdown-menu
-                  >
-                    <li>
-                      <button
-                        type="button"
-                        class="service-select__option"
-                        role="option"
-                        aria-selected="true"
-                        data-value="listenbrainz"
-                        data-label="ListenBrainz"
-                        data-dropdown-option
-                      >
-                        ListenBrainz
-                      </button>
-                    </li>
-                    <li>
-                      <button
-                        type="button"
-                        class="service-select__option"
-                        role="option"
-                        data-value="lastfm"
-                        data-label="Last.fm"
-                        data-dropdown-option
-                      >
-                        Last.fm
-                      </button>
-                    </li>
-                    <li>
-                      <button
-                        type="button"
-                        class="service-select__option"
-                        role="option"
-                        data-value="librefm"
-                        data-label="Libre.fm (beta)"
-                        data-dropdown-option
-                      >
-                        Libre.fm (beta)
-                      </button>
-                    </li>
-                    <li>
-                      <button
-                        type="button"
-                        class="service-select__option"
-                        role="option"
-                        data-value="navidrome"
-                        data-label="Navidrome"
-                        data-dropdown-option
-                      >
-                        Navidrome
-                      </button>
-                    </li>
-                  </ul>
-                  <input type="hidden" id="service" name="service" value="listenbrainz">
-                </div>
+            </div>
+
+            <div class="period-specific" data-period-specific hidden>
+              <div class="field">
+                <label class="label" for="period-specific-month">month</label>
+                <select id="period-specific-month" name="period-specific-month"></select>
               </div>
-              <div class="form__secondary">
-                <label class="form__label" for="period-select">wrapped period</label>
-                <div class="period-select" data-period-dropdown>
-                  <button
-                    type="button"
-                    id="period-select"
-                    class="period-select__toggle"
-                    aria-haspopup="listbox"
-                    aria-expanded="false"
-                    data-period-toggle
-                  >
-                    <span class="period-select__current">This year</span>
-                    <svg
-                      class="period-select__chevron"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      aria-hidden="true"
-                    >
-                      <path
-                        d="M6.5 9l5.5 5 5.5-5"
-                        fill="none"
-                        stroke="currentColor"
-                        stroke-width="2"
-                        stroke-linecap="round"
-                        stroke-linejoin="round"
-                      />
-                    </svg>
-                  </button>
-                  <ul
-                    class="period-select__menu"
-                    role="listbox"
-                    aria-labelledby="period-select"
-                    data-period-menu
-                  >
-                    <li>
-                      <button type="button" class="period-select__option" role="option" data-value="this_year" data-label="This year" data-period-option>
-                        This year
-                      </button>
-                    </li>
-                    <li>
-                      <button type="button" class="period-select__option" role="option" data-value="last_year" data-label="Last year" data-period-option>
-                        Last year
-                      </button>
-                    </li>
-                    <li>
-                      <button type="button" class="period-select__option" role="option" data-value="last_12_months" data-label="Last 12 months" data-period-option>
-                        Last 12 months
-                      </button>
-                    </li>
-                    <li>
-                      <button type="button" class="period-select__option" role="option" data-value="this_month" data-label="This month" data-period-option>
-                        This month
-                      </button>
-                    </li>
-                    <li>
-                      <button type="button" class="period-select__option" role="option" data-value="last_month" data-label="Last month" data-period-option>
-                        Last month
-                      </button>
-                    </li>
-                    <li>
-                      <button type="button" class="period-select__option" role="option" data-value="specific_month" data-label="Specific month" data-period-option>
-                        Specific month…
-                      </button>
-                    </li>
-                    <li>
-                      <button type="button" class="period-select__option period-select__option--muted" role="option" data-value="all_time" data-label="All time" data-period-option>
-                        All time
-                      </button>
-                    </li>
-                  </ul>
-                </div>
-                <div
-                  class="period-select__specific"
-                  data-period-specific
-                >
-                  <div class="period-select__specific-grid">
-                    <label class="period-select__specific-field">
-                      <span class="form__label">month</span>
-                      <select id="period-specific-month" name="period-specific-month"></select>
-                    </label>
-                    <label class="period-select__specific-field">
-                      <span class="form__label">year</span>
-                      <select id="period-specific-year" name="period-specific-year"></select>
-                    </label>
+              <div class="field">
+                <label class="label" for="period-specific-year">year</label>
+                <select id="period-specific-year" name="period-specific-year"></select>
+              </div>
+              <p class="hint" id="period-specific-hint">only finished months are listed.</p>
+            </div>
+
+            <div id="turnstile-wrapper" class="form__turnstile" hidden>
+              <span class="label" id="turnstile-label">quick check</span>
+              <div
+                id="turnstile-container"
+                class="turnstile-container"
+                role="group"
+                aria-labelledby="turnstile-label"
+              ></div>
+              <p
+                id="turnstile-status"
+                class="turnstile-status"
+                role="status"
+                aria-live="polite"
+                hidden
+              ></p>
+            </div>
+
+            <button id="submit" type="submit" class="btn btn--lg btn--block">make my wrapped</button>
+            <p id="status-message" class="status-message" role="status" aria-live="polite" hidden></p>
+          </form>
+        </div>
+
+        <section class="studio__poster" id="poster" aria-label="poster preview">
+          <div class="poster">
+            <canvas id="canvas" width="1080" height="1920" aria-label="wrapped poster preview"></canvas>
+            <span class="poster__tag" id="poster-tag">sample</span>
+            <div id="loading" class="poster__busy" aria-hidden="true" hidden>pulling your stats</div>
+          </div>
+
+          <div class="result">
+            <div class="result__download">
+              <button id="download" type="button" class="btn btn--lg btn--block" disabled aria-disabled="true">download png</button>
+              <p class="result__note" id="download-hint">this one's a sample. make yours to download it.</p>
+              <p class="result__note error" id="download-error" hidden>couldn't find artist art for this one. you can still download it, or upload your own under artwork.</p>
+            </div>
+
+            <details class="panel" id="badge-panel" hidden>
+              <summary>readme badge <span class="summary__hint">live stats for github</span></summary>
+              <div class="panel__body">
+                <div class="field">
+                  <span class="label" id="badge-type-label">show</span>
+                  <div class="chips" id="badge-type-chips" role="group" aria-labelledby="badge-type-label">
+                    <button type="button" class="badge-chip is-active" aria-pressed="true" data-badge-type="artist">top artist</button>
+                    <button type="button" class="badge-chip" aria-pressed="false" data-badge-type="track">top track</button>
+                    <button type="button" class="badge-chip" aria-pressed="false" data-badge-type="genre">top genre</button>
+                    <button type="button" class="badge-chip" aria-pressed="false" data-badge-type="minutes">minutes</button>
                   </div>
-                  <p class="period-select__hint" id="period-specific-hint">
-                    pick a finished month. future months are hidden.
-                  </p>
                 </div>
-              </div>
-            </div>
-            <div class="actions">
-              <button id="download" type="button" class="btn btn--secondary" aria-disabled="true">
-                download image
-              </button>
-              <span id="loading" class="loading" hidden>preparing your wrapped...</span>
-              <span id="download-error" class="error" hidden>
-                couldn't load the artist image, download unavailable.
-              </span>
-            </div>
-            <div
-              data-devmatei-ad
-              data-tier="text"
-              data-max-width="100%"
-              data-radius="16px"
-              data-fallback-text="keeping this running isn't free and i'm a teen working on this between classes. if you'd like to support the project, it would mean a lot. no pressure though."
-            ></div>
-            <div class="badge-panel" id="badge-panel" hidden>
-              <label class="form__label">readme badge</label>
-              <div class="badge-panel__row" id="badge-type-chips" role="group" aria-label="badge stat">
-                <button type="button" class="badge-chip is-active" data-badge-type="artist">top artist</button>
-                <button type="button" class="badge-chip" data-badge-type="track">top track</button>
-                <button type="button" class="badge-chip" data-badge-type="genre">top genre</button>
-                <button type="button" class="badge-chip" data-badge-type="minutes">minutes</button>
-              </div>
-              <div class="badge-panel__row" id="badge-color-swatches" role="group" aria-label="badge color">
-                <button type="button" class="badge-swatch is-active" data-badge-color="c084fc" style="--swatch: #c084fc" aria-label="lavender"></button>
-                <button type="button" class="badge-swatch" data-badge-color="6ee7b7" style="--swatch: #6ee7b7" aria-label="mint"></button>
-                <button type="button" class="badge-swatch" data-badge-color="fbbf24" style="--swatch: #fbbf24" aria-label="sunset"></button>
-                <button type="button" class="badge-swatch" data-badge-color="f472b6" style="--swatch: #f472b6" aria-label="pink"></button>
-              </div>
-              <div class="badge-panel__preview">
-                <img id="badge-preview" alt="badge preview" hidden>
-                <span id="badge-preview-status" class="badge-panel__hint">loading preview...</span>
-              </div>
-              <div class="badge-panel__actions">
+                <div class="field">
+                  <span class="label" id="badge-color-label">color</span>
+                  <div class="swatches" id="badge-color-swatches" role="group" aria-labelledby="badge-color-label">
+                    <button type="button" class="badge-swatch is-active" aria-pressed="true" data-badge-color="c084fc" style="--swatch: #c084fc" title="lavender"><span class="visually-hidden">lavender</span></button>
+                    <button type="button" class="badge-swatch" aria-pressed="false" data-badge-color="6ee7b7" style="--swatch: #6ee7b7" title="mint"><span class="visually-hidden">mint</span></button>
+                    <button type="button" class="badge-swatch" aria-pressed="false" data-badge-color="fbbf24" style="--swatch: #fbbf24" title="sunset"><span class="visually-hidden">sunset</span></button>
+                    <button type="button" class="badge-swatch" aria-pressed="false" data-badge-color="f472b6" style="--swatch: #f472b6" title="pink"><span class="visually-hidden">pink</span></button>
+                  </div>
+                </div>
+                <div class="badge-panel__preview">
+                  <img id="badge-preview" alt="badge preview" hidden>
+                  <span id="badge-preview-status" class="badge-panel__status">loading preview...</span>
+                </div>
                 <button type="button" class="btn btn--ghost" id="badge-copy-btn">copy markdown</button>
+                <p class="hint">
+                  updates as you listen. navidrome badges only store the stats shown here, never your login, and refresh when you regenerate.
+                </p>
               </div>
-              <p class="badge-panel__hint">
-                live badge for your github readme or website. updates with your listens. navidrome badges only share the stats you see here, never your credentials, and refresh when you regenerate.
-              </p>
-            </div>
-            <div class="artwork-controls">
-              <label class="form__label">artwork options</label>
-              <div class="artwork-controls__buttons">
-                <button type="button" class="btn btn--ghost" id="artwork-upload-btn">upload artwork</button>
-                <button type="button" class="btn btn--ghost" id="artwork-reset-btn" aria-disabled="true" disabled>reset to auto</button>
-              </div>
-              <input type="file" id="artwork-upload" accept="image/*" hidden>
-              <p class="artwork-controls__hint">
-                if the auto-pulled artwork looks wrong or you want something different, upload your own.
-              </p>
-              <div class="artwork-source" role="group" aria-labelledby="artwork-source-label">
-                <span id="artwork-source-label" class="artwork-source__label">artwork source</span>
-                <div class="artwork-source__options">
-                  <label class="artwork-source__option">
+            </details>
+
+            <details class="panel artwork-controls" id="artwork-panel">
+              <summary>artwork <span class="summary__hint">upload or reposition</span></summary>
+              <div class="panel__body">
+                <div class="artwork-controls__buttons">
+                  <button type="button" class="btn btn--ghost" id="artwork-upload-btn">upload image</button>
+                  <button type="button" class="btn btn--ghost" id="artwork-reset-btn" aria-disabled="true" disabled>back to auto</button>
+                </div>
+                <input type="file" id="artwork-upload" accept="image/*" hidden>
+                <fieldset class="artwork-source">
+                  <legend class="label">auto artwork from</legend>
+                  <label class="check" data-artwork-source-option>
                     <input type="radio" name="artwork-source" value="artist" checked>
-                    <span>artist image (last.fm)</span>
+                    <span>top artist photo</span>
                   </label>
-                  <label class="artwork-source__option">
+                  <label class="check" data-artwork-source-option>
                     <input type="radio" name="artwork-source" value="release">
-                    <span>top release cover</span>
+                    <span>top album cover</span>
                   </label>
-                </div>
-              </div>
-              <div class="artwork-override">
-                <label class="artwork-override__option">
+                  <p class="hint" id="artwork-source-hint" hidden>using your uploaded image. hit back to auto to switch.</p>
+                </fieldset>
+                <label class="check">
                   <input type="checkbox" id="artwork-override">
-                  <span>override artwork position</span>
+                  <span>adjust position by hand</span>
                 </label>
+                <div class="artwork-editor" aria-disabled="true" hidden>
+                  <div class="artwork-editor__control">
+                    <label for="artwork-scale">zoom</label>
+                    <input type="range" id="artwork-scale" min="0.8" max="1.6" step="0.01" value="1" disabled>
+                  </div>
+                  <div class="artwork-editor__control">
+                    <label for="artwork-offset-x">horizontal</label>
+                    <input type="range" id="artwork-offset-x" min="-200" max="200" step="1" value="0" disabled>
+                  </div>
+                  <div class="artwork-editor__control">
+                    <label for="artwork-offset-y">vertical</label>
+                    <input type="range" id="artwork-offset-y" min="-200" max="200" step="1" value="0" disabled>
+                  </div>
+                </div>
               </div>
-              <div class="artwork-editor" aria-disabled="true">
-                <div class="artwork-editor__control">
-                  <label for="artwork-scale">zoom</label>
-                  <input type="range" id="artwork-scale" min="0.8" max="1.6" step="0.01" value="1" disabled>
-                </div>
-                <div class="artwork-editor__control">
-                  <label for="artwork-offset-x">horizontal</label>
-                  <input type="range" id="artwork-offset-x" min="-200" max="200" step="1" value="0" disabled>
-                </div>
-                <div class="artwork-editor__control">
-                  <label for="artwork-offset-y">vertical</label>
-                  <input type="range" id="artwork-offset-y" min="-200" max="200" step="1" value="0" disabled>
-                </div>
-              </div>
-            </div>
+            </details>
           </div>
         </section>
 
-        <section class="card card--preview">
-          <div class="card__body">
-            <canvas id="canvas" width="1080" height="1920" aria-label="Wrapped preview"></canvas>
-          </div>
-        </section>
+        <aside class="studio__aside">
+          <div
+            data-devmatei-ad
+            data-tier="text"
+            data-max-width="100%"
+            data-radius="14px"
+            data-fallback-text="keeping this running isn't free and i'm a teen working on this between classes. if you'd like to support the project, it would mean a lot. no pressure though."
+          ></div>
+        </aside>
       </div>
 
-      <div
-        data-devmatei-ad
-        data-tier="banner"
-        data-max-width="100%"
-        data-radius="16px"
-        data-fallback-text="your project could be here"
-      ></div>
+      <div class="ad-slot">
+        <div
+          data-devmatei-ad
+          data-tier="banner"
+          data-max-width="100%"
+          data-radius="14px"
+          data-fallback-text="your project could be here"
+        ></div>
+      </div>
 
-      <section class="card" aria-label="quick answers about make a wrapped">
-        <div class="card__body">
-          <h2>quick answers</h2>
-          <p><strong>what is make a wrapped?</strong> a free open source tool that turns listenbrainz, last.fm, libre.fm or navidrome history into a spotify wrapped style poster.</p>
-          <p><strong>how is it different from spotify wrapped?</strong> spotify wrapped is spotify only and december only. this works with open platforms and any month or year.</p>
-          <p><strong>do i need to log in?</strong> nope. public stats just need a username. navidrome runs in your browser so your password never hits our backend.</p>
-          <p><strong>is it free?</strong> yep, agpl-3.0. self host it if you want. more on the <a href="/lastfm-wrapped">last.fm wrapped</a> and <a href="/navidrome-wrapped">navidrome wrapped</a> pages.</p>
+      <section class="about" aria-label="about">
+        <div>
+          <h2>why this exists</h2>
+          <p>everyone posts their spotify wrapped every year and if you share a listenbrainz or last.fm one people go "wait what's that?". this bridges that gap. i swapped spotify for navidrome but still wanted that wrapped moment. now you can have it too.</p>
+          <p>no login for public stats, navidrome stays fully in your browser, and you're not stuck waiting for december. more about the <a href="/lastfm-wrapped">last.fm wrapped</a>, the <a href="/navidrome-wrapped">navidrome wrapped</a> and <a href="/templates">templates</a>.</p>
+        </div>
+        <div>
+          <h2>it's foss</h2>
+          <p>agpl licensed and officially listed on the listenbrainz enabled applications page. star the <a href="https://github.com/DevMatei/make-a-wrapped" target="_blank" rel="noopener noreferrer">repo</a>, open issues, or contribute if you want. or just use it, that's cool too.</p>
+          <h2>about me</h2>
+          <p>i'm matei, aka <a href="https://devmatei.com" target="_blank" rel="noopener noreferrer author">devmatei</a>. full-stack dev, open-source enjoyer, and i run a homelab where this thing lives. yes i use arch btw. say hi at <a href="mailto:hello@devmatei.com">hello@devmatei.com</a>.</p>
         </div>
       </section>
-
-      <footer class="footer-bento">
-        <section class="card card--repo" aria-label="Project links">
-          <div class="card__body">
-            <h2>it's foss</h2>
-            <p>
-              agpl licensed. star the repo, open issues, or contribute if you want. or just use it, that's cool too.
-            </p>
-            <a class="link-button" href="https://github.com/DevMatei/make-a-wrapped" target="_blank" rel="noopener noreferrer">
-              github repo
-              <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-                <path
-                  d="M7 17L17 7M17 7H9M17 7V15"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                />
-              </svg>
-            </a>
-          </div>
-        </section>
-
-        <section class="card card--purpose" aria-label="Why Make a Wrapped exists">
-          <div class="card__body">
-            <h2>why this exists</h2>
-            <p>
-              everyone posts their spotify wrapped every year and if you share a listenbrainz or last.fm one people go "wait what's that?". this bridges that gap. i swapped spotify for navidrome but still wanted that wrapped moment. now you can have it too.
-            </p>
-            <p>
-              you're not stuck waiting for december either, generate one for any month, last year, whatever period you want. share <a href="https://wrapped.devmatei.com">make a wrapped</a> with your friends if you want.
-            </p>
-            <p>
-              on last.fm or self-hosting? there's more about the <a href="/lastfm-wrapped">last.fm wrapped</a>, the <a href="/navidrome-wrapped">navidrome wrapped</a>, and the <a href="/templates">wrapped templates</a> specifically.
-            </p>
-          </div>
-        </section>
-
-        <section class="card card--legal" aria-label="Legal notice">
-          <div class="card__body">
-            <h2>legal stuff</h2>
-            <p>
-              not affiliated with spotify, listenbrainz, last.fm, navidrome, or musicbrainz. just a fan project. spotify wrapped belongs to spotify, this is a community alternative.
-            </p>
-            <p>
-              got a legal thing to flag, or just want to talk shop? email <a href="#" class="legal-email-link" data-legal-email>legal@devmatei.com</a>.
-            </p>
-          </div>
-        </section>
-
-        <section class="card card--about" aria-label="About DevMatei">
-          <div class="card__body">
-            <h2>about me</h2>
-            <p>
-              i'm matei, aka <a href="https://devmatei.com" target="_blank" rel="noopener noreferrer author">devmatei</a>. full-stack dev, open-source enjoyer, and i run a homelab where this thing lives. check out my other projects at <a href="https://devmatei.com" target="_blank" rel="noopener noreferrer">devmatei.com</a>. yes i use arch btw.
-            </p>
-            <p>
-              want to collab, talk self-hosting, or just chat? hit <a href="https://devmatei.com" target="_blank" rel="noopener noreferrer">devmatei.com</a>, dm me on socials, or email <a href="mailto:hello@devmatei.com">hello@devmatei.com</a>.
-            </p>
-          </div>
-        </section>
-
-        <section class="card card--counter" aria-live="polite" aria-label="Live wrapped counter">
-          <div class="card__body">
-            <h2>the counter</h2>
-            <p class="counter__value">
-              <span id="wrapped-count" aria-live="polite">0</span> wraps generated so far
-            </p>
-            <p class="counter__since">tracking since <span id="wrapped-count-since">nov 2025</span>.</p>
-            <p class="counter__hint">
-              built by <a href="https://devmatei.com" target="_blank" rel="noopener noreferrer">devmatei</a>
-            </p>
-          </div>
-        </section>
-      </footer>
     </main>
+
+    <footer class="site-footer">
+      <p>not affiliated with spotify, listenbrainz, last.fm, libre.fm, navidrome or musicbrainz. just a fan project. legal stuff: <a href="mailto:legal@devmatei.com" data-legal-email>legal@devmatei.com</a></p>
+    </footer>
 
     <img id="artist-img" src="img/black.png" alt="" hidden>
 
     <dialog id="legal-modal" class="legal-dialog" aria-labelledby="legal-modal-title">
       <button type="button" class="legal-dialog__close" data-legal-close aria-label="close">×</button>
       <div class="legal-dialog__body">
-        <h2 id="legal-modal-title">WAIT!</h2>
+        <h2 id="legal-modal-title">wait!</h2>
         <p>
-          are you from spotify and want to send me a copyright takedown? i have a counter offer: you let me use your templates and i tell everyone spotify helped an open-source project. doesn't that sound like great marketing :0
+          are you from spotify and want to send me a copyright takedown? i have a counter offer: you let me use your templates and i tell everyone spotify helped an open source project. great marketing, right? :0
         </p>
         <p>
-          want to chat (or still want to send that takedown)? hit the button and email me.
+          want to chat (or still want to send that takedown)? email me.
         </p>
         <div class="legal-dialog__actions">
           <a class="btn" href="mailto:legal@devmatei.com">email legal@devmatei.com</a>
-          <button type="button" class="btn btn--ghost" data-legal-close>nah, i'll keep browsing</button>
+          <button type="button" class="btn btn--ghost" data-legal-close>nah, keep browsing</button>
         </div>
       </div>
     </dialog>
 
-  <script async src="https://sponsor.devmatei.com/embed/ad.js"></script>
+    <script async src="https://sponsor.devmatei.com/embed/ad.js"></script>
   </body>
 </html>
