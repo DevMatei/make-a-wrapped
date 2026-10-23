@@ -22,8 +22,9 @@
     <meta name="twitter:title" content="Wrapped Template Editor - design your own poster">
     <meta name="twitter:description" content="Visual drag-and-drop editor for your own wrapped template. Built for artists.">
     <meta name="twitter:image" content="https://github.com/user-attachments/assets/56c0dcd2-b111-4978-ac1f-2ae802f00237">
-    <meta name="theme-color" content="#c084fc">
+    <meta name="theme-color" content="#15121f">
     <meta name="color-scheme" content="dark">
+    <script>try{var t=localStorage.getItem('wrapped-theme');document.documentElement.dataset.theme=/^(lavender|mint|sunset)$/.test(t)?t:'lavender'}catch(e){document.documentElement.dataset.theme='lavender'}</script>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -43,20 +44,19 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Bebas+Neue&family=Archivo+Black&family=Caveat:wght@400;700&family=Monoton&display=swap">
     <link rel="icon" type="image/svg+xml" href="favicon-lavender.svg">
     <link rel="stylesheet" href="style.css">
+    <script type="module" src="js/site.js"></script>
     <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
     <script type="module" src="js/editor.js"></script>
   </head>
   <body>
+    <header class="topline">
+      <a href="/">make a wrapped</a> <span aria-hidden="true">/</span> <span aria-current="page">editor</span>
+    </header>
     <main class="page page--editor">
-      <header class="editor-header">
-        <div class="editor-header__lead">
-          <a class="marketplace-header__back" href="/marketplace" aria-label="back to library">
-            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </a>
+      <header class="page-head editor-header">
+        <div>
           <h1>template editor <span class="beta-badge">beta</span></h1>
-          <p class="editor-header__copy" id="editor-header-copy">design a wrapped poster, no code needed.</p>
+          <p id="editor-header-copy">drag things around on a real poster, then submit it to the library.</p>
         </div>
         <div class="editor-header__actions">
           <div class="editor-header__tools">
@@ -75,7 +75,7 @@
             <div class="editor-editor__title">
               <span class="editor-editor__dot"></span>
               <div class="editor-editor__meta">
-                <input id="editor-name" class="editor-editor__name" type="text" placeholder="Template name" aria-label="template name">
+                <input id="editor-name" class="editor-editor__name" type="text" placeholder="template name" aria-label="template name">
                 <div class="editor-editor__slug">
                   <span>/</span>
                   <input id="editor-slug" type="text" placeholder="my-template" aria-label="template slug">
@@ -216,6 +216,10 @@
         </section>
       </div>
     </main>
+
+    <footer class="site-footer">
+      <p>made by <a href="https://devmatei.com" target="_blank" rel="noopener noreferrer author">matei</a>, agpl on <a href="https://github.com/DevMatei/make-a-wrapped" target="_blank" rel="noopener noreferrer">github</a>. not affiliated with spotify, listenbrainz, last.fm, libre.fm, navidrome or musicbrainz.</p>
+    </footer>
 
     <div class="editor-toast" id="editor-toast" role="status" aria-live="polite" hidden></div>
   </body>
