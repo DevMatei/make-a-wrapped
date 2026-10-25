@@ -7,6 +7,7 @@ import json
 import logging
 import os
 
+import requests
 from flask import (
     Blueprint,
     Response,
@@ -16,17 +17,21 @@ from flask import (
     request,
     send_file,
 )
+from werkzeug.exceptions import HTTPException
 
 from . import templates as template_store
 from .badge import badge_label, build_badge, normalise_badge_color, normalise_badge_type, render_badge_svg
 from .badge_store import (
     BadgeStoreFullError,
     SnapshotInvalidError,
+    fetch_local_snapshot,
     fetch_snapshot,
+    store_replicated_snapshot,
     store_snapshot,
 )
 from .config import (
     BADGE_SNAPSHOT_TTL_SECONDS,
+    CLUSTER_PRIMARY,
     IMAGE_RATE_LIMIT,
     SITE_URL,
     STATS_RATE_LIMIT,
@@ -67,9 +72,16 @@ from .lastfm import (
     get_lastfm_top_genre,
     get_lastfm_top_tracks,
 )
+from . import cluster, metrics
 from .metrics import increment_wrapped_count, read_wrapped_count
 from .rate_limiter import rate_limit
-from .temp_artwork import ArtworkExpiredError, ArtworkMissingError, fetch_artwork, store_artwork
+from .temp_artwork import (
+    ArtworkExpiredError,
+    ArtworkMissingError,
+    fetch_artwork,
+    fetch_local_artwork,
+    store_artwork,
+)
 from .turnstile import require_turnstile
 
 
@@ -316,17 +328,32 @@ def record_template_use_api(slug: str) -> Response:
 @rate_limit(STATS_RATE_LIMIT)
 def submit_template_api() -> Response:
     payload = request.get_json(silent=True) or {}
+    if cluster.is_replica():
+        return jsonify(_forward_to_primary("submit", json=payload))
+    return jsonify(_submit_template(payload))
+
+
+def _submit_template(payload) -> dict:
     try:
         submission = template_store.submit_template(payload)
     except template_store.TemplateInvalidError as exc:
         abort(400, description=str(exc))
     except template_store.CreatorInvalidError as exc:
         abort(400, description=str(exc))
-    return jsonify({
+    return {
         "ok": True,
         "submission_id": submission["submission_id"],
         "status": submission["status"],
-    })
+    }
+
+
+def _forward_to_primary(action: str, **kwargs) -> dict:
+    try:
+        return cluster.call_primary(action, **kwargs)
+    except cluster.ForwardedError as exc:
+        abort(exc.status, description=exc.description)
+    except cluster.PrimaryUnavailableError:
+        abort(503, description="Templates are read only for a bit, try again in a few minutes.")
 
 
 @bp.route("/api/templates/asset", methods=["POST"])
@@ -345,17 +372,27 @@ def upload_template_asset_api() -> Response:
     content_type = (uploaded_file.mimetype or "").split(";")[0].strip().lower()
     if content_type not in ALLOWED_ARTWORK_TYPES:
         abort(400, description="Asset must be a PNG, JPEG, WebP, or GIF image")
+    if cluster.is_replica():
+        return jsonify(_forward_to_primary(
+            "asset",
+            data={"slug": slug},
+            files={"asset": (uploaded_file.filename, data, content_type)},
+        ))
+    return jsonify(_store_template_asset(slug, uploaded_file.filename, data))
+
+
+def _store_template_asset(slug: str, filename: str, data: bytes) -> dict:
     try:
-        result = template_store.store_template_asset(slug, uploaded_file.filename, data)
+        result = template_store.store_template_asset(slug, filename, data)
     except template_store.TemplateInvalidError as exc:
         abort(400, description=str(exc))
-    return jsonify({"ok": True, "url": result["filename"]})
+    return {"ok": True, "url": result["filename"]}
 
 
 @bp.route("/template-assets/<path:rel_path>", methods=["GET"])
 def fetch_template_asset(rel_path: str) -> Response:
     absolute_path = template_store.resolve_template_asset_path(f"/template-assets/{rel_path}")
-    if not absolute_path or not os.path.isfile(absolute_path):
+    if not absolute_path:
         abort(404, description="Asset not found.")
     content_type = "image/png"
     if rel_path.endswith(".jpg"):
@@ -366,7 +403,7 @@ def fetch_template_asset(rel_path: str) -> Response:
         with open(absolute_path, "rb") as handle:
             data = handle.read()
     except OSError:
-        abort(404, description="Asset not found.")
+        data = _asset_from_primary(rel_path)
     response = send_file(
         io.BytesIO(data),
         mimetype=content_type,
@@ -377,6 +414,21 @@ def fetch_template_asset(rel_path: str) -> Response:
     response.headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; sandbox"
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
+
+
+def _asset_from_primary(rel_path: str) -> bytes:
+    # a fresh upload can land on the primary before the replica copies it over
+    if not cluster.is_replica() or not template_store.replicated_path("assets", rel_path):
+        abort(404, description="Asset not found.")
+    try:
+        response = cluster.peer_get(
+            CLUSTER_PRIMARY, "/internal/templates/file", params={"kind": "assets", "name": rel_path}
+        )
+    except requests.RequestException:
+        abort(404, description="Asset not found.")
+    if response.status_code != 200:
+        abort(404, description="Asset not found.")
+    return response.content
 
 
 def _require_reviewer() -> None:
@@ -393,9 +445,18 @@ def _require_reviewer() -> None:
 def review_templates_api() -> Response:
     _require_reviewer()
     payload = request.get_json(silent=True) or {}
-    action = (payload.get("action") or "list").strip().lower()
+    if cluster.is_replica():
+        return jsonify(_forward_to_primary("review", json=payload))
+    return jsonify(_review_templates(payload))
+
+
+def _review_templates(payload) -> dict:
+    if not isinstance(payload, dict):
+        abort(400, description="Unknown review action.")
+    action = (payload.get("action") or "list")
+    action = action.strip().lower() if isinstance(action, str) else ""
     if action == "list":
-        return jsonify({"pending": template_store.get_pending_submissions()})
+        return {"pending": template_store.get_pending_submissions()}
     submission_id = payload.get("submission_id") or ""
     if action == "approve":
         try:
@@ -404,13 +465,13 @@ def review_templates_api() -> Response:
             abort(404, description=str(exc))
         except template_store.TemplateInvalidError as exc:
             abort(400, description=str(exc))
-        return jsonify({"ok": True, "action": "approved"})
+        return {"ok": True, "action": "approved"}
     if action == "reject":
         try:
             template_store.reject_submission(submission_id)
         except template_store.TemplateUnavailableError as exc:
             abort(404, description=str(exc))
-        return jsonify({"ok": True, "action": "rejected"})
+        return {"ok": True, "action": "rejected"}
     abort(400, description="Unknown review action.")
 
 
@@ -520,8 +581,107 @@ def get_wrapped_metric() -> Response:
 @bp.route("/metrics/wrapped", methods=["POST"])
 @rate_limit(STATS_RATE_LIMIT)
 def increment_wrapped_metric() -> Response:
-    count = increment_wrapped_count()
+    payload = request.get_json(silent=True) or {}
+    service = payload.get("service") if isinstance(payload, dict) else None
+    count = increment_wrapped_count(service=service)
     return jsonify({"count": count, "since": WRAPPED_COUNT_SINCE})
+
+
+@bp.route("/metrics/stats", methods=["GET"])
+@rate_limit(STATS_RATE_LIMIT)
+def get_wrapped_stats() -> Response:
+    try:
+        days = int(request.args.get("days", "30"))
+    except ValueError:
+        days = 30
+    stats = metrics.read_stats(days)
+    stats["since"] = WRAPPED_COUNT_SINCE
+    response = jsonify(stats)
+    response.headers["Cache-Control"] = "public, max-age=60"
+    return response
+
+
+@bp.route("/internal/counters", methods=["GET"])
+def export_counters() -> Response:
+    cluster.require_node(request)
+    response = jsonify({"node": metrics.NODE_ID, "rows": metrics.export_rows()})
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+def _internal(handler):
+    cluster.require_node(request)
+    try:
+        return jsonify(handler())
+    except HTTPException as exc:
+        return jsonify({"description": exc.description}), exc.code
+
+
+@bp.route("/internal/templates/submit", methods=["POST"])
+def internal_submit_template() -> Response:
+    return _internal(lambda: _submit_template(request.get_json(silent=True) or {}))
+
+
+@bp.route("/internal/templates/asset", methods=["POST"])
+def internal_template_asset() -> Response:
+    def handler():
+        uploaded_file = request.files.get("asset")
+        if uploaded_file is None:
+            abort(400, description="Missing asset file")
+        data = uploaded_file.read()
+        if len(data) > TEMPLATE_ASSET_MAX_BYTES:
+            abort(413, description="Asset exceeds the size limit")
+        slug = (request.form.get("slug") or "").strip().lower()
+        return _store_template_asset(slug, uploaded_file.filename or "", data)
+
+    return _internal(handler)
+
+
+@bp.route("/internal/templates/review", methods=["POST"])
+def internal_review_templates() -> Response:
+    return _internal(lambda: _review_templates(request.get_json(silent=True) or {}))
+
+
+@bp.route("/internal/templates/manifest", methods=["GET"])
+def internal_template_manifest() -> Response:
+    return _internal(template_store.replication_manifest)
+
+
+@bp.route("/internal/templates/file", methods=["GET"])
+def internal_template_file() -> Response:
+    cluster.require_node(request)
+    path = template_store.replicated_path(request.args.get("kind", ""), request.args.get("name", ""))
+    if not path or not os.path.isfile(path):
+        abort(404)
+    with open(path, "rb") as handle:
+        data = handle.read()
+    return current_app.response_class(data, mimetype="application/octet-stream")
+
+
+@bp.route("/internal/artwork/<token>", methods=["GET"])
+def internal_artwork(token: str) -> Response:
+    cluster.require_node(request)
+    try:
+        data, content_type = fetch_local_artwork(token)
+    except (ArtworkMissingError, ArtworkExpiredError):
+        abort(404)
+    return current_app.response_class(data, mimetype=content_type)
+
+
+@bp.route("/internal/badges/<badge_id>", methods=["GET", "POST"])
+def internal_badge(badge_id: str) -> Response:
+    cluster.require_node(request)
+    if request.method == "POST":
+        payload = request.get_json(silent=True) or {}
+        try:
+            store_replicated_snapshot(badge_id, payload.get("values"))
+        except (SnapshotInvalidError, BadgeStoreFullError):
+            abort(400)
+        return jsonify({"ok": True})
+    snapshot = fetch_local_snapshot(badge_id)
+    if snapshot is None:
+        abort(404)
+    return jsonify({"values": snapshot})
 
 
 @bp.route("/artwork/upload", methods=["POST"])

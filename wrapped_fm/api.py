@@ -608,7 +608,7 @@ def generate_wrapped_api() -> Response:
         _render_slots.release()
 
     try:
-        increment_wrapped_count()
+        increment_wrapped_count(service=(source_info or {}).get("provider"))
         template_store.record_template_use(selected_template["slug"])
     except Exception:
         logger.exception("Could not record API Wrapped generation")

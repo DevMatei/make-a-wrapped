@@ -4,14 +4,15 @@ Templates are JSON documents that describe how the Make a Wrapped poster is
 drawn. The client renderer consumes the same schema, so a template authored in
 the visual editor runs everywhere the built-in themes do.
 
-Storage follows the existing file-backed convention used by metrics and badge
-snapshots: little JSON files under data/, atomic writes, a lock for safety.
+Templates are little JSON files under data/ with atomic writes and a lock.
+Usage counts live in the shared counters (see metrics.py).
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import os
 import re
 import threading
@@ -19,19 +20,21 @@ import time
 import uuid
 from typing import Any, Dict, List, Optional, Tuple
 
-try:
-    import fcntl
-except ImportError:
-    fcntl = None
+import requests
 
 from .config import (
+    CLUSTER_PRIMARY,
+    CLUSTER_SYNC_INTERVAL,
     TEMPLATE_ASSET_DIR,
     TEMPLATE_CREATOR_DIR,
     TEMPLATE_LIBRARY_DIR,
     TEMPLATE_OFFICIAL_DIR,
     TEMPLATE_SUBMISSION_DIR,
 )
+from . import cluster, metrics
 from .metrics import read_wrapped_count
+
+logger = logging.getLogger("wrapped_fm")
 
 CANVAS_WIDTH = 1080
 CANVAS_HEIGHT = 1920
@@ -75,7 +78,6 @@ class CreatorInvalidError(Exception):
 
 _store_lock = threading.Lock()
 _max_slug = 48
-_USES_FILE = None
 
 # Baseline share of the overall wrapped count attributed to each official theme
 # so the built-in templates show real popularity instead of zero. These existed
@@ -402,6 +404,7 @@ def list_community_templates() -> List[Dict[str, Any]]:
 
 
 def list_templates() -> List[Dict[str, Any]]:
+    maybe_sync_from_primary()
     templates = list_official_templates() + list_community_templates()
     uses = read_uses_map()
     baseline = _official_baseline_uses()
@@ -428,6 +431,7 @@ def resolve_template_exists(slug: str) -> bool:
 
 
 def get_template(slug: str) -> Dict[str, Any]:
+    maybe_sync_from_primary()
     payload = _read_json(os.path.join(TEMPLATE_OFFICIAL_DIR, f"{slug}.json"))
     if payload:
         payload.setdefault("origin", "official")
@@ -446,41 +450,16 @@ def get_template(slug: str) -> Dict[str, Any]:
     return template
 
 
-def _uses_path() -> str:
-    return os.path.join(os.path.dirname(str(TEMPLATE_LIBRARY_DIR)), "template-uses.json")
-
-
 def read_uses_map() -> Dict[str, int]:
-    payload = _read_json(_uses_path())
-    if not isinstance(payload, dict):
-        return {}
-    return {str(k): int(v) for k, v in payload.items() if isinstance(v, (int, float))}
+    return metrics.read_totals(metrics.TEMPLATE_PREFIX)
 
 
 def get_template_uses(slug: str) -> int:
-    return int(read_uses_map().get(slug, 0))
+    return metrics.read_total(f"{metrics.TEMPLATE_PREFIX}{slug}")
 
 
 def record_template_use(slug: str) -> int:
-    with _store_lock:
-        path = _uses_path()
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        if fcntl is None:
-            return _record_template_use_unlocked(path, slug)
-        with open(f"{path}.lock", "a", encoding="utf-8") as lock_file:
-            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
-            try:
-                return _record_template_use_unlocked(path, slug)
-            finally:
-                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-
-
-def _record_template_use_unlocked(path: str, slug: str) -> int:
-    uses = read_uses_map()
-    count = int(uses.get(slug, 0)) + 1
-    uses[slug] = count
-    _write_json(path, uses)
-    return count
+    return metrics.increment(f"{metrics.TEMPLATE_PREFIX}{slug}")
 
 
 def _list_json(directory) -> List[str]:
@@ -632,3 +611,111 @@ def resolve_template_asset_path(rel_path: str) -> Optional[str]:
     if not resolved.startswith(root + os.sep):
         return None
     return resolved
+
+
+# replicas keep a copy of the approved library and its assets from the primary
+
+_LIBRARY_FILE_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,48}\.json$")
+_ASSET_FILE_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,48}/background\.(png|jpg|webp)$")
+_REPLICATED = {
+    "library": (lambda: str(TEMPLATE_LIBRARY_DIR), _LIBRARY_FILE_RE),
+    "assets": (lambda: str(TEMPLATE_ASSET_DIR), _ASSET_FILE_RE),
+}
+
+
+def replicated_path(kind: str, name: str) -> Optional[str]:
+    entry = _REPLICATED.get(kind)
+    if not entry or not isinstance(name, str) or not entry[1].match(name):
+        return None
+    return os.path.join(entry[0](), name)
+
+
+def _sha256(path: str) -> Optional[str]:
+    try:
+        with open(path, "rb") as handle:
+            return hashlib.sha256(handle.read()).hexdigest()
+    except OSError:
+        return None
+
+
+def replication_manifest() -> Dict[str, Dict[str, str]]:
+    manifest: Dict[str, Dict[str, str]] = {}
+    for kind, (root, pattern) in _REPLICATED.items():
+        files: Dict[str, str] = {}
+        base = root()
+        for directory, _, names in os.walk(base):
+            for name in names:
+                rel = os.path.relpath(os.path.join(directory, name), base).replace(os.sep, "/")
+                if pattern.match(rel):
+                    digest = _sha256(os.path.join(base, rel))
+                    if digest:
+                        files[rel] = digest
+        manifest[kind] = files
+    return manifest
+
+
+def apply_replication(manifest: Dict[str, Dict[str, str]], fetch) -> Dict[str, int]:
+    """Bring local copies in line with the primary's manifest.
+
+    fetch(kind, name) returns the file bytes from the primary.
+    """
+    stats = {"written": 0, "removed": 0}
+    local = replication_manifest()
+    for kind in _REPLICATED:
+        wanted = manifest.get(kind)
+        if not isinstance(wanted, dict):
+            continue
+        for name, digest in wanted.items():
+            path = replicated_path(kind, name)
+            if not path or local[kind].get(name) == digest:
+                continue
+            data = fetch(kind, name)
+            if hashlib.sha256(data).hexdigest() != digest:
+                continue
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            tmp_path = f"{path}.{os.getpid()}.tmp"
+            with open(tmp_path, "wb") as handle:
+                handle.write(data)
+            os.replace(tmp_path, path)
+            stats["written"] += 1
+        for name in set(local[kind]) - set(wanted):
+            path = replicated_path(kind, name)
+            if path:
+                try:
+                    os.remove(path)
+                    stats["removed"] += 1
+                except OSError:
+                    pass
+    return stats
+
+
+def sync_from_primary() -> Dict[str, int]:
+    def fetch(kind: str, name: str) -> bytes:
+        file_response = cluster.peer_get(
+            CLUSTER_PRIMARY, "/internal/templates/file", params={"kind": kind, "name": name}
+        )
+        file_response.raise_for_status()
+        return file_response.content
+
+    try:
+        response = cluster.peer_get(CLUSTER_PRIMARY, "/internal/templates/manifest")
+        response.raise_for_status()
+        manifest = response.json()
+        stats = apply_replication(manifest if isinstance(manifest, dict) else {}, fetch)
+    except (requests.RequestException, ValueError) as error:
+        logger.warning("Template sync from primary failed: %s", error)
+        return {"written": 0, "removed": 0}
+    if stats["written"] or stats["removed"]:
+        logger.info("Template replication: %s", stats)
+    return stats
+
+
+def maybe_sync_from_primary() -> None:
+    if not cluster.is_replica():
+        return
+    if not os.path.isdir(TEMPLATE_LIBRARY_DIR):
+        # fresh replica, copy the library before the first answer
+        os.makedirs(TEMPLATE_LIBRARY_DIR, exist_ok=True)
+        sync_from_primary()
+        return
+    cluster.every("templates", CLUSTER_SYNC_INTERVAL, sync_from_primary)

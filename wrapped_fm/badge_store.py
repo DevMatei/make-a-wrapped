@@ -10,6 +10,7 @@ import threading
 import time
 from typing import Dict, Optional
 
+from . import cluster
 from .config import (
     BADGE_SNAPSHOT_DIR,
     BADGE_SNAPSHOT_MAX_COUNT,
@@ -86,6 +87,18 @@ def _count_snapshots() -> int:
 def store_snapshot(secret: str, values) -> str:
     public_id = public_id_for_secret(secret)
     cleaned = _sanitise_values(values)
+    _write_snapshot(public_id, cleaned)
+    cluster.push_to_peers(f"/internal/badges/{public_id}", {"values": cleaned})
+    return public_id
+
+
+def store_replicated_snapshot(public_id: str, values) -> None:
+    if not isinstance(public_id, str) or not _PUBLIC_ID_RE.match(public_id):
+        raise SnapshotInvalidError("Invalid badge id.")
+    _write_snapshot(public_id, _sanitise_values(values))
+
+
+def _write_snapshot(public_id: str, cleaned: Dict[str, str]) -> None:
     os.makedirs(BADGE_SNAPSHOT_DIR, exist_ok=True)
     path = _snapshot_path(public_id)
     with _store_lock:
@@ -97,10 +110,23 @@ def store_snapshot(secret: str, values) -> str:
         with open(tmp_path, "w", encoding="utf-8") as handle:
             json.dump({"values": cleaned, "updated_at": time.time()}, handle)
         os.replace(tmp_path, path)
-    return public_id
 
 
 def fetch_snapshot(public_id: str) -> Optional[Dict[str, str]]:
+    snapshot = fetch_local_snapshot(public_id)
+    if snapshot is not None or not isinstance(public_id, str) or not _PUBLIC_ID_RE.match(public_id):
+        return snapshot
+    response = cluster.fetch_from_peers(f"/internal/badges/{public_id}")
+    if response is None:
+        return None
+    try:
+        store_replicated_snapshot(public_id, response.json().get("values"))
+    except (ValueError, AttributeError, SnapshotInvalidError, BadgeStoreFullError):
+        return None
+    return fetch_local_snapshot(public_id)
+
+
+def fetch_local_snapshot(public_id: str) -> Optional[Dict[str, str]]:
     if not isinstance(public_id, str) or not _PUBLIC_ID_RE.match(public_id):
         return None
     path = _snapshot_path(public_id)

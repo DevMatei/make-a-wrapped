@@ -1637,7 +1637,11 @@ async function refreshWrappedCount() {
 
 async function recordWrappedGenerated() {
   try {
-    const response = await fetch('/metrics/wrapped', { method: 'POST' });
+    const response = await fetch('/metrics/wrapped', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ service: getSelectedService() }),
+    });
     if (!response.ok) {
       throw new Error(await parseError(response));
     }
