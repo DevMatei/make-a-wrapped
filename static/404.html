@@ -3,31 +3,41 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Make a Wrapped - 404</title>
+    <title>404 · make a wrapped</title>
     <meta name="robots" content="noindex, nofollow">
     <meta name="referrer" content="no-referrer">
+    <meta name="theme-color" content="#15121f">
+    <meta name="color-scheme" content="dark">
+    <script>try{var t=localStorage.getItem('wrapped-theme');document.documentElement.dataset.theme=/^(lavender|mint|sunset)$/.test(t)?t:'lavender'}catch(e){document.documentElement.dataset.theme='lavender'}</script>
     <link rel="icon" type="image/svg+xml" href="favicon-lavender.svg">
     <link rel="icon" type="image/png" sizes="32x32" href="favicon-lavender-32.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap">
     <link rel="stylesheet" href="style.css">
+    <script type="module" src="js/site.js"></script>
   </head>
-  <body class="body--not-found">
-    <main class="page page--not-found">
-      <section class="card card--not-found">
-        <div class="card__body not-found__body">
-          <div class="not-found__content">
-            <span class="not-found__code" aria-hidden="true">404</span>
-            <h1>page not found</h1>
-            <p class="not-found__lead">
-              looks like this page doesn't exist. maybe the link was wrong, or maybe it got moved around. either way, let's get you back on track.
-            </p>
-            <a href="/" class="btn not-found__action">back to home</a>
+  <body>
+    <main class="page">
+      <section class="not-found">
+        <div>
+          <p class="not-found__code" aria-hidden="true">404</p>
+          <h1>this page doesn't exist</h1>
+          <p>the link might be wrong, or the page moved. <span class="error-message"></span></p>
+          <div class="not-found__actions">
+            <a href="/" class="btn">make a wrapped</a>
+            <a href="/marketplace" class="btn btn--ghost">browse templates</a>
           </div>
-          <div class="not-found__art" aria-hidden="true">
-            <div class="vinyl"></div>
-          </div>
+        </div>
+        <div class="not-found__art" aria-hidden="true">
+          <div class="vinyl"></div>
         </div>
       </section>
     </main>
+
+    <footer class="site-footer">
+      <p>made by <a href="https://devmatei.com" target="_blank" rel="noopener noreferrer author">matei</a>, agpl on <a href="https://github.com/DevMatei/make-a-wrapped" target="_blank" rel="noopener noreferrer">github</a>. not affiliated with spotify, listenbrainz, last.fm, libre.fm, navidrome or musicbrainz.</p>
+    </footer>
     <script src="js/404.js"></script>
   </body>
 </html>

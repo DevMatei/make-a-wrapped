@@ -1,5 +1,5 @@
 import { normaliseTemplate, prepareBackgroundImage, renderTemplate } from './templates/engine.js';
-import { getSampleData, SAMPLES } from './templates/sample-data.js';
+import { getSampleData } from './templates/sample-data.js';
 import { getSampleArt } from './templates/sample-art.js';
 import { loadFonts, templateFontFamilies } from './fonts.js';
 
@@ -10,6 +10,11 @@ const statusEl = document.getElementById('admin-status');
 const listEl = document.getElementById('admin-list');
 const emptyEl = document.getElementById('admin-empty');
 const KEY_STORAGE = 'wrappedReviewKey';
+const PREVIEW_SAMPLE = 'indie-night';
+
+if (emptyEl && listEl && listEl.contains(emptyEl)) {
+  listEl.after(emptyEl);
+}
 
 function getKey() {
   try {
@@ -23,6 +28,36 @@ function setKey(key) {
   try {
     sessionStorage.setItem(KEY_STORAGE, key);
   } catch (error) {}
+}
+
+function clearKey() {
+  try {
+    sessionStorage.removeItem(KEY_STORAGE);
+  } catch (error) {}
+}
+
+class UnauthorizedError extends Error {}
+
+function handleUnauthorized() {
+  clearKey();
+  keyInput.value = '';
+  refreshBtn.hidden = true;
+  listEl.innerHTML = '';
+  if (emptyEl) {
+    emptyEl.hidden = false;
+  }
+  setStatus('that key didn\'t work. paste it again.', 'error');
+  keyInput.focus();
+}
+
+async function ensureOk(response) {
+  if (response.status === 401) {
+    throw new UnauthorizedError(await parseError(response));
+  }
+  if (!response.ok) {
+    throw new Error(await parseError(response));
+  }
+  return response;
 }
 
 function setStatus(message, tone = 'info') {
@@ -60,15 +95,13 @@ async function review(action, submissionId) {
     },
     body: JSON.stringify({ action, submission_id: submissionId }),
   });
-  if (!response.ok) {
-    throw new Error(await parseError(response));
-  }
+  await ensureOk(response);
   return response.json();
 }
 
-function renderSubmission(card, submission, index) {
+function renderSubmission(card, submission) {
   const template = normaliseTemplate(submission.template);
-  const sample = getSampleData(SAMPLES[index % SAMPLES.length].id);
+  const sample = getSampleData(PREVIEW_SAMPLE);
   const canvas = card.querySelector('.admin-card__preview canvas');
   const ctx = canvas.getContext('2d');
   canvas.width = template.canvas.width;
@@ -82,7 +115,7 @@ function renderSubmission(card, submission, index) {
   }, () => {});
 }
 
-function makeCard(submission, index) {
+function makeCard(submission) {
   const card = document.createElement('article');
   card.className = 'admin-card';
   const template = submission.template || {};
@@ -90,6 +123,8 @@ function makeCard(submission, index) {
   const preview = document.createElement('div');
   preview.className = 'admin-card__preview';
   const canvas = document.createElement('canvas');
+  canvas.setAttribute('role', 'img');
+  canvas.setAttribute('aria-label', `${template.name || 'untitled'} preview`);
   preview.appendChild(canvas);
 
   const body = document.createElement('div');
@@ -119,6 +154,10 @@ function makeCard(submission, index) {
       markEmpty();
       setStatus('approved! it\'s live in the library now.', 'success');
     } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        handleUnauthorized();
+        return;
+      }
       setStatus(error.message || 'approve failed.', 'error');
     } finally {
       approve.disabled = false;
@@ -136,6 +175,10 @@ function makeCard(submission, index) {
       markEmpty();
       setStatus('rejected. gone, nothing to see.', 'info');
     } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        handleUnauthorized();
+        return;
+      }
       setStatus(error.message || 'reject failed.', 'error');
     } finally {
       reject.disabled = false;
@@ -151,8 +194,9 @@ function makeCard(submission, index) {
 }
 
 function markEmpty() {
-  const hasCards = listEl.querySelector('.admin-card');
-  emptyEl.hidden = Boolean(hasCards);
+  if (emptyEl) {
+    emptyEl.hidden = true;
+  }
 }
 
 async function loadPending() {
@@ -166,15 +210,15 @@ async function loadPending() {
       },
       body: JSON.stringify({ action: 'list' }),
     });
-    if (!response.ok) {
-      throw new Error(await parseError(response));
-    }
+    await ensureOk(response);
     const payload = await response.json();
     const pending = Array.isArray(payload.pending) ? payload.pending : [];
-    emptyEl.hidden = Boolean(pending.length);
-    pending.forEach((submission, index) => {
-      const card = makeCard(submission, index);
-      renderSubmission(card, submission, index);
+    if (emptyEl) {
+      emptyEl.hidden = true;
+    }
+    pending.forEach((submission) => {
+      const card = makeCard(submission);
+      renderSubmission(card, submission);
       listEl.appendChild(card);
     });
     if (!pending.length) {
@@ -183,12 +227,18 @@ async function loadPending() {
       setStatus(`${pending.length} submission${pending.length === 1 ? '' : 's'} sitting in the queue.`, 'info');
     }
   } catch (error) {
-    emptyEl.hidden = true;
+    if (error instanceof UnauthorizedError) {
+      handleUnauthorized();
+      return;
+    }
+    if (emptyEl) {
+      emptyEl.hidden = true;
+    }
     setStatus(error.message || 'could not load submissions.', 'error');
   }
 }
 
-connectBtn.addEventListener('click', () => {
+function connect() {
   const key = keyInput.value.trim();
   if (!key) {
     setStatus('need a key first. it\'s in your .env.', 'error');
@@ -197,6 +247,14 @@ connectBtn.addEventListener('click', () => {
   setKey(key);
   refreshBtn.hidden = false;
   loadPending();
+}
+
+connectBtn.addEventListener('click', connect);
+keyInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && !event.isComposing) {
+    event.preventDefault();
+    connect();
+  }
 });
 
 refreshBtn.addEventListener('click', loadPending);
@@ -206,5 +264,7 @@ window.addEventListener('load', () => {
   if (getKey()) {
     refreshBtn.hidden = false;
     loadPending();
+  } else if (emptyEl) {
+    emptyEl.hidden = false;
   }
 });

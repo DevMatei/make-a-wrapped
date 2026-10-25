@@ -24,11 +24,11 @@ export function createCanvasRenderer({ canvas, themeSelect, artistImg }) {
     prepareBackgroundImage(template, callback, callback);
   }
 
-  function draw({ data, isCoverReady, allowTransform, imageTransform, period }) {
+  function draw({ data, art: artOverride, isCoverReady, allowTransform, imageTransform, period }) {
     if (!template) {
       return;
     }
-    const art = isCoverReady && artistImg && artistImg.complete && artistImg.naturalWidth > 0 ? artistImg : null;
+    const art = artOverride !== undefined ? artOverride : isCoverReady && artistImg && artistImg.complete && artistImg.naturalWidth > 0 ? artistImg : null;
     const hasData = Boolean(data && data.username);
     renderTemplate(ctx, template, {
       data,

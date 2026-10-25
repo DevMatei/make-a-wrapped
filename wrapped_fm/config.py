@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import socket
 from pathlib import Path
 
 
@@ -31,6 +32,7 @@ AVERAGE_TRACK_SAMPLE_LIMIT = int(os.getenv("AVERAGE_TRACK_SAMPLE_LIMIT", "50"))
 MAX_TOP_RESULTS = int(os.getenv("APP_MAX_TOP_RESULTS", "15"))
 TEMP_ARTWORK_TTL_SECONDS = int(os.getenv("TEMP_ARTWORK_TTL_SECONDS", "3600"))
 TEMP_ARTWORK_MAX_BYTES = int(os.getenv("TEMP_ARTWORK_MAX_BYTES", str(6 * 1024 * 1024)))
+TEMP_ARTWORK_DIR = Path(os.getenv("TEMP_ARTWORK_DIR", "data/tmp-artwork"))
 IMAGE_CONCURRENCY = int(os.getenv("APP_IMAGE_CONCURRENCY", "2"))
 IMAGE_QUEUE_LIMIT = int(os.getenv("APP_IMAGE_QUEUE_LIMIT", "10"))
 IMAGE_QUEUE_TIMEOUT = float(os.getenv("APP_IMAGE_QUEUE_TIMEOUT", "15"))
@@ -81,6 +83,17 @@ RATE_LIMIT_STORAGE = os.getenv("RATE_LIMIT_STORAGE", "memory://")
 RATE_LIMIT_SALT = os.getenv("APP_RATE_LIMIT_SALT", "")
 TRUST_PROXY_HEADERS = _env_bool("APP_TRUST_PROXY_HEADERS", "false")
 WRAPPED_COUNT_FILE = Path(os.getenv("WRAPPED_COUNT_FILE", "data/wrapped-count.txt"))
+COUNTER_DB = Path(os.getenv("COUNTER_DB", "data/counters.db"))
+# running more than one server: every node gets its own NODE_ID, the other
+# nodes' base urls in CLUSTER_PEERS and the same CLUSTER_SECRET. replicas also
+# set CLUSTER_PRIMARY to the node that owns template submissions and review.
+NODE_ID = (os.getenv("NODE_ID") or socket.gethostname() or "local").strip()[:64]
+CLUSTER_PEERS = [peer.strip().rstrip("/") for peer in os.getenv("CLUSTER_PEERS", "").split(",") if peer.strip()]
+CLUSTER_PRIMARY = os.getenv("CLUSTER_PRIMARY", "").strip().rstrip("/")
+CLUSTER_SECRET = os.getenv("CLUSTER_SECRET", "")
+CLUSTER_SYNC_INTERVAL = max(5.0, float(os.getenv("CLUSTER_SYNC_INTERVAL", "60")))
+CLUSTER_TIMEOUT = float(os.getenv("CLUSTER_TIMEOUT", "5"))
+CLUSTER_STATE_DIR = Path(os.getenv("CLUSTER_STATE_DIR", "data/cluster"))
 TEMPLATE_LIBRARY_DIR = Path(os.getenv("TEMPLATE_LIBRARY_DIR", "data/templates"))
 TEMPLATE_SUBMISSION_DIR = Path(os.getenv("TEMPLATE_SUBMISSION_DIR", "data/template-submissions"))
 TEMPLATE_CREATOR_DIR = Path(os.getenv("TEMPLATE_CREATOR_DIR", "data/template-creators"))

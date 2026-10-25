@@ -15,4 +15,7 @@ data/template-creators/
 data/template-assets/
 data/template-uses.json
 data/template-uses.json.lock
+data/counters.db*
+data/cluster/
+data/tmp-artwork/
 data/template-previews/

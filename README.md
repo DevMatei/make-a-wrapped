@@ -101,11 +101,28 @@ sudo docker compose up -d
 `APP_RATE_LIMIT`, `APP_STATS_RATE_LIMIT`, `APP_IMAGE_RATE_LIMIT`, `APP_MAX_TOP_RESULTS`
 `APP_IMAGE_CONCURRENCY`, `APP_IMAGE_QUEUE_LIMIT`, `APP_IMAGE_QUEUE_TIMEOUT`
 `TEMP_ARTWORK_TTL_SECONDS`, `TEMP_ARTWORK_MAX_BYTES`
-`WRAPPED_COUNT_FILE` (defaults to `data/wrapped-count.txt`)
+`COUNTER_DB` (defaults to `data/counters.db`) - sqlite file for the wrapped counter and template uses. the old `WRAPPED_COUNT_FILE` and `data/template-uses.json` get imported once on first start, so old counts are kept
+`NODE_ID`, `CLUSTER_PEERS`, `CLUSTER_PRIMARY`, `CLUSTER_SECRET`, `CLUSTER_SYNC_INTERVAL` - only for running more than one server, see below
 `WRAPPED_COUNT_SINCE` - label for when you started counting wraps (ISO date string)
 `APP_RATE_LIMIT_SALT`, `APP_TRUST_PROXY_HEADERS`
 `BADGE_CACHE_TTL` (seconds, default 6h), `BADGE_CACHE_SIZE`
 `BADGE_SNAPSHOT_DIR`, `BADGE_SNAPSHOT_TTL_SECONDS` (default 60 days), `BADGE_SNAPSHOT_MAX_COUNT`
+
+### running more than one server
+
+handy if you want a backup box for when the main one goes down. leave all of this empty for a single server.
+
+- every box gets its own `NODE_ID` and the same `CLUSTER_SECRET`
+- `CLUSTER_PEERS` is the other boxes' base urls, comma separated. use private addresses (tailscale, wireguard), not the public site url, or a box can end up talking to itself
+- one box is the primary. it owns template submissions, uploads and the review desk. every other box sets `CLUSTER_PRIMARY` to the primary's url
+
+what syncs:
+
+- the wrapped counter and template uses. each box counts its own and pulls the others about once a minute, so totals match and nothing is lost if a box is down
+- uploaded artwork and navidrome badges. a box that doesn't have one asks the others
+- approved templates and their images get copied from the primary. submissions and reviews on other boxes get forwarded to it. while the primary is down, wrapped generation keeps working and submissions say to try again later
+
+boxes talk over `/internal/*` with the secret. nothing in there is useful to the public, so you can also block that path at your proxy.
 
 ### community templates (beta)
 

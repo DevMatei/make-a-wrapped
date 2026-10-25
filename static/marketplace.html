@@ -25,79 +25,68 @@
     <meta name="twitter:description" content="Official and community wrapped templates, plus a visual editor. Free and open source.">
     <meta name="twitter:image" content="https://github.com/user-attachments/assets/56c0dcd2-b111-4978-ac1f-2ae802f00237">
     <meta name="twitter:image:alt" content="Make a Wrapped template library">
-    <meta name="theme-color" content="#c084fc">
+    <meta name="theme-color" content="#15121f">
     <meta name="color-scheme" content="dark">
+    <script>try{var t=localStorage.getItem('wrapped-theme');document.documentElement.dataset.theme=/^(lavender|mint|sunset)$/.test(t)?t:'lavender'}catch(e){document.documentElement.dataset.theme='lavender'}</script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Playfair+Display:wght@400;600;700&family=Bebas+Neue&family=Archivo+Black&family=Caveat:wght@400;700&family=Monoton&display=swap">
     <link rel="icon" type="image/svg+xml" href="favicon-lavender.svg">
     <link rel="stylesheet" href="style.css">
+    <script type="module" src="js/site.js"></script>
     <script type="module" src="js/marketplace.js"></script>
     <!--MARKETPLACE_SEO-->
   </head>
   <body>
+    <header class="topline">
+      <a href="/">make a wrapped</a> <span aria-hidden="true">/</span> <span aria-current="page">templates</span>
+    </header>
     <main class="page">
-      <header class="marketplace-header">
-        <div class="marketplace-header__lead">
-          <a class="marketplace-header__back" href="/" aria-label="back to generator">
-            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M15 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </a>
-          <h1>template library <span class="beta-badge">beta</span></h1>
-          <p class="marketplace-header__copy">
-            pick a look for your wrapped, or browse what the community is making.
-          </p>
+      <header class="page-head">
+        <div>
+          <h1>templates <span class="beta-badge">beta</span></h1>
+          <p>pick a look for your wrapped, or see what other people made. all free.</p>
         </div>
-        <div class="marketplace-header__actions">
-          <a class="btn btn--ghost" href="/editor">create a template</a>
+        <div class="page-head__actions">
+          <a class="btn btn--ghost" href="/editor">make a template</a>
           <a class="btn" href="/">make a wrapped</a>
         </div>
       </header>
 
-      <section class="card marketplace-toolbar">
-        <div class="card__body marketplace-toolbar__body">
-          <div class="marketplace-toolbar__search">
-            <label class="form__label" for="template-search">search</label>
-            <div class="form__field-group">
-              <input id="template-search" type="search" placeholder="search templates, artists, styles...">
-            </div>
-          </div>
-          <div class="marketplace-toolbar__sorts" role="group" aria-label="sort templates">
-            <button type="button" class="marketplace-tab is-active" data-sort="featured">featured</button>
-            <button type="button" class="marketplace-tab" data-sort="newest">newest</button>
-            <button type="button" class="marketplace-tab" data-sort="popular">popular</button>
-          </div>
-          <div class="marketplace-toolbar__categories" id="template-categories" role="group" aria-label="filter by category"></div>
+      <div class="toolbar">
+        <div class="toolbar__search">
+          <label class="visually-hidden" for="template-search">search templates</label>
+          <input id="template-search" type="search" placeholder="search templates, creators, tags..." autocomplete="off">
         </div>
-      </section>
+        <div class="marketplace-toolbar__sorts" role="group" aria-label="sort templates">
+          <button type="button" class="marketplace-tab is-active" data-sort="featured" aria-pressed="true">featured</button>
+          <button type="button" class="marketplace-tab" data-sort="newest" aria-pressed="false">newest</button>
+          <button type="button" class="marketplace-tab" data-sort="popular" aria-pressed="false">popular</button>
+        </div>
+        <div class="marketplace-toolbar__categories" id="template-categories" role="group" aria-label="filter by category"></div>
+      </div>
 
-      <div
-        data-devmatei-ad
-        data-tier="banner"
-        data-max-width="100%"
-        data-radius="16px"
-        data-fallback-text="keeping this running isn't free and i'm a teen working on this between classes. if you'd like to support the project, it would mean a lot. no pressure though."
-      ></div>
+      <section class="marketplace-grid" id="template-grid" aria-live="polite"></section>
+      <div class="marketplace-empty" id="template-empty" hidden>no templates match that search.</div>
 
-      <section class="marketplace-grid" id="template-grid" aria-live="polite">
-        <p class="marketplace-empty" id="template-empty" hidden>no templates match that search.</p>
-      </section>
+      <div class="ad-slot">
+        <div
+          data-devmatei-ad
+          data-tier="banner"
+          data-max-width="100%"
+          data-radius="12px"
+          data-fallback-text="keeping this running isn't free and i'm a teen working on this between classes. if you'd like to support the project, it would mean a lot. no pressure though."
+        ></div><p class="ad-cta">want your project here? ad spots are cheap, <a href="https://sponsor.devmatei.com/" target="_blank" rel="noopener">grab one</a>.</p>
+      </div>
 
-      <div
-        data-devmatei-ad
-        data-tier="text"
-        data-max-width="100%"
-        data-radius="16px"
-        data-fallback-text="your project could be here"
-      ></div>
-
-      <footer class="marketplace-footer">
-        <p>
-          templates are always free. want to make your own? <a href="/editor">open the editor</a> - or read more about <a href="/templates">how templates work</a>.
-        </p>
-      </footer>
+      <p class="marketplace-footer">
+        want your own? <a href="/editor">open the editor</a>, or read <a href="/templates">how templates work</a>.
+      </p>
     </main>
+
+    <footer class="site-footer">
+      <p>made by <a href="https://devmatei.com" target="_blank" rel="noopener noreferrer author">matei</a>, agpl on <a href="https://github.com/DevMatei/make-a-wrapped" target="_blank" rel="noopener noreferrer">github</a>. not affiliated with spotify, listenbrainz, last.fm, libre.fm, navidrome or musicbrainz.</p>
+    </footer>
 
     <script async src="https://sponsor.devmatei.com/embed/ad.js"></script>
   </body>

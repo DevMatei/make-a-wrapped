@@ -7,6 +7,11 @@ import { FONT_FAMILIES, FONT_WEIGHTS, loadFonts, templateFontFamilies } from './
 import { readFileAsDataUrl } from './utils.js';
 
 const CATEGORIES = ['dark', 'light', 'minimal', 'vibrant', 'retro', 'abstract', 'bold', 'soft'];
+const DRAFT_KEY = 'wrapped-editor-draft';
+const DEFAULT_NAME = 'My Template';
+const UNDO_LIMIT = 30;
+const IS_MAC = /mac|iphone|ipad/i.test(navigator.platform || navigator.userAgent || '');
+const UNDO_HINT = IS_MAC ? 'cmd+z' : 'ctrl+z';
 
 const canvas = document.getElementById('editor-canvas');
 const nameInput = document.getElementById('editor-name');
@@ -67,9 +72,28 @@ let turnstileWidgetId = null;
 let turnstileWrapper = null;
 let turnstileWaiter = null;
 let turnstileWaiterResolve = null;
+let draftSource = '';
+let draftTimer = null;
+let lastDraftJson = '';
+let cleanJson = '';
+let allowUnload = false;
+let undoStack = [];
+let lastNudgeAt = 0;
+let fieldIdCounter = 0;
+let toastTimer = null;
 
 function deepClone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function cleanBackground(background) {
+  const clone = deepClone(background || {});
+  Object.keys(clone).forEach((key) => {
+    if (key.startsWith('_')) {
+      delete clone[key];
+    }
+  });
+  return clone;
 }
 
 function dataForRenderer() {
@@ -78,6 +102,11 @@ function dataForRenderer() {
 
 function getTemplateElement(id) {
   return (template.elements || []).find((element) => element.id === id) || null;
+}
+
+function canvasScale() {
+  const rect = canvas.getBoundingClientRect();
+  return rect.width ? canvas.width / rect.width : 1;
 }
 
 function canvasPoint(event) {
@@ -162,7 +191,7 @@ function drawSelection(ctx) {
   ctx.setLineDash([8, 6]);
   ctx.strokeRect(bounds.x, bounds.y, bounds.width, bounds.height);
   ctx.setLineDash([]);
-  const handle = 14;
+  const handle = Math.max(14, Math.round(12 * canvasScale()));
   ctx.fillStyle = '#c084fc';
   ctx.fillRect(bounds.x + bounds.width - handle, bounds.y + bounds.height - handle, handle, handle);
   ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
@@ -215,6 +244,8 @@ function snapBounds(bounds, excludeId) {
 }
 
 function positionTarget(id, x, y) {
+  x = Math.round(x);
+  y = Math.round(y);
   if (id === 'artwork') {
     template.artwork.x = x;
     template.artwork.y = y;
@@ -231,6 +262,7 @@ function render() {
   if (!template) {
     return;
   }
+  scheduleDraftSave();
   prepareBackgroundImage(template, () => {
     const ctx = canvas.getContext('2d');
     renderTemplate(ctx, template, {
@@ -273,57 +305,92 @@ function moveLayer(arrayIdx, deltaArray) {
   if (target < 0 || target >= elements.length) {
     return;
   }
+  pushUndo();
   [elements[arrayIdx], elements[target]] = [elements[target], elements[arrayIdx]];
   renderElementsList();
   render();
 }
 
+function layerName(element) {
+  return element.text || element.slot || element.id;
+}
+
+function layerKeyHandler(id) {
+  return (event) => {
+    if (event.target !== event.currentTarget) {
+      return;
+    }
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      selectElement(id, { reveal: true });
+    }
+  };
+}
+
+function controlButton(text, label, layerId, role) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = text;
+  button.title = label;
+  button.setAttribute('aria-label', label);
+  button.dataset.layerId = layerId;
+  button.dataset.layerRole = role;
+  return button;
+}
+
 function renderElementsList() {
+  const active = document.activeElement;
+  const focusId = active && elementsEl.contains(active) ? active.dataset.layerId : null;
+  const focusRole = focusId ? active.dataset.layerRole : null;
   elementsEl.innerHTML = '';
   const elements = template.elements || [];
   const n = elements.length;
   for (let i = n - 1; i >= 0; i -= 1) {
     const element = elements[i];
+    const name = layerName(element);
     const row = document.createElement('li');
     row.className = 'editor-element-row';
-    row.classList.toggle('is-selected', element.id === selectedId);
+    const selected = element.id === selectedId;
+    row.classList.toggle('is-selected', selected);
     const swatch = document.createElement('span');
     swatch.className = 'editor-element-row__swatch';
     swatch.style.background = resolveColor(template, element.color);
+    swatch.style.borderRadius = '50%';
+    swatch.setAttribute('aria-hidden', 'true');
     row.appendChild(swatch);
     const kindName = element.kind === 'text' ? 'text' : element.kind === 'list' ? 'list' : 'stat';
     const label = document.createElement('span');
     label.className = 'editor-element-row__label';
-    label.textContent = element.text || element.slot || element.id;
+    label.textContent = name;
+    label.tabIndex = 0;
+    label.setAttribute('role', 'button');
+    label.setAttribute('aria-pressed', String(selected));
+    label.setAttribute('aria-label', `select ${name} (${kindName} layer)`);
+    label.dataset.layerId = element.id;
+    label.dataset.layerRole = 'select';
+    label.addEventListener('keydown', layerKeyHandler(element.id));
     row.appendChild(label);
     const type = document.createElement('span');
     type.className = 'editor-element-row__type';
     type.textContent = kindName;
+    type.setAttribute('aria-hidden', 'true');
     row.appendChild(type);
 
     const controls = document.createElement('span');
     controls.className = 'editor-element-row__controls';
-    const up = document.createElement('button');
-    up.type = 'button';
-    up.textContent = '↑';
+    const up = controlButton('↑', `bring ${name} forward`, element.id, 'up');
     up.disabled = i === n - 1;
-    up.title = 'bring forward';
     up.addEventListener('click', (event) => {
       event.stopPropagation();
       moveLayer(i, 1);
     });
-    const down = document.createElement('button');
-    down.type = 'button';
-    down.textContent = '↓';
+    const down = controlButton('↓', `send ${name} backward`, element.id, 'down');
     down.disabled = i === 0;
-    down.title = 'send backward';
     down.addEventListener('click', (event) => {
       event.stopPropagation();
       moveLayer(i, -1);
     });
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.textContent = '×';
+    const del = controlButton('×', `delete ${name}`, element.id, 'delete');
     del.addEventListener('click', (event) => {
       event.stopPropagation();
       deleteElement(element.id);
@@ -332,45 +399,146 @@ function renderElementsList() {
     controls.appendChild(down);
     controls.appendChild(del);
     row.appendChild(controls);
-    row.addEventListener('click', () => selectElement(element.id));
+    row.addEventListener('click', () => selectElement(element.id, { reveal: true }));
     elementsEl.appendChild(row);
   }
 
+  const artEnabled = Boolean(template.artwork && template.artwork.enabled !== false);
+  const artSelected = selectedId === 'artwork';
   const artRow = document.createElement('li');
   artRow.className = 'editor-element-row editor-element-row--art';
-  artRow.classList.toggle('is-selected', selectedId === 'artwork');
+  artRow.classList.toggle('is-selected', artSelected);
   const artSwatch = document.createElement('span');
   artSwatch.className = 'editor-element-row__swatch';
   artSwatch.style.background = 'linear-gradient(135deg, #c084fc, #7c3aed)';
+  artSwatch.style.borderRadius = '50%';
+  artSwatch.setAttribute('aria-hidden', 'true');
   artRow.appendChild(artSwatch);
   const artLabel = document.createElement('span');
   artLabel.className = 'editor-element-row__label';
   artLabel.textContent = 'album art';
+  artLabel.tabIndex = 0;
+  artLabel.setAttribute('role', 'button');
+  artLabel.setAttribute('aria-pressed', String(artSelected));
+  artLabel.setAttribute('aria-label', 'select album art layer');
+  artLabel.dataset.layerId = 'artwork';
+  artLabel.dataset.layerRole = 'select';
+  artLabel.addEventListener('keydown', layerKeyHandler('artwork'));
   artRow.appendChild(artLabel);
   const artType = document.createElement('span');
   artType.className = 'editor-element-row__type';
   artType.textContent = 'art';
+  artType.setAttribute('aria-hidden', 'true');
   artRow.appendChild(artType);
   const artCtl = document.createElement('span');
   artCtl.className = 'editor-element-row__controls';
-  const artEye = document.createElement('button');
-  artEye.type = 'button';
-  artEye.textContent = template.artwork && template.artwork.enabled !== false ? '●' : '○';
-  artEye.title = 'toggle visibility in the background panel';
+  const artEye = controlButton(artEnabled ? '●' : '○', artEnabled ? 'hide album art' : 'show album art', 'artwork', 'toggle');
+  artEye.setAttribute('aria-pressed', String(artEnabled));
+  artEye.addEventListener('click', (event) => {
+    event.stopPropagation();
+    setArtworkEnabled(!artEnabled);
+  });
   artCtl.appendChild(artEye);
   artRow.appendChild(artCtl);
-  artRow.addEventListener('click', () => selectElement('artwork'));
+  artRow.addEventListener('click', () => selectElement('artwork', { reveal: true }));
   elementsEl.appendChild(artRow);
+
+  if (focusId) {
+    const selector = (role) => `[data-layer-id="${CSS.escape(focusId)}"][data-layer-role="${role}"]`;
+    let next = elementsEl.querySelector(selector(focusRole));
+    if (!next || next.disabled) {
+      next = elementsEl.querySelector(selector('select')) || elementsEl.querySelector('[data-layer-role="select"]');
+    }
+    if (next) {
+      next.focus();
+    }
+  }
+}
+
+function setArtworkEnabled(enabled) {
+  if (artEnabledInput) {
+    artEnabledInput.checked = enabled;
+    artEnabledInput.dispatchEvent(new Event('change', { bubbles: true }));
+  } else {
+    template.artwork.enabled = enabled;
+    renderElementsList();
+    render();
+  }
+}
+
+function snapshot() {
+  return {
+    elements: deepClone(template.elements || []),
+    artwork: deepClone(template.artwork || {}),
+    selectedId,
+  };
+}
+
+function pushUndo(entry = snapshot()) {
+  undoStack.push(entry);
+  if (undoStack.length > UNDO_LIMIT) {
+    undoStack.shift();
+  }
+}
+
+function undo() {
+  const entry = undoStack.pop();
+  if (!entry) {
+    showToast('nothing to undo.');
+    return;
+  }
+  template.elements = entry.elements;
+  template.artwork = entry.artwork;
+  selectedId = entry.selectedId && (entry.selectedId === 'artwork' || getTemplateElement(entry.selectedId)) ? entry.selectedId : null;
+  renderTopControls();
+  renderElementsList();
+  renderPropertiesPanel();
+  render();
 }
 
 function deleteElement(id) {
-  template.elements = (template.elements || []).filter((element) => element.id !== id);
+  const element = getTemplateElement(id);
+  if (!element) {
+    return;
+  }
+  pushUndo();
+  template.elements = (template.elements || []).filter((item) => item.id !== id);
   if (selectedId === id) {
     selectedId = null;
     renderPropertiesPanel();
   }
   renderElementsList();
   render();
+  showToast(`deleted ${layerName(element)}. ${UNDO_HINT} to undo.`, 'info', { label: 'undo', onClick: undo });
+}
+
+function placeNewElement(element) {
+  const margin = 32;
+  const top = 96;
+  const bottomLimit = canvas.height - 140;
+  const occupied = (template.elements || []).map((item) => measureBounds(item));
+  const art = template.artwork || {};
+  if (art.enabled !== false && Number.isFinite(art.y) && Number.isFinite(art.size)) {
+    occupied.push(artworkBounds());
+  }
+  const size = measureBounds({ ...element, x: 0, y: 0 });
+  const height = Math.max(size.height, 1);
+  const fits = (y) => occupied.every((bounds) => y + height + margin <= bounds.y || y >= bounds.y + bounds.height + margin);
+  const candidates = [top, ...occupied.map((bounds) => bounds.y + bounds.height + margin)]
+    .filter((y) => y >= top && y + height <= bottomLimit)
+    .sort((a, b) => a - b);
+  const artBottom = art.enabled !== false && Number.isFinite(art.y) ? art.y + art.size + margin : top;
+  const free = candidates.filter(fits);
+  let y = free.find((value) => value >= artBottom);
+  if (y === undefined) {
+    y = free.length ? free[free.length - 1] : Math.round(canvas.height * 0.55);
+  }
+  const elementXs = (template.elements || []).map((item) => item.x).filter(Number.isFinite);
+  const x = elementXs.length ? Math.min(...elementXs) : (Number.isFinite(art.x) ? art.x : 112);
+  const maxX = Math.max(0, canvas.width - Math.max(size.width, 1));
+  const maxY = Math.max(0, bottomLimit - height);
+  element.x = Math.round(Math.min(Math.max(x, 0), maxX));
+  element.y = Math.round(Math.min(Math.max(y, 0), maxY));
 }
 
 function addElement(kind) {
@@ -384,19 +552,34 @@ function addElement(kind) {
   } else {
     element = { id, kind: 'slot', slot: 'minutes', x: 112, y: 1160, font: { family: 'Nunito', weight: 800, size: 80 }, color: 'value', maxWidth: 454, minFontSize: 44, ellipsize: true, prefix: false, baseline: 'top', align: 'left' };
   }
+  pushUndo();
+  placeNewElement(element);
   elements.push(element);
   template.elements = elements;
-  selectElement(id);
-  renderElementsList();
-  render();
-  renderPropertiesPanel();
+  selectElement(id, { reveal: true });
 }
 
-function selectElement(id) {
+function revealProperties() {
+  if (!propertiesPanelEl || propertiesPanelEl.hidden || typeof propertiesPanelEl.scrollIntoView !== 'function') {
+    return;
+  }
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  propertiesPanelEl.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' });
+}
+
+function selectElement(id, { reveal = false } = {}) {
   selectedId = id;
   renderElementsList();
   renderPropertiesPanel();
   render();
+  if (reveal) {
+    revealProperties();
+  }
+}
+
+function nextFieldId() {
+  fieldIdCounter += 1;
+  return `editor-prop-${fieldIdCounter}`;
 }
 
 function fieldNumber(value, label, onChange) {
@@ -408,6 +591,8 @@ function fieldNumber(value, label, onChange) {
   const input = document.createElement('input');
   input.type = 'number';
   input.step = '1';
+  input.id = nextFieldId();
+  labelEl.htmlFor = input.id;
   input.value = String(value);
   input.addEventListener('input', () => {
     const parsed = Number(input.value);
@@ -428,6 +613,8 @@ function fieldText(value, label, onChange) {
   labelEl.textContent = label;
   const input = document.createElement('input');
   input.type = 'text';
+  input.id = nextFieldId();
+  labelEl.htmlFor = input.id;
   input.value = value || '';
   input.addEventListener('input', () => onChange(input.value));
   wrapper.appendChild(labelEl);
@@ -442,6 +629,8 @@ function fieldSelect(options, value, label, onChange) {
   labelEl.className = 'form__label';
   labelEl.textContent = label;
   const select = document.createElement('select');
+  select.id = nextFieldId();
+  labelEl.htmlFor = select.id;
   options.forEach((option) => {
     const opt = document.createElement('option');
     opt.value = option.value;
@@ -462,6 +651,7 @@ function fieldToggle(value, label, onChange) {
   wrapper.className = 'editor-field editor-toggle';
   const input = document.createElement('input');
   input.type = 'checkbox';
+  input.id = nextFieldId();
   input.checked = Boolean(value);
   input.addEventListener('change', () => onChange(input.checked));
   const text = document.createElement('span');
@@ -480,6 +670,9 @@ function fieldColor(value, onChange) {
   wrapper.appendChild(labelEl);
   const row = document.createElement('div');
   row.className = 'editor-color';
+  row.setAttribute('role', 'group');
+  labelEl.id = nextFieldId();
+  row.setAttribute('aria-labelledby', labelEl.id);
   const btnLabel = document.createElement('button');
   btnLabel.type = 'button';
   btnLabel.className = 'editor-color__token';
@@ -490,10 +683,15 @@ function fieldColor(value, onChange) {
   btnValue.textContent = 'value';
   const picker = document.createElement('input');
   picker.type = 'color';
+  picker.id = nextFieldId();
+  picker.setAttribute('aria-label', 'custom color');
+  labelEl.htmlFor = picker.id;
   picker.value = /^#[0-9a-f]{6}$/i.test(value) ? value : (template.palette.value || '#ffffff');
   const applyToken = (token) => {
     btnLabel.classList.toggle('is-active', token === 'label');
     btnValue.classList.toggle('is-active', token === 'value');
+    btnLabel.setAttribute('aria-pressed', String(token === 'label'));
+    btnValue.setAttribute('aria-pressed', String(token === 'value'));
     picker.classList.toggle('is-visible', !token);
   };
   btnLabel.addEventListener('click', () => { onChange('label'); applyToken('label'); });
@@ -650,25 +848,48 @@ function renderTopControls() {
   paletteValueInput.value = template.palette.value;
   artEnabledInput.checked = template.artwork.enabled !== false;
   artFrameInput.checked = template.artwork.frame !== false;
-  artXInput.value = String(template.artwork.x);
-  artYInput.value = String(template.artwork.y);
-  artSizeInput.value = String(template.artwork.size);
+  syncArtInputs();
   renderBackgroundControls();
 }
 
-function showToast(message, tone = 'info') {
+function syncArtInputs() {
+  artXInput.value = String(template.artwork.x);
+  artYInput.value = String(template.artwork.y);
+  artSizeInput.value = String(template.artwork.size);
+}
+
+function showToast(message, tone = 'info', action = null) {
+  if (!toastEl) {
+    return;
+  }
+  window.clearTimeout(toastTimer);
   toastEl.hidden = false;
   toastEl.textContent = message;
   toastEl.dataset.tone = tone;
-  window.setTimeout(() => {
+  if (action) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'editor-toast__action';
+    button.textContent = action.label;
+    button.addEventListener('click', () => {
+      toastEl.hidden = true;
+      action.onClick();
+    });
+    toastEl.appendChild(document.createTextNode(' '));
+    toastEl.appendChild(button);
+  }
+  toastTimer = window.setTimeout(() => {
     toastEl.hidden = true;
-  }, 4200);
+  }, action ? 6000 : 4200);
 }
 
 function handlePointerDown(event) {
+  if (event.button !== undefined && event.button !== 0) {
+    return;
+  }
   const point = canvasPoint(event);
   const bounds = boundsForSelection(selectedId);
-  const handleSize = 22;
+  const handleSize = 24 * canvasScale();
   if (bounds && point.x >= bounds.x + bounds.width - handleSize && point.x <= bounds.x + bounds.width + handleSize
     && point.y >= bounds.y + bounds.height - handleSize && point.y <= bounds.y + bounds.height + handleSize) {
     const target = selectedId;
@@ -677,29 +898,41 @@ function handlePointerDown(event) {
       mode: 'resize',
       target,
       start: point,
+      before: snapshot(),
       originalSize: target === 'artwork' ? template.artwork.size : element.font.size,
       originalLineHeight: element ? element.lineHeight : 0,
     };
+    capturePointer(event);
     event.preventDefault();
     return;
   }
   const hit = hitTest(point);
   if (hit) {
+    const before = snapshot();
     selectElement(hit);
     const element = getTemplateElement(hit);
     editing = {
       mode: 'move',
       target: hit,
       start: point,
+      before,
       originalX: hit === 'artwork' ? template.artwork.x : element.x,
       originalY: hit === 'artwork' ? template.artwork.y : element.y,
     };
+    capturePointer(event);
+    event.preventDefault();
   } else {
     selectedId = null;
     renderElementsList();
     renderPropertiesPanel();
     render();
   }
+}
+
+function capturePointer(event) {
+  try {
+    canvas.setPointerCapture(event.pointerId);
+  } catch (error) {}
 }
 
 function handlePointerMove(event) {
@@ -739,10 +972,21 @@ function handlePointerMove(event) {
   }
 }
 
-function handlePointerUp() {
+function handlePointerUp(event) {
   if (editing) {
+    const { before } = editing;
+    if (before && (JSON.stringify(before.elements) !== JSON.stringify(template.elements)
+      || JSON.stringify(before.artwork) !== JSON.stringify(template.artwork))) {
+      pushUndo(before);
+    }
     editing = null;
     guides = [];
+    if (event && event.pointerId !== undefined && canvas.hasPointerCapture && canvas.hasPointerCapture(event.pointerId)) {
+      canvas.releasePointerCapture(event.pointerId);
+    }
+    if (selectedId === 'artwork') {
+      syncArtInputs();
+    }
     renderPropertiesPanel();
     render();
   }
@@ -758,7 +1002,7 @@ function buildExportPayload() {
     },
     canvas: { width: 1080, height: 1920 },
     palette: deepClone(template.palette),
-    background: deepClone(template.background),
+    background: cleanBackground(template.background),
     artwork: deepClone(template.artwork),
     elements: deepClone(template.elements),
   };
@@ -774,7 +1018,103 @@ function exportTemplate() {
   link.download = `${payload.slug}.json`;
   link.click();
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  markClean();
   showToast('template exported as a json file.', 'success');
+}
+
+function draftPayload() {
+  return { ...buildExportPayload(), name: nameInput.value, slug: slugInput.value };
+}
+
+function draftSnapshotJson() {
+  return template ? JSON.stringify(draftPayload()) : '';
+}
+
+function isDirty() {
+  return Boolean(template) && draftSnapshotJson() !== cleanJson;
+}
+
+function markClean() {
+  cleanJson = draftSnapshotJson();
+}
+
+function writeDraft(payload) {
+  const record = { version: 1, source: draftSource, savedAt: Date.now(), slugTouched, payload };
+  try {
+    window.localStorage.setItem(DRAFT_KEY, JSON.stringify(record));
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+function saveDraftNow() {
+  window.clearTimeout(draftTimer);
+  draftTimer = null;
+  if (!template) {
+    return;
+  }
+  const json = draftSnapshotJson();
+  if (json === lastDraftJson) {
+    return;
+  }
+  lastDraftJson = json;
+  if (json === cleanJson) {
+    clearDraft();
+    lastDraftJson = json;
+    return;
+  }
+  const payload = JSON.parse(json);
+  if (!writeDraft(payload) && payload.background && payload.background.type === 'image') {
+    payload.background = { type: 'solid', color: '#000000' };
+    writeDraft(payload);
+  }
+}
+
+function scheduleDraftSave() {
+  if (!template) {
+    return;
+  }
+  window.clearTimeout(draftTimer);
+  draftTimer = window.setTimeout(saveDraftNow, 400);
+}
+
+function readDraft() {
+  try {
+    const raw = window.localStorage.getItem(DRAFT_KEY);
+    const record = raw ? JSON.parse(raw) : null;
+    if (record && record.payload && Array.isArray(record.payload.elements)) {
+      return record;
+    }
+  } catch (error) {}
+  return null;
+}
+
+function clearDraft() {
+  window.clearTimeout(draftTimer);
+  draftTimer = null;
+  lastDraftJson = '';
+  try {
+    window.localStorage.removeItem(DRAFT_KEY);
+  } catch (error) {}
+}
+
+async function restoreDraftImage() {
+  const background = template.background || {};
+  if (background.type !== 'image' || typeof background.src !== 'string' || !background.src.startsWith('data:')) {
+    return;
+  }
+  try {
+    const blob = await (await fetch(background.src)).blob();
+    const ext = (blob.type.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '');
+    bgUploadFile = new File([blob], `background.${ext}`, { type: blob.type });
+    bgIsLocal = true;
+    if (bgImageHint) {
+      bgImageHint.textContent = 'image will be uploaded with your submission.';
+    }
+  } catch (error) {
+    template.background = { type: 'solid', color: '#000000' };
+  }
 }
 
 async function importTemplate(file) {
@@ -792,6 +1132,8 @@ async function importTemplate(file) {
     if (!template.slug) {
       template.slug = 'imported-template';
     }
+    undoStack = [];
+    selectedId = null;
     slugTouched = true;
     renderTopControls();
     renderSamples();
@@ -819,7 +1161,7 @@ async function buildTemplatePayload() {
     label: paletteLabelInput.value,
     value: paletteValueInput.value,
   };
-  templatePayload.background = deepClone(template.background);
+  templatePayload.background = cleanBackground(template.background);
   templatePayload.artwork = deepClone(template.artwork);
   templatePayload.elements = deepClone(template.elements);
   templatePayload.canvas = template.canvas;
@@ -932,12 +1274,18 @@ async function ensureTurnstile() {
 async function submitTemplate() {
   const name = nameInput.value.trim();
   const slug = slugInput.value.trim().toLowerCase();
-  if (!name) {
-    showToast('give your template a name.', 'error');
+  if (!name || name.toLowerCase() === DEFAULT_NAME.toLowerCase()) {
+    showToast(name ? 'give your template a real name first, not "my template".' : 'give your template a name.', 'error');
+    nameInput.focus();
     return;
   }
   if (!/^[a-z0-9][a-z0-9-]{0,48}$/.test(slug) || slug.length > 48) {
     showToast('slug can only use lowercase letters, numbers and dashes.', 'error');
+    return;
+  }
+  if (creatorNameInput && !creatorNameInput.value.trim()) {
+    showToast('add a display name so people know who made it.', 'error');
+    creatorNameInput.focus();
     return;
   }
   const verified = await ensureTurnstile();
@@ -962,14 +1310,13 @@ async function submitTemplate() {
     if (!response.ok) {
       throw new Error(await parseError(response));
     }
-    const payload = await response.json();
-    showToast(`submitted for review (${payload.status}). a maintainer will review it soon.`, 'success');
+    await response.json();
     if (turnstileEnabled) {
       turnstileToken = null;
     }
-    window.setTimeout(() => {
-      window.location.href = '/';
-    }, 900);
+    markClean();
+    clearDraft();
+    showToast('submitted! it\'s pending review and shows up in the library once a maintainer approves it.', 'success');
   } catch (error) {
     console.error(error);
     showToast(error.message || 'something went wrong submitting.', 'error');
@@ -1071,7 +1418,8 @@ async function initTurnstile() {
 
 async function init() {
   const params = new URLSearchParams(window.location.search);
-  const slug = params.get('template') || 'black';
+  draftSource = params.get('template') || '';
+  const slug = draftSource || 'black';
   try {
     const base = await fetchTemplate(slug);
     template = normaliseTemplate(deepClone(base));
@@ -1080,7 +1428,20 @@ async function init() {
       template.slug = 'my-template';
     }
   } catch (error) {
-    template = normaliseTemplate({ name: 'My Template', slug: 'my-template', elements: [] });
+    template = normaliseTemplate({ name: DEFAULT_NAME, slug: 'my-template', elements: [] });
+  }
+  const draft = readDraft();
+  let restored = false;
+  if (draft && (!draftSource || draft.source === draftSource)) {
+    try {
+      template = normaliseTemplate({ ...deepClone(template), ...draft.payload });
+      draftSource = draft.source || '';
+      slugTouched = Boolean(draft.slugTouched);
+      await restoreDraftImage();
+      restored = true;
+    } catch (error) {
+      console.warn('Could not restore editor draft', error);
+    }
   }
   CATEGORIES.forEach((category) => {
     const option = document.createElement('option');
@@ -1094,6 +1455,14 @@ async function init() {
   renderSamples();
   renderElementsList();
   renderPropertiesPanel();
+  if (restored) {
+    cleanJson = '';
+    lastDraftJson = draftSnapshotJson();
+    showToast('restored your unsaved draft. hit reset to start fresh.');
+  } else {
+    markClean();
+    lastDraftJson = cleanJson;
+  }
   loadCreatorInfo();
   initTurnstile();
   await loadFonts(templateFontFamilies(template));
@@ -1115,14 +1484,17 @@ function bindEvents() {
       slugInput.value = candidate || 'my-template';
       template.slug = slugInput.value;
     }
+    scheduleDraftSave();
   });
   slugInput.addEventListener('input', () => {
     slugTouched = true;
     template.slug = slugInput.value.trim().toLowerCase();
+    scheduleDraftSave();
   });
-  categorySelect.addEventListener('change', () => { template.meta.category = categorySelect.value; });
+  categorySelect.addEventListener('change', () => { template.meta.category = categorySelect.value; scheduleDraftSave(); });
   tagsInput.addEventListener('input', () => {
     template.meta.tags = tagsInput.value.split(',').map((tag) => tag.trim()).filter(Boolean);
+    scheduleDraftSave();
   });
   bgTypeEl.querySelectorAll('[data-bg-type]').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -1173,13 +1545,17 @@ function bindEvents() {
   });
   paletteLabelInput.addEventListener('input', () => { template.palette.label = paletteLabelInput.value; renderPropertiesPanel(); render(); });
   paletteValueInput.addEventListener('input', () => { template.palette.value = paletteValueInput.value; renderPropertiesPanel(); render(); });
-  artEnabledInput.addEventListener('change', () => { template.artwork.enabled = artEnabledInput.checked; render(); });
+  artEnabledInput.addEventListener('change', () => { template.artwork.enabled = artEnabledInput.checked; renderElementsList(); render(); });
   artFrameInput.addEventListener('change', () => { template.artwork.frame = artFrameInput.checked; render(); });
   artXInput.addEventListener('input', () => { template.artwork.x = Number(artXInput.value) || 0; render(); });
   artYInput.addEventListener('input', () => { template.artwork.y = Number(artYInput.value) || 0; render(); });
   artSizeInput.addEventListener('input', () => { template.artwork.size = Number(artSizeInput.value) || 0; render(); });
   resetBtn.addEventListener('click', () => {
-    showToast('reset the canvas to the starting template.');
+    if (!window.confirm('reset the editor? this throws away your draft and starts over.')) {
+      return;
+    }
+    clearDraft();
+    allowUnload = true;
     window.location.reload();
   });
   submitBtn.addEventListener('click', submitTemplate);
@@ -1197,9 +1573,78 @@ function bindEvents() {
   document.querySelectorAll('[data-add]').forEach((btn) => {
     btn.addEventListener('click', () => addElement(btn.dataset.add));
   });
+  canvas.style.touchAction = 'none';
   canvas.addEventListener('pointerdown', handlePointerDown);
   window.addEventListener('pointermove', handlePointerMove);
   window.addEventListener('pointerup', handlePointerUp);
+  window.addEventListener('pointercancel', handlePointerUp);
+  document.addEventListener('keydown', handleKeyDown);
+  window.addEventListener('pagehide', () => {
+    if (!allowUnload) {
+      saveDraftNow();
+    }
+  });
+  window.addEventListener('beforeunload', (event) => {
+    if (allowUnload) {
+      return;
+    }
+    saveDraftNow();
+    if (isDirty()) {
+      event.preventDefault();
+      event.returnValue = '';
+    }
+  });
+}
+
+function isTypingTarget(target) {
+  return target instanceof Element && Boolean(target.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])'));
+}
+
+function nudgeSelection(dx, dy) {
+  const target = selectedId === 'artwork' ? template.artwork : getTemplateElement(selectedId);
+  if (!target) {
+    return;
+  }
+  const now = Date.now();
+  if (now - lastNudgeAt > 800) {
+    pushUndo();
+  }
+  lastNudgeAt = now;
+  positionTarget(selectedId, (Number(target.x) || 0) + dx, (Number(target.y) || 0) + dy);
+  if (selectedId === 'artwork') {
+    syncArtInputs();
+  }
+  renderPropertiesPanel();
+  render();
+}
+
+function handleKeyDown(event) {
+  if (event.defaultPrevented || !template || isTypingTarget(event.target)) {
+    return;
+  }
+  const mod = event.metaKey || event.ctrlKey;
+  if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === 'z') {
+    event.preventDefault();
+    undo();
+    return;
+  }
+  if (mod || event.altKey || !selectedId) {
+    return;
+  }
+  if (event.key === 'Delete' || event.key === 'Backspace') {
+    if (selectedId !== 'artwork') {
+      event.preventDefault();
+      deleteElement(selectedId);
+    }
+    return;
+  }
+  const step = event.shiftKey ? 10 : 1;
+  const deltas = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+  const delta = deltas[event.key];
+  if (delta) {
+    event.preventDefault();
+    nudgeSelection(delta[0], delta[1]);
+  }
 }
 
 window.addEventListener('load', init);

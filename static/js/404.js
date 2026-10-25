@@ -1,27 +1,51 @@
 const VINYL_MESSAGES = [
-    "Looks like this record has skipped a few beats.",
-    "This track is missing from the album.",
-    "Oops! Wrong side of the vinyl.",
-    "Sabrina Carpenter is the best artist, buttt this page won't appear because of her :("
+    "looks like this record skipped a few beats.",
+    "this track is missing from the album.",
+    "oops, wrong side of the vinyl."
 ];
 
 function init404Page() {
     const messageEl = document.querySelector('.error-message');
     const vinylEl = document.querySelector('.vinyl');
 
-    messageEl.textContent = VINYL_MESSAGES[Math.floor(Math.random() * VINYL_MESSAGES.length)];
+    if (messageEl) {
+        messageEl.textContent = VINYL_MESSAGES[Math.floor(Math.random() * VINYL_MESSAGES.length)];
+    }
 
+    if (!vinylEl) {
+        return;
+    }
+    const motionQuery = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
     let rotation = 0;
+    let frame = null;
     const spin = () => {
-        rotation += 2;
+        rotation = (rotation + 2) % 360;
         vinylEl.style.transform = `rotate(${rotation}deg)`;
-        requestAnimationFrame(spin);
+        frame = requestAnimationFrame(spin);
     };
-    requestAnimationFrame(spin);
+    const update = () => {
+        if (motionQuery && motionQuery.matches) {
+            if (frame !== null) {
+                cancelAnimationFrame(frame);
+                frame = null;
+            }
+            vinylEl.style.transform = '';
+        } else if (frame === null) {
+            frame = requestAnimationFrame(spin);
+        }
+    };
+    update();
+    if (motionQuery && typeof motionQuery.addEventListener === 'function') {
+        motionQuery.addEventListener('change', update);
+    }
 }
 
-// Make sure the DOM is loaded before initializing 
-document.addEventListener('DOMContentLoaded', init404Page);
+// Make sure the DOM is loaded before initializing
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init404Page);
+} else {
+    init404Page();
+}
 
 console.log('%c👋 Howdy developer! \n\n%cThis is an open-source project by DevMatei\n\n%cGitHub:%chttps://github.com/devmatei/make-a-wrapped',
   'font-size: 16px; font-weight: bold; color: #6366f1;',

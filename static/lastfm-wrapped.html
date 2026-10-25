@@ -23,22 +23,13 @@
     <meta name="twitter:description" content="Turn your Last.fm scrobbles into a shareable Wrapped poster for 2025 or any month. Just your username, no login.">
     <meta name="twitter:image" content="https://github.com/user-attachments/assets/56c0dcd2-b111-4978-ac1f-2ae802f00237">
     <meta name="twitter:image:alt" content="Example Last.fm Wrapped poster with top artists and tracks">
-    <meta name="theme-color" content="#c084fc">
+    <meta name="theme-color" content="#15121f">
     <meta name="color-scheme" content="dark">
+    <script>try{var t=localStorage.getItem('wrapped-theme');document.documentElement.dataset.theme=/^(lavender|mint|sunset)$/.test(t)?t:'lavender'}catch(e){document.documentElement.dataset.theme='lavender'}</script>
     <link rel="icon" type="image/svg+xml" href="favicon-lavender.svg">
     <link rel="apple-touch-icon" sizes="180x180" href="favicon-lavender-180.png">
     <link rel="stylesheet" href="style.css">
-    <style>
-      .landing { max-width: 720px; margin: 0 auto; display: grid; gap: 1.25rem; }
-      .landing .card__body p { margin-bottom: 0.75rem; }
-      .landing h2 { margin-bottom: 0.5rem; }
-      .landing .btn { display: inline-block; text-decoration: none; margin-top: 0.5rem; }
-      .steps { margin: 0.25rem 0 0.75rem; }
-      .steps__item { display: grid; grid-template-columns: 2.5rem 1fr; gap: 1rem; align-items: baseline; padding: 0.9rem 0; border-top: 1px solid var(--card-border); }
-      .steps__item:last-child { border-bottom: 1px solid var(--card-border); }
-      .steps__item p { margin: 0; line-height: 1.65; }
-      .steps__num { font-size: 0.8rem; font-weight: 700; letter-spacing: 0.14em; color: var(--accent); }
-    </style>
+    <script type="module" src="js/site.js"></script>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -156,83 +147,67 @@
     <script defer src="https://analytics.devmatei.com/script.js" data-website-id="a24ad413-b9c9-4ade-95a0-2c0f6dea6db7"></script>
   </head>
   <body>
-    <main class="page">
-      <div class="landing">
-        <section class="card">
-          <div class="card__body">
-            <h1>last.fm wrapped</h1>
-            <p class="intro-copy">
-              this is the last.fm wrapped generator from make a wrapped, a free open source tool for turning scrobbles into a spotify wrapped style poster. you have been scrobbling for years and all you get is a yearly playback page. this turns your last.fm history into top artists, top tracks, top genre, and estimated listening minutes. make your 2025 wrapped now, or track 2026 so far, any month, any year, whenever you feel like it. just your username, no login.
-            </p>
-            <a class="btn" href="/?service=lastfm">make my last.fm wrapped: free, no login</a>
-          </div>
-        </section>
-        <div
+    <header class="topline">
+      <a href="/">make a wrapped</a> <span aria-hidden="true">/</span> <span aria-current="page">last.fm wrapped</span>
+    </header>
+    <main class="page page--prose">
+      <article class="prose">
+        <h1>last.fm wrapped</h1>
+        <p class="lede">
+          this is the last.fm wrapped generator from make a wrapped, a free open source tool for turning scrobbles into a spotify wrapped style poster. you have been scrobbling for years and all you get is a yearly playback page. this turns your last.fm history into top artists, top tracks, top genre, and estimated listening minutes. make your 2025 wrapped now, or track 2026 so far, any month, any year, whenever you feel like it. just your username, no login.
+        </p>
+        <p class="cta"><a class="btn" href="/?service=lastfm">make my last.fm wrapped: free, no login</a></p>
+        <div class="ad-slot"><div
           data-devmatei-ad
           data-tier="text"
           data-max-width="100%"
-          data-radius="16px"
+          data-radius="12px"
           data-fallback-text="your project could be here"
-        ></div>
+        ></div><p class="ad-cta">want your project here? ad spots are cheap, <a href="https://sponsor.devmatei.com/" target="_blank" rel="noopener">grab one</a>.</p></div>
 
-        <section class="card">
-          <div class="card__body">
-            <h2>how it works</h2>
-            <div class="steps">
-              <div class="steps__item"><span class="steps__num">01</span><p>type your last.fm username. scrobbles are public so there is no login and no password.</p></div>
-              <div class="steps__item"><span class="steps__num">02</span><p>pick a time period: 2025, 2026 so far, last month, or any custom month or year.</p></div>
-              <div class="steps__item"><span class="steps__num">03</span><p>hit generate, then save the poster and post it wherever.</p></div>
-            </div>
-            <p>
-              artist artwork gets pulled automatically from last.fm (with musicbrainz and wikidata as backup), or you can upload and position your own image. a few themes to pick from.
-            </p>
-          </div>
-        </section>
+        <h2>how it works</h2>
+        <ol class="steps">
+          <li>type your last.fm username. scrobbles are public so there is no login and no password.</li>
+          <li>pick a time period: 2025, 2026 so far, last month, or any custom month or year.</li>
+          <li>hit generate, then save the poster and post it wherever.</li>
+        </ol>
+<p>
+          artist artwork gets pulled automatically from last.fm (with musicbrainz and wikidata as backup), or you can upload and position your own image. a few themes to pick from.
+        </p>
 
-        <section class="card">
-          <div class="card__body">
-            <h2>why use this one</h2>
-            <p>
-              honest version, no hype. the official last.fm playback is december only and pretty limited. this one runs any day, does any month or year, needs no login, is free and open source under agpl, and lets you self host. that combo is why people keep using <a href="/">make a wrapped</a> for their yearly recap.
-            </p>
-          </div>
-        </section>
+        <h2>why use this one</h2>
+        <p>
+          honest version, no hype. the official last.fm playback is december only and pretty limited. this one runs any day, does any month or year, needs no login, is free and open source under agpl, and lets you self host. that combo is why people keep using <a href="/">make a wrapped</a> for their yearly recap.
+        </p>
 
-        <section class="card">
-          <div class="card__body">
-            <h2>last.fm wrapped 2025 and 2026</h2>
-            <p>
-              waiting for december is optional. generate your 2025 last.fm wrapped now, check your 2026 stats so far, or revisit a random month from years ago. the official last.fm playback only shows up once a year, this works every day.
-            </p>
-            <p><strong>what you get:</strong> top artists, top tracks, top genre, and estimated listening minutes as one shareable image.</p>
-          </div>
-        </section>
+        <h2>last.fm wrapped 2025 and 2026</h2>
+        <p>
+          waiting for december is optional. generate your 2025 last.fm wrapped now, check your 2026 stats so far, or revisit a random month from years ago. the official last.fm playback only shows up once a year, this works every day.
+        </p>
+        <p><strong>what you get:</strong> top artists, top tracks, top genre, and estimated listening minutes as one shareable image.</p>
 
-        <section class="card">
-          <div class="card__body">
-            <h2>faq</h2>
-            <p><strong>do i need my last.fm password?</strong> no. just the username.</p>
-            <p><strong>can i pick a random month from two years ago?</strong> yes. custom date ranges are the whole point.</p>
-            <p><strong>how are the minutes calculated?</strong> last.fm does not give total listening time, so it is estimated from your scrobble count times the real lengths of your most played tracks. close enough to brag with.</p>
-            <p><strong>does last.fm have an official wrapped?</strong> last.fm has a yearly playback page each december. this gives you the same idea on demand for 2025, 2026, or any month.</p>
-            <p><strong>when does last.fm wrapped come out?</strong> the official one lands in december. you can generate yours here right now without waiting.</p>
-            <p><strong>is it free?</strong> yes, and open source (agpl). <a href="https://github.com/DevMatei/make-a-wrapped" rel="noopener noreferrer" target="_blank">code is on github</a> if you want to self-host.</p>
-          </div>
-        </section>
+        <h2>faq</h2>
+        <p><strong>do i need my last.fm password?</strong> no. just the username.</p>
+        <p><strong>can i pick a random month from two years ago?</strong> yes. custom date ranges are the whole point.</p>
+        <p><strong>how are the minutes calculated?</strong> last.fm does not give total listening time, so it is estimated from your scrobble count times the real lengths of your most played tracks. close enough to brag with.</p>
+        <p><strong>does last.fm have an official wrapped?</strong> last.fm has a yearly playback page each december. this gives you the same idea on demand for 2025, 2026, or any month.</p>
+        <p><strong>when does last.fm wrapped come out?</strong> the official one lands in december. you can generate yours here right now without waiting.</p>
+        <p><strong>is it free?</strong> yes, and open source (agpl). <a href="https://github.com/DevMatei/make-a-wrapped" rel="noopener noreferrer" target="_blank">code is on github</a> if you want to self-host.</p>
 
-        <section class="card">
-          <div class="card__body">
-            <h2>not on last.fm?</h2>
-            <p>
-              the same generator works with <a href="/">make a wrapped</a> home, listenbrainz and self-hosted <a href="/navidrome-wrapped">navidrome</a> too. same poster, different source.
-            </p>
-            <p>
-              not affiliated with last.fm or spotify. just a fan project by <a href="https://devmatei.com" rel="noopener noreferrer" target="_blank">devmatei</a>.
-            </p>
-          </div>
-        </section>
-      </div>
+        <h2>not on last.fm?</h2>
+        <p>
+          the same generator works with <a href="/">make a wrapped</a> home, listenbrainz and self-hosted <a href="/navidrome-wrapped">navidrome</a> too. same poster, different source.
+        </p>
+        <p>
+          not affiliated with last.fm or spotify. just a fan project by <a href="https://devmatei.com" rel="noopener noreferrer" target="_blank">devmatei</a>.
+        </p>
+      </article>
     </main>
-  <script async src="https://sponsor.devmatei.com/embed/ad.js"></script>
+
+    <footer class="site-footer">
+      <p>made by <a href="https://devmatei.com" target="_blank" rel="noopener noreferrer author">matei</a>, agpl on <a href="https://github.com/DevMatei/make-a-wrapped" target="_blank" rel="noopener noreferrer">github</a>. not affiliated with spotify, listenbrainz, last.fm, libre.fm, navidrome or musicbrainz.</p>
+    </footer>
+
+    <script async src="https://sponsor.devmatei.com/embed/ad.js"></script>
   </body>
 </html>

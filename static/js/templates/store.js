@@ -18,13 +18,11 @@ export async function fetchTemplateList() {
   if (templateListCache) {
     return templateListCache;
   }
-  try {
-    const payload = await request('/api/templates');
-    templateListCache = Array.isArray(payload.templates) ? payload.templates : [];
-  } catch (error) {
-    console.warn('Unable to load template list', error);
-    templateListCache = [];
+  const payload = await request('/api/templates');
+  if (!payload || !Array.isArray(payload.templates)) {
+    throw new Error('Template list response was malformed');
   }
+  templateListCache = payload.templates;
   return templateListCache;
 }
 
