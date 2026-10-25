@@ -627,4 +627,8 @@ def resolve_template_asset_path(rel_path: str) -> Optional[str]:
     rel = path[len("/template-assets/"):]
     if "/" not in rel or rel.startswith("/"):
         return None
-    return os.path.join(str(TEMPLATE_ASSET_DIR), rel)
+    root = os.path.realpath(str(TEMPLATE_ASSET_DIR))
+    resolved = os.path.realpath(os.path.join(root, rel))
+    if not resolved.startswith(root + os.sep):
+        return None
+    return resolved
