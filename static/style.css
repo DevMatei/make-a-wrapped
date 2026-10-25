@@ -1066,6 +1066,13 @@ details.panel > summary:hover {
   margin: 0 auto;
 }
 
+.ad-cta {
+  margin: 6px 0 0;
+  text-align: center;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+
 [data-devmatei-ad]:empty {
   display: none;
 }
