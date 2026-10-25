@@ -19,17 +19,13 @@
     <meta name="twitter:title" content="Navidrome Wrapped - Spotify Wrapped for your self-hosted music">
     <meta name="twitter:description" content="Turn your Navidrome server's play counts into a shareable Wrapped poster.">
     <meta name="twitter:image" content="https://github.com/user-attachments/assets/56c0dcd2-b111-4978-ac1f-2ae802f00237">
-    <meta name="theme-color" content="#c084fc">
+    <meta name="theme-color" content="#15121f">
     <meta name="color-scheme" content="dark">
+    <script>try{var t=localStorage.getItem('wrapped-theme');document.documentElement.dataset.theme=/^(lavender|mint|sunset)$/.test(t)?t:'lavender'}catch(e){document.documentElement.dataset.theme='lavender'}</script>
     <link rel="icon" type="image/svg+xml" href="favicon-lavender.svg">
     <link rel="apple-touch-icon" sizes="180x180" href="favicon-lavender-180.png">
     <link rel="stylesheet" href="style.css">
-    <style>
-      .landing { max-width: 720px; margin: 0 auto; display: grid; gap: 1.25rem; }
-      .landing .card__body p { margin-bottom: 0.75rem; }
-      .landing h2 { margin-bottom: 0.5rem; }
-      .landing .btn { display: inline-block; text-decoration: none; margin-top: 0.5rem; }
-    </style>
+    <script type="module" src="js/site.js"></script>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
@@ -87,78 +83,62 @@
     <script defer src="https://analytics.devmatei.com/script.js" data-website-id="a24ad413-b9c9-4ade-95a0-2c0f6dea6db7"></script>
   </head>
   <body>
-    <main class="page">
-      <div class="landing">
-        <section class="card">
-          <div class="card__body">
-            <h1>navidrome wrapped</h1>
-            <p class="intro-copy">
-              this is the navidrome wrapped generator from make a wrapped, a free open source tool for self hosters. you ditched spotify and self-host your music like a champ, but you also lost the yearly wrapped moment. this brings it back. point it at your navidrome server and get a spotify wrapped style poster: top artists, top tracks, top genre, and total listening time from your actual play counts.
-            </p>
-            <a class="btn" href="/?service=navidrome">make your navidrome wrapped</a>
-          </div>
-        </section>
-        <div
+    <header class="topline">
+      <a href="/">make a wrapped</a> <span aria-hidden="true">/</span> <span aria-current="page">navidrome wrapped</span>
+    </header>
+    <main class="page page--prose">
+      <article class="prose">
+        <h1>navidrome wrapped</h1>
+        <p class="lede">
+          this is the navidrome wrapped generator from make a wrapped, a free open source tool for self hosters. you ditched spotify and self-host your music like a champ, but you also lost the yearly wrapped moment. this brings it back. point it at your navidrome server and get a spotify wrapped style poster: top artists, top tracks, top genre, and total listening time from your actual play counts.
+        </p>
+        <p class="cta"><a class="btn" href="/?service=navidrome">make your navidrome wrapped</a></p>
+        <div class="ad-slot"><div
           data-devmatei-ad
           data-tier="text"
           data-max-width="100%"
-          data-radius="16px"
+          data-radius="12px"
           data-fallback-text="your project could be here"
-        ></div>
+        ></div></div>
 
-        <section class="card">
-          <div class="card__body">
-            <h2>your credentials stay in your browser</h2>
-            <p>
-              the whole navidrome scan runs client-side. your browser talks straight to your server over the subsonic api with standard salted token auth, so your password never touches this site's backend. paranoid? good, <a href="https://github.com/DevMatei/make-a-wrapped" rel="noopener noreferrer" target="_blank">read the code</a> or self-host it next to your navidrome instance.
-            </p>
-          </div>
-        </section>
+        <h2>your credentials stay in your browser</h2>
+        <p>
+          the whole navidrome scan runs client-side. your browser talks straight to your server over the subsonic api with standard salted token auth, so your password never touches this site's backend. paranoid? good, <a href="https://github.com/DevMatei/make-a-wrapped" rel="noopener noreferrer" target="_blank">read the code</a> or self-host it next to your navidrome instance.
+        </p>
 
-        <section class="card">
-          <div class="card__body">
-            <h2>how it works</h2>
-            <p>
-              enter your server url, username, and password, pick a time period, hit generate. the app pages through your library, adds up play counts and durations, and builds the poster right there. album art comes straight from your own server, or upload your own image.
-            </p>
-            <p>
-              your server just needs to be reachable from the browser you're using. local network, tailscale, reverse proxy, whatever you've got.
-            </p>
-          </div>
-        </section>
+        <h2>how it works</h2>
+        <p>
+          enter your server url, username, and password, pick a time period, hit generate. the app pages through your library, adds up play counts and durations, and builds the poster right there. album art comes straight from your own server, or upload your own image.
+        </p>
+        <p>
+          your server just needs to be reachable from the browser you're using. local network, tailscale, reverse proxy, whatever you've got.
+        </p>
 
-        <section class="card">
-          <div class="card__body">
-            <h2>why use this one</h2>
-            <p>
-              honest version, no hype. navidrome does not do a yearly wrapped by itself. this fills the gap, runs fully in your browser, never sends your password to our backend, is free and open source under agpl, and works with any month or year. that is the whole pitch for <a href="/">make a wrapped</a>.
-            </p>
-          </div>
-        </section>
+        <h2>why use this one</h2>
+        <p>
+          honest version, no hype. navidrome does not do a yearly wrapped by itself. this fills the gap, runs fully in your browser, never sends your password to our backend, is free and open source under agpl, and works with any month or year. that is the whole pitch for <a href="/">make a wrapped</a>.
+        </p>
 
-        <section class="card">
-          <div class="card__body">
-            <h2>faq</h2>
-            <p><strong>does my password get stored anywhere?</strong> no. it's only used in your browser to sign subsonic requests to your own server.</p>
-            <p><strong>which servers work?</strong> built for navidrome. other subsonic-compatible servers may work if they report per-song play counts, no promises tho.</p>
-            <p><strong>custom periods?</strong> yes, any month or year based on the play dates your server reports.</p>
-            <p><strong>is it free?</strong> yes, open source under agpl.</p>
-          </div>
-        </section>
+        <h2>faq</h2>
+        <p><strong>does my password get stored anywhere?</strong> no. it's only used in your browser to sign subsonic requests to your own server.</p>
+        <p><strong>which servers work?</strong> built for navidrome. other subsonic-compatible servers may work if they report per-song play counts, no promises tho.</p>
+        <p><strong>custom periods?</strong> yes, any month or year based on the play dates your server reports.</p>
+        <p><strong>is it free?</strong> yes, open source under agpl.</p>
 
-        <section class="card">
-          <div class="card__body">
-            <h2>not on navidrome?</h2>
-            <p>
-              the same generator works with <a href="/">make a wrapped</a> home, listenbrainz and <a href="/lastfm-wrapped">last.fm</a> too. same poster, different source.
-            </p>
-            <p>
-              not affiliated with navidrome or spotify. just a fan project by <a href="https://devmatei.com" rel="noopener noreferrer" target="_blank">devmatei</a>.
-            </p>
-          </div>
-        </section>
-      </div>
+        <h2>not on navidrome?</h2>
+        <p>
+          the same generator works with <a href="/">make a wrapped</a> home, listenbrainz and <a href="/lastfm-wrapped">last.fm</a> too. same poster, different source.
+        </p>
+        <p>
+          not affiliated with navidrome or spotify. just a fan project by <a href="https://devmatei.com" rel="noopener noreferrer" target="_blank">devmatei</a>.
+        </p>
+      </article>
     </main>
-  <script async src="https://sponsor.devmatei.com/embed/ad.js"></script>
+
+    <footer class="site-footer">
+      <p>made by <a href="https://devmatei.com" target="_blank" rel="noopener noreferrer author">matei</a>, agpl on <a href="https://github.com/DevMatei/make-a-wrapped" target="_blank" rel="noopener noreferrer">github</a>. not affiliated with spotify, listenbrainz, last.fm, libre.fm, navidrome or musicbrainz.</p>
+    </footer>
+
+    <script async src="https://sponsor.devmatei.com/embed/ad.js"></script>
   </body>
 </html>
