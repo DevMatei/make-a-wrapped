@@ -26,7 +26,7 @@ export function normaliseTemplate(raw) {
     background: normaliseBackground(background),
     artwork: {
       enabled: artwork.enabled !== false,
-      contain: artwork.contain !== false,
+      contain: artwork.contain === true,
       x: Number.isFinite(artwork.x) ? artwork.x : 268,
       y: Number.isFinite(artwork.y) ? artwork.y : 244,
       size: Number.isFinite(artwork.size) ? artwork.size : 544,
@@ -174,6 +174,116 @@ function drawBackground(ctx, template) {
   ctx.fillRect(0, 0, width, height);
 }
 
+const CENTER_FOCUS = { x: 0.5, y: 0.5 };
+const FOCUS_SAMPLE_SIZE = 96;
+const focusCache = new WeakMap();
+
+function createScratchCanvas(ctx, width, height) {
+  if (typeof OffscreenCanvas !== 'undefined') {
+    return new OffscreenCanvas(width, height);
+  }
+  if (typeof document !== 'undefined') {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    return canvas;
+  }
+  try {
+    return new ctx.canvas.constructor(width, height);
+  } catch {
+    return null;
+  }
+}
+
+// skin tones count most (faces), edges a little, so tall photos keep the head in frame
+function pixelInterest(pixels, width, x, y) {
+  const index = (y * width + x) * 4;
+  const r = pixels[index];
+  const g = pixels[index + 1];
+  const b = pixels[index + 2];
+  const luma = (r, g, b) => 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  const lum = luma(r, g, b);
+  let skin = 0;
+  const mag = Math.sqrt(r * r + g * g + b * b) || 1;
+  const distance = Math.hypot(r / mag - 0.78, g / mag - 0.57, b / mag - 0.44);
+  if (1 - distance > 0.8 && lum > 0.2 * 255) {
+    skin = (1 - distance - 0.8) / 0.2;
+  }
+  const at = (dx, dy) => {
+    const i = ((y + dy) * width + (x + dx)) * 4;
+    return luma(pixels[i], pixels[i + 1], pixels[i + 2]);
+  };
+  const edge = Math.abs(4 * lum - at(-1, 0) - at(1, 0) - at(0, -1) - at(0, 1)) / 255;
+  return skin * 1.8 + Math.min(edge, 1) * 0.2;
+}
+
+function computeCropFocus(ctx, art, imgWidth, imgHeight) {
+  const ratio = FOCUS_SAMPLE_SIZE / Math.max(imgWidth, imgHeight);
+  const width = Math.max(3, Math.round(imgWidth * ratio));
+  const height = Math.max(3, Math.round(imgHeight * ratio));
+  const scratch = createScratchCanvas(ctx, width, height);
+  if (!scratch) {
+    return CENTER_FOCUS;
+  }
+  const sctx = scratch.getContext('2d');
+  sctx.drawImage(art, 0, 0, width, height);
+  const pixels = sctx.getImageData(0, 0, width, height).data;
+
+  const rows = new Array(height).fill(0);
+  let total = 0;
+  for (let y = 1; y < height - 1; y += 1) {
+    for (let x = 1; x < width - 1; x += 1) {
+      const score = pixelInterest(pixels, width, x, y);
+      rows[y] += score;
+      total += score;
+    }
+  }
+  const travel = height - width;
+  if (travel <= 0) {
+    return CENTER_FOCUS;
+  }
+  if (total < 1) {
+    return { x: 0.5, y: 0.35 };
+  }
+  for (let y = 0; y < height; y += 1) {
+    rows[y] *= 1.4 - (0.9 * y) / height;
+  }
+  let best = travel / 2;
+  let bestScore = -Infinity;
+  for (let start = 0; start <= travel; start += 1) {
+    let score = 0;
+    for (let i = 0; i < width; i += 1) {
+      score += rows[start + i] * (0.6 + 0.4 * Math.sin((Math.PI * (i + 0.5)) / width));
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      best = start;
+    }
+  }
+  return { x: 0.5, y: best / travel };
+}
+
+function findCropFocus(ctx, art) {
+  const imgWidth = art.naturalWidth || art.width;
+  const imgHeight = art.naturalHeight || art.height;
+  if (!imgWidth || !imgHeight || (imgHeight - imgWidth) / imgHeight < 0.02) {
+    return CENTER_FOCUS;
+  }
+  const key = `${typeof art.currentSrc === 'string' ? art.currentSrc : ''}|${typeof art.src === 'string' ? art.src : ''}|${imgWidth}x${imgHeight}`;
+  const cached = focusCache.get(art);
+  if (cached && cached.key === key) {
+    return cached.focus;
+  }
+  let focus = CENTER_FOCUS;
+  try {
+    focus = computeCropFocus(ctx, art, imgWidth, imgHeight);
+  } catch {
+    focus = CENTER_FOCUS;
+  }
+  focusCache.set(art, { key, focus });
+  return focus;
+}
+
 function drawArtwork(ctx, template, art, artTransform) {
   const config = template.artwork;
   if (!config || config.enabled === false) {
@@ -195,8 +305,9 @@ function drawArtwork(ctx, template, art, artTransform) {
 
   const drawWidth = imgWidth * fitScale * scale;
   const drawHeight = imgHeight * fitScale * scale;
-  const drawX = destX + (destSize - drawWidth) / 2 + offsetX;
-  const drawY = destY + (destSize - drawHeight) / 2 + offsetY;
+  const focus = config.contain ? { x: 0.5, y: 0.5 } : findCropFocus(ctx, art);
+  const drawX = destX + (destSize - drawWidth) * focus.x + offsetX;
+  const drawY = destY + (destSize - drawHeight) * focus.y + offsetY;
   const radius = Number.isFinite(config.borderRadius) ? config.borderRadius : 32;
 
   ctx.save();
