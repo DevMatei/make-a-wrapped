@@ -1711,6 +1711,10 @@ async function generateWrapped(event) {
     const hasArtists = Array.isArray(data.artists) && data.artists.length > 0;
     const hasTracks = Array.isArray(data.tracks) && data.tracks.length > 0;
     if (!hasArtists && !hasTracks) {
+      const failed = state.sectionWarnings.find((entry) => /artists|tracks/i.test(entry.section));
+      if (failed) {
+        throw new Error(String(failed.details || 'network error'));
+      }
       const empty = new Error(`no listens found for ${username} in ${periodLabel}. try a longer time frame.`);
       empty.__emptyResult = true;
       throw empty;
