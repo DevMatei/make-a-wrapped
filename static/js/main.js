@@ -1702,7 +1702,7 @@ async function generateWrapped(event) {
   setLoading(true);
   setStatus(selectedService === 'navidrome'
     ? 'talking to your navidrome server...'
-    : 'fetching your top artists...');
+    : `pulling your stats for ${periodLabel}...`);
   scrollIntoViewIfNarrow(posterEl);
 
   try {
@@ -2168,6 +2168,24 @@ async function updateListenBrainzSections(username, sections) {
     });
   }
 
+  const periodLabel = (activeRange && activeRange.label) || 'this year';
+  const stepLabels = {
+    'Top artists': customRange ? `going through your listens for ${periodLabel}` : 'counting your top artists',
+    'Top tracks': 'ranking your top tracks',
+    'Minutes listened': 'adding up your minutes',
+    'Top genre': 'figuring out your top genre',
+    'Artist image': 'finding artist art',
+  };
+  const pending = new Set(queue.map((task) => task.section));
+  const showProgress = () => {
+    const current = queue.find((task) => pending.has(task.section));
+    if (!current || state.queueMessageVisible) return;
+    const done = queue.length - pending.size;
+    const step = stepLabels[current.section] || `loading ${current.section.toLowerCase()}`;
+    setStatus(queue.length > 1 ? `${step}... (${done}/${queue.length})` : `${step}...`);
+  };
+  showProgress();
+
   const runTask = async (task) => {
     try {
       await task.run();
@@ -2179,6 +2197,9 @@ async function updateListenBrainzSections(username, sections) {
         return null;
       }
       return error;
+    } finally {
+      pending.delete(task.section);
+      showProgress();
     }
   };
 
