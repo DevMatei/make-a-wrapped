@@ -21,7 +21,7 @@ what problem does this solve? why do we want it?
 
 ## testing
 
-- [ ] i ran `python -m py_compile wrapped-fm.py`
+- [ ] i ran `python -m py_compile wrapped-fm.py` and the tests (`python -m unittest discover -s wrapped_fm/tests -t .`)
 - [ ] i tested it locally and it works
 - [ ] if it's a ui change, i attached a screenshot
 

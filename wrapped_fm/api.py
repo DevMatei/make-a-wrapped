@@ -302,8 +302,13 @@ def _provider_data(source: dict) -> tuple[dict, dict, object]:
             or not isinstance(selected_range.get("year"), int)
         ):
             abort(400, description="specific_month needs integer month and year values.")
+    elif preset == "specific_year":
+        if "month" in selected_range:
+            abort(400, description="month is only accepted with the specific_month period.")
+        if isinstance(selected_range.get("year"), bool) or not isinstance(selected_range.get("year"), int):
+            abort(400, description="specific_year needs an integer year value.")
     elif "month" in selected_range or "year" in selected_range:
-        abort(400, description="month and year are only accepted with the specific_month period.")
+        abort(400, description="month and year are only accepted with the specific_month or specific_year periods.")
     try:
         range_obj = resolve_preset(
             preset,
@@ -475,8 +480,13 @@ def _artwork_options(value, source_info: dict | None, range_obj) -> tuple[dict, 
             year = selected_range.get("year")
             if type(month) is not int or type(year) is not int:
                 abort(400, description="artwork.range specific_month needs integer month and year values.")
+        elif preset == "specific_year":
+            if "month" in selected_range:
+                abort(400, description="artwork.range month is only accepted with specific_month.")
+            if type(selected_range.get("year")) is not int:
+                abort(400, description="artwork.range specific_year needs an integer year value.")
         elif "month" in selected_range or "year" in selected_range:
-            abort(400, description="artwork.range month and year are only accepted with specific_month.")
+            abort(400, description="artwork.range month and year are only accepted with specific_month or specific_year.")
         try:
             selected_range_obj = resolve_preset(
                 preset,

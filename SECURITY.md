@@ -1,40 +1,40 @@
-# Security Policy
+# security policy
 
-## Reporting a Vulnerability
+## reporting a vulnerability
 
-Found a security issue in Make a Wrapped? Please report it privately so we can fix it before it becomes public.
+found a security issue in make a wrapped? please report it privately so it can be fixed before it's public.
 
-- [Report a vulnerability on GitHub](https://github.com/DevMatei/make-a-wrapped/security/advisories/new) (recommended). Private vulnerability reporting is enabled, so your report stays private until we publish it.
-- Or email [hello@devmatei.com](mailto:hello@devmatei.com).
+- [report it on github](https://github.com/DevMatei/make-a-wrapped/security/advisories/new) (recommended). private vulnerability reporting is on, so it stays private until it's published.
+- or email [hello@devmatei.com](mailto:hello@devmatei.com).
 
-Do **not** open a public issue, PR, or forum post about a vulnerability before we've had a chance to assess and fix it. Responsible disclosure helps everyone.
+please **don't** open a public issue, pr, discord message or forum post about it before it's been looked at and fixed.
 
-## What to Include
+## what to include
 
-A good report is short but complete. Please share:
+short but complete is perfect:
 
-- The affected URL, endpoint, or component.
-- A step by step way to reproduce it.
-- The impact (what an attacker could gain).
-- Any proof of concept, screenshots, or logs (optional).
-- Your preferred way to be credited in the acknowledgements, if any.
+- the affected url, endpoint or component
+- steps to reproduce
+- the impact (what an attacker could get)
+- a proof of concept, screenshots or logs, if you have them
+- how you'd like to be credited, if at all
 
-If you found a data leak, auth bypass, injection, or anything that could put a user's data or credentials at risk, that counts. Even if you're not sure, send it our way.
+data leaks, auth bypasses, injection, path traversal, or anything that could put someone's data or credentials at risk all count. not sure if it counts? send it anyway.
 
-## Supported Versions
+## supported versions
 
-Only the latest release is actively maintained for security fixes. Older versions and unreleased builds are not guaranteed to receive patches.
+only the latest release gets security fixes.
 
-| Version | Supported |
+| version | supported |
 | --- | --- |
-| Latest release | Yes |
-| Older releases | No |
-| `develop` / unreleased features | No, use at your own risk |
+| latest release | yes |
+| older releases | no |
+| `develop` / unreleased | no, use at your own risk |
 
-## Response
+## what happens next
 
-We'll acknowledge your report as soon as we can, usually within a few days. We'll keep you updated on the fix and, once it ships, let you know on the changelog. If you want public credit, we're happy to add you to the acknowledgements.
+i'll acknowledge your report as soon as i can, usually within a few days, and keep you posted on the fix. once it ships it goes in the release notes, with credit if you want it.
 
-## Scope
+## scope
 
-Make a Wrapped is a small open source project. Your credentials never leave your browser when using Navidrome, and the server only stores essential data for badges and artwork. If you're unsure whether something is in scope, report it anyway.
+the code in this repo and the hosted site at [wrapped.devmatei.com](https://wrapped.devmatei.com). for context: navidrome credentials never leave your browser, and the server only keeps what it needs (uploaded artwork for an hour, navidrome badge snapshots, template submissions and counters). problems in listenbrainz, last.fm, libre.fm or navidrome themselves should go to those projects.

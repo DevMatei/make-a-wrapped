@@ -201,7 +201,7 @@ def _validate_artwork(raw: Any) -> Dict[str, Any]:
     enabled = bool(raw.get("enabled", True))
     return {
         "enabled": enabled,
-        "contain": bool(raw.get("contain", True)),
+        "contain": bool(raw.get("contain", False)),
         "x": _validate_number(raw.get("x", 268), 268, 0, CANVAS_WIDTH),
         "y": _validate_number(raw.get("y", 244), 244, 0, CANVAS_HEIGHT),
         "size": _validate_number(raw.get("size", 544), 544, 80, CANVAS_WIDTH),

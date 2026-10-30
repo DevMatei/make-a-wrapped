@@ -28,6 +28,8 @@ class ResolvePresetTests(unittest.TestCase):
             ("last_month", {}, "2025-06-01", "2025-07-01", "month", True, MONTH_KIND),
             ("specific_month", {"month": 3, "year": 2024}, "2024-03-01", "2024-04-01", None, True, MONTH_KIND),
             ("specific_month", {"month": 7, "year": 2025}, "2025-07-01", "2025-07-08", None, True, MONTH_KIND),
+            ("specific_year", {"year": 2023}, "2023-01-01", "2024-01-01", None, True, YEAR_KIND),
+            ("specific_year", {"year": 2025}, "2025-01-01", "2025-07-08", None, True, YEAR_KIND),
             ("all_time", {}, "1970-01-01", "2025-07-08", "all_time", False, None),
         ]
 
@@ -43,6 +45,7 @@ class ResolvePresetTests(unittest.TestCase):
                     self.assertEqual(result.kind, kind)
 
         self.assertEqual(resolve_preset("specific_month", month=3, year=2024, reference=REFERENCE).label, "March 2024")
+        self.assertEqual(resolve_preset("specific_year", year=2023, reference=REFERENCE).label, "2023")
 
     def test_rejects_invalid_presets(self):
         cases = [
@@ -51,6 +54,8 @@ class ResolvePresetTests(unittest.TestCase):
             ("missing month", "specific_month", {}),
             ("month out of range", "specific_month", {"month": 13, "year": 2025}),
             ("bad year", "specific_month", {"month": 5, "year": "not-a-year"}),
+            ("future year", "specific_year", {"year": 2030}),
+            ("missing year", "specific_year", {}),
         ]
 
         for name, preset, extra in cases:
@@ -62,7 +67,7 @@ class ResolvePresetTests(unittest.TestCase):
 
         self.assertEqual(
             {entry["value"] for entry in list_presets()},
-            {"this_year", "last_year", "last_12_months", "this_month", "last_month", "specific_month", "all_time"},
+            {"this_year", "last_year", "last_12_months", "this_month", "last_month", "specific_month", "specific_year", "all_time"},
         )
         self.assertTrue({"presets", "months", "years", "defaults", "maxSpecificMonth"} <= set(descriptor))
         self.assertEqual(descriptor["defaults"]["preset"], "this_year")
@@ -72,6 +77,7 @@ class ResolvePresetTests(unittest.TestCase):
         result = parse_query_params([("range", "specific_month"), ("month", "5"), ("year", "2024")])
 
         self.assertEqual((result.preset, result.start_iso), ("specific_month", "2024-05-01"))
+        self.assertEqual(parse_query_params([("range", "specific_year"), ("year", "2022")]).start_iso, "2022-01-01")
         self.assertEqual(parse_query_params([("range", "garbage")]).preset, "this_year")
 
 

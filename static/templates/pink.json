@@ -29,7 +29,7 @@
   },
   "artwork": {
     "enabled": true,
-    "contain": true,
+    "contain": false,
     "x": 268,
     "y": 244,
     "size": 544,

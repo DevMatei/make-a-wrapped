@@ -6,10 +6,12 @@ const PERIOD_PRESET_VALUES = new Set([
   'this_month',
   'last_month',
   'specific_month',
+  'specific_year',
   'all_time',
 ]);
 
 const SPECIFIC_MONTH_VALUE = 'specific_month';
+const SPECIFIC_YEAR_VALUE = 'specific_year';
 
 function clone(value) {
   if (typeof structuredClone === 'function') {
@@ -71,9 +73,11 @@ function buildQueryString(selection) {
   if (!selection || !selection.preset) return '';
   const params = new URLSearchParams();
   params.set('range', selection.preset);
-  if (selection.preset === SPECIFIC_MONTH_VALUE) {
-    if (selection.month) params.set('month', String(selection.month));
-    if (selection.year) params.set('year', String(selection.year));
+  if (selection.preset === SPECIFIC_MONTH_VALUE && selection.month) {
+    params.set('month', String(selection.month));
+  }
+  if ((selection.preset === SPECIFIC_MONTH_VALUE || selection.preset === SPECIFIC_YEAR_VALUE) && selection.year) {
+    params.set('year', String(selection.year));
   }
   return params.toString();
 }
@@ -81,6 +85,12 @@ function buildQueryString(selection) {
 function validateSelection(selection, descriptor) {
   if (!selection || !PERIOD_PRESET_VALUES.has(selection.preset)) {
     return defaultFromDescriptor(descriptor);
+  }
+  if (selection.preset === SPECIFIC_YEAR_VALUE) {
+    const year = Number(selection.year);
+    const maxYear = maxMonthFrom(descriptor).year;
+    const valid = Number.isInteger(year) && year >= 1970 && year < maxYear;
+    return { preset: SPECIFIC_YEAR_VALUE, month: null, year: valid ? year : maxYear - 1 };
   }
   if (selection.preset !== SPECIFIC_MONTH_VALUE) {
     return { preset: selection.preset, month: null, year: null };
@@ -101,6 +111,7 @@ export function createPeriodSelector({ descriptor, onChange } = {}) {
   const specificGroup = document.querySelector('[data-period-specific]');
   const monthSelect = document.getElementById('period-specific-month');
   const yearSelect = document.getElementById('period-specific-year');
+  const specificHint = document.getElementById('period-specific-hint');
 
   let _descriptor = descriptor || null;
   let current = defaultFromDescriptor(_descriptor);
@@ -135,7 +146,10 @@ export function createPeriodSelector({ descriptor, onChange } = {}) {
     const max = maxMonthFrom(_descriptor);
     const years = _descriptor && Array.isArray(_descriptor.years) && _descriptor.years.length
       ? _descriptor.years.map(Number)
-      : Array.from({ length: 10 }, (_, i) => max.year - i);
+      : Array.from({ length: 20 }, (_, i) => max.year - i);
+    if (current.preset === SPECIFIC_YEAR_VALUE) {
+      return years.filter((year) => year < max.year);
+    }
     return years.filter((year) => year < max.year || (year === max.year && max.month > 1));
   }
 
@@ -151,11 +165,16 @@ export function createPeriodSelector({ descriptor, onChange } = {}) {
 
   function renderSpecific() {
     if (!specificGroup) return;
-    const visible = current.preset === SPECIFIC_MONTH_VALUE;
+    const pickingYear = current.preset === SPECIFIC_YEAR_VALUE;
+    const visible = current.preset === SPECIFIC_MONTH_VALUE || pickingYear;
     specificGroup.hidden = !visible;
     if (!visible || !monthSelect || !yearSelect) return;
+    const monthField = monthSelect.closest('.field');
+    if (monthField) monthField.hidden = pickingYear;
+    if (specificHint) specificHint.textContent = pickingYear ? 'only finished years are listed.' : 'only finished months are listed.';
     const years = yearEntries();
     fillOptions(yearSelect, years.map((year) => ({ value: year, label: String(year) })), current.year);
+    if (pickingYear) return;
     const months = monthEntries().filter((entry) => isFinishedMonth(entry.value, current.year, _descriptor));
     fillOptions(monthSelect, months, current.month);
   }
@@ -175,7 +194,7 @@ export function createPeriodSelector({ descriptor, onChange } = {}) {
     select.addEventListener('change', () => {
       const preset = select.value;
       if (!PERIOD_PRESET_VALUES.has(preset)) return;
-      const next = preset === SPECIFIC_MONTH_VALUE
+      const next = preset === SPECIFIC_MONTH_VALUE || preset === SPECIFIC_YEAR_VALUE
         ? { preset, month: current.month, year: current.year }
         : { preset };
       applySelection(next);
@@ -191,6 +210,11 @@ export function createPeriodSelector({ descriptor, onChange } = {}) {
     if (yearSelect) {
       yearSelect.addEventListener('change', () => {
         const year = Number(yearSelect.value);
+        if (current.preset === SPECIFIC_YEAR_VALUE) {
+          applySelection({ ...current, year });
+          emit();
+          return;
+        }
         let month = current.month;
         if (!isFinishedMonth(month, year, _descriptor)) {
           month = maxMonthFrom(_descriptor).month - 1;
@@ -223,13 +247,14 @@ export async function loadPeriodDescriptor() {
         { value: 'this_month', label: 'This month', kind: 'month' },
         { value: 'last_month', label: 'Last month', kind: 'month' },
         { value: 'specific_month', label: 'Specific month', kind: 'month' },
+        { value: 'specific_year', label: 'Specific year', kind: 'year' },
         { value: 'all_time', label: 'All time', kind: 'year' },
       ],
       months: Array.from({ length: 12 }, (_, i) => ({
         value: String(i + 1),
         label: new Date(2000, i, 1).toLocaleString(undefined, { month: 'long' }),
       })),
-      years: Array.from({ length: 10 }, (_, i) => new Date().getUTCFullYear() - i),
+      years: Array.from({ length: 20 }, (_, i) => new Date().getUTCFullYear() - i),
       defaults: {
         preset: 'this_year',
         month: new Date().getUTCMonth() + 1,

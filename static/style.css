@@ -2437,3 +2437,9 @@ details.panel > summary:hover {
     margin-right: 0;
   }
 }
+
+.result__discord a,
+.result__support a,
+.intro__meta a.intro__support {
+  color: var(--accent);
+}

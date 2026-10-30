@@ -50,6 +50,7 @@ const usernameWrap = document.getElementById('username-field');
 const posterTag = document.getElementById('poster-tag');
 const posterEl = document.getElementById('poster');
 const downloadHint = document.getElementById('download-hint');
+const supportNote = document.getElementById('support-note');
 const counterLine = document.getElementById('counter-line');
 const artworkSourceHint = document.getElementById('artwork-source-hint');
 const serviceHiddenInput = document.getElementById('service');
@@ -140,15 +141,21 @@ function buildRequestUrl(path) {
   let url = serviceSelector.withService(path);
   if (state.activeRange) {
     const params = new URLSearchParams();
-    params.set('range', state.activeRange.preset);
-    if (state.activeRange.preset === 'specific_month') {
-      if (state.activeRange.month) params.set('month', String(state.activeRange.month));
-      if (state.activeRange.year) params.set('year', String(state.activeRange.year));
-    }
+    appendRangeParams(params, state.activeRange);
     const separator = url.includes('?') ? '&' : '?';
     url = `${url}${separator}${params.toString()}`;
   }
   return url;
+}
+
+function appendRangeParams(params, range) {
+  params.set('range', range.preset);
+  if (range.preset === 'specific_month' && range.month) {
+    params.set('month', String(range.month));
+  }
+  if ((range.preset === 'specific_month' || range.preset === 'specific_year') && range.year) {
+    params.set('year', String(range.year));
+  }
 }
 
 function buildFallbackRequestUrl(path) {
@@ -168,9 +175,12 @@ function buildRangeFromSelection(selection) {
   }
   const descriptor = state.periodDescriptor || {};
   const defaults = descriptor.defaults || {};
-  const label = selection.preset === 'specific_month' && selection.month && selection.year
-    ? formatSpecificMonthLabel(selection.month, selection.year)
-    : (PRESET_LABELS[selection.preset] || selection.preset);
+  let label = PRESET_LABELS[selection.preset] || selection.preset;
+  if (selection.preset === 'specific_month' && selection.month && selection.year) {
+    label = formatSpecificMonthLabel(selection.month, selection.year);
+  } else if (selection.preset === 'specific_year' && selection.year) {
+    label = String(selection.year);
+  }
   let startTs = null;
   let endTs = null;
   if (selection.preset === 'this_year' || selection.preset === 'all_time') {
@@ -206,6 +216,10 @@ function buildRangeFromSelection(selection) {
     const month = Number(selection.month || defaults.month || 1);
     startTs = Math.floor(Date.UTC(year, month - 1, 1) / 1000);
     endTs = Math.floor(Date.UTC(year, month, 1) / 1000);
+  } else if (selection.preset === 'specific_year') {
+    const year = Number(selection.year || new Date().getUTCFullYear() - 1);
+    startTs = Math.floor(Date.UTC(year, 0, 1) / 1000);
+    endTs = Math.floor(Date.UTC(year + 1, 0, 1) / 1000);
   }
   const kind = (descriptor.presets || []).find((p) => p.value === selection.preset)?.kind
     || (selection.preset === 'this_month' || selection.preset === 'last_month' || selection.preset === 'specific_month' ? 'month' : 'year');
@@ -330,11 +344,7 @@ async function buildBadgeUrl({ preview = false } = {}) {
     path = `/badge/${encodeURIComponent(username)}`;
     params.set('service', getSelectedService());
     if (state.activeRange && state.activeRange.preset) {
-      params.set('range', state.activeRange.preset);
-      if (state.activeRange.preset === 'specific_month') {
-        if (state.activeRange.month) params.set('month', String(state.activeRange.month));
-        if (state.activeRange.year) params.set('year', String(state.activeRange.year));
-      }
+      appendRangeParams(params, state.activeRange);
     }
   }
   return `${path}?${params.toString()}`;
@@ -980,6 +990,9 @@ function syncDownload() {
   downloadBtn.setAttribute('aria-disabled', String(!ready));
   if (downloadHint) {
     downloadHint.hidden = Boolean(state.hasResult);
+  }
+  if (supportNote) {
+    supportNote.hidden = !state.hasResult;
   }
   if (downloadError) {
     downloadError.hidden = !state.hasResult || state.isCoverReady;
@@ -1702,7 +1715,7 @@ async function generateWrapped(event) {
   setLoading(true);
   setStatus(selectedService === 'navidrome'
     ? 'talking to your navidrome server...'
-    : 'fetching your top artists...');
+    : `pulling your stats for ${periodLabel}...`);
   scrollIntoViewIfNarrow(posterEl);
 
   try {
@@ -1711,6 +1724,10 @@ async function generateWrapped(event) {
     const hasArtists = Array.isArray(data.artists) && data.artists.length > 0;
     const hasTracks = Array.isArray(data.tracks) && data.tracks.length > 0;
     if (!hasArtists && !hasTracks) {
+      const failed = state.sectionWarnings.find((entry) => /artists|tracks/i.test(entry.section));
+      if (failed) {
+        throw new Error(String(failed.details || 'network error'));
+      }
       const empty = new Error(`no listens found for ${username} in ${periodLabel}. try a longer time frame.`);
       empty.__emptyResult = true;
       throw empty;
@@ -1787,7 +1804,7 @@ const LOW_DATA_MIN_TRACKS = 1;
 const LOW_DATA_MIN_MINUTES = 5;
 
 function isCustomPreset(preset) {
-  return preset === 'specific_month' || preset === 'last_12_months' || preset === 'last_year';
+  return preset === 'specific_month' || preset === 'specific_year' || preset === 'last_12_months' || preset === 'last_year';
 }
 
 function readResponsePeriod(response) {
@@ -2164,6 +2181,24 @@ async function updateListenBrainzSections(username, sections) {
     });
   }
 
+  const periodLabel = (activeRange && activeRange.label) || 'this year';
+  const stepLabels = {
+    'Top artists': customRange ? `going through your listens for ${periodLabel}` : 'counting your top artists',
+    'Top tracks': 'ranking your top tracks',
+    'Minutes listened': 'adding up your minutes',
+    'Top genre': 'figuring out your top genre',
+    'Artist image': 'finding artist art',
+  };
+  const pending = new Set(queue.map((task) => task.section));
+  const showProgress = () => {
+    const current = queue.find((task) => pending.has(task.section));
+    if (!current || state.queueMessageVisible) return;
+    const done = queue.length - pending.size;
+    const step = stepLabels[current.section] || `loading ${current.section.toLowerCase()}`;
+    setStatus(queue.length > 1 ? `${step}... (${done}/${queue.length})` : `${step}...`);
+  };
+  showProgress();
+
   const runTask = async (task) => {
     try {
       await task.run();
@@ -2175,6 +2210,9 @@ async function updateListenBrainzSections(username, sections) {
         return null;
       }
       return error;
+    } finally {
+      pending.delete(task.section);
+      showProgress();
     }
   };
 
