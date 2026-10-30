@@ -50,6 +50,7 @@ const usernameWrap = document.getElementById('username-field');
 const posterTag = document.getElementById('poster-tag');
 const posterEl = document.getElementById('poster');
 const downloadHint = document.getElementById('download-hint');
+const supportNote = document.getElementById('support-note');
 const counterLine = document.getElementById('counter-line');
 const artworkSourceHint = document.getElementById('artwork-source-hint');
 const serviceHiddenInput = document.getElementById('service');
@@ -980,6 +981,9 @@ function syncDownload() {
   downloadBtn.setAttribute('aria-disabled', String(!ready));
   if (downloadHint) {
     downloadHint.hidden = Boolean(state.hasResult);
+  }
+  if (supportNote) {
+    supportNote.hidden = !state.hasResult;
   }
   if (downloadError) {
     downloadError.hidden = !state.hasResult || state.isCoverReady;

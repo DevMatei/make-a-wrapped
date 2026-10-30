@@ -2438,6 +2438,8 @@ details.panel > summary:hover {
   }
 }
 
-.result__discord a {
+.result__discord a,
+.result__support a,
+.intro__meta a.intro__support {
   color: var(--accent);
 }
