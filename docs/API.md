@@ -113,8 +113,8 @@ curl --fail-with-body https://wrapped.devmatei.com/api/v1/wrapped \
 | `type` | `provider` | required |
 | `provider` | `listenbrainz`, `lastfm`, `librefm` | required |
 | `username` | the public username on that service | required |
-| `range.preset` | `this_year`, `last_year`, `last_12_months`, `this_month`, `last_month`, `specific_month`, `all_time` | `this_year` |
-| `range.month`, `range.year` | integers, only for `specific_month` | |
+| `range.preset` | `this_year`, `last_year`, `last_12_months`, `this_month`, `last_month`, `specific_month`, `specific_year`, `all_time` | `this_year` |
+| `range.month`, `range.year` | integers, `month` and `year` for `specific_month`, just `year` for `specific_year` | |
 | `limit` | how many top artists and tracks, `1` to `10` | `5` |
 
 navidrome stays browser only, because that integration keeps the server url and password on the user's device. apps that use navidrome can collect the stats themselves and send them as [custom data](#custom-data).

@@ -14,6 +14,7 @@ PRESET_LAST_12_MONTHS = "last_12_months"
 PRESET_THIS_MONTH = "this_month"
 PRESET_LAST_MONTH = "last_month"
 PRESET_SPECIFIC_MONTH = "specific_month"
+PRESET_SPECIFIC_YEAR = "specific_year"
 PRESET_ALL_TIME = "all_time"
 
 YEAR_KIND = "year"
@@ -26,6 +27,7 @@ PRESET_KIND: Dict[str, str] = {
     PRESET_THIS_MONTH: MONTH_KIND,
     PRESET_LAST_MONTH: MONTH_KIND,
     PRESET_SPECIFIC_MONTH: MONTH_KIND,
+    PRESET_SPECIFIC_YEAR: YEAR_KIND,
     PRESET_ALL_TIME: YEAR_KIND,
 }
 
@@ -36,6 +38,7 @@ PRESET_LABELS: Dict[str, str] = {
     PRESET_THIS_MONTH: "This month",
     PRESET_LAST_MONTH: "Last month",
     PRESET_SPECIFIC_MONTH: "Specific month",
+    PRESET_SPECIFIC_YEAR: "Specific year",
     PRESET_ALL_TIME: "All time",
 }
 
@@ -115,7 +118,7 @@ def list_months() -> List[Dict[str, str]]:
     ]
 
 
-def list_years(span: int = 10, reference: Optional[_dt.datetime] = None) -> List[int]:
+def list_years(span: int = 20, reference: Optional[_dt.datetime] = None) -> List[int]:
     now = reference or _utc_now()
     return [now.year - offset for offset in range(span)]
 
@@ -163,6 +166,15 @@ def resolve_preset(
             raise ValueError("specific month can't be in the future")
         if (year_i, month_i) == (now.year, now.month):
             end_ts = min(end_ts, _max_listen_timestamp(now))
+    elif preset == PRESET_SPECIFIC_YEAR:
+        if year is None:
+            raise ValueError("specific year requires a year")
+        year_i = int(year)
+        if year_i < 1970 or year_i > now.year:
+            raise ValueError(f"invalid year: {year!r}")
+        start_ts, end_ts = _year_range(year_i)
+        if year_i == now.year:
+            end_ts = min(end_ts, _max_listen_timestamp(now))
     else:
         raise ValueError(f"unknown period preset: {preset!r}")
 
@@ -180,6 +192,8 @@ def resolve_preset(
 
 
 def _build_label(preset: str, month: Optional[int], year: Optional[int]) -> str:
+    if preset == PRESET_SPECIFIC_YEAR and year is not None:
+        return str(int(year))
     if preset != PRESET_SPECIFIC_MONTH:
         return PRESET_LABELS[preset]
     if month is None or year is None:

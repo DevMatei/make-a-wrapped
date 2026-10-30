@@ -141,15 +141,21 @@ function buildRequestUrl(path) {
   let url = serviceSelector.withService(path);
   if (state.activeRange) {
     const params = new URLSearchParams();
-    params.set('range', state.activeRange.preset);
-    if (state.activeRange.preset === 'specific_month') {
-      if (state.activeRange.month) params.set('month', String(state.activeRange.month));
-      if (state.activeRange.year) params.set('year', String(state.activeRange.year));
-    }
+    appendRangeParams(params, state.activeRange);
     const separator = url.includes('?') ? '&' : '?';
     url = `${url}${separator}${params.toString()}`;
   }
   return url;
+}
+
+function appendRangeParams(params, range) {
+  params.set('range', range.preset);
+  if (range.preset === 'specific_month' && range.month) {
+    params.set('month', String(range.month));
+  }
+  if ((range.preset === 'specific_month' || range.preset === 'specific_year') && range.year) {
+    params.set('year', String(range.year));
+  }
 }
 
 function buildFallbackRequestUrl(path) {
@@ -169,9 +175,12 @@ function buildRangeFromSelection(selection) {
   }
   const descriptor = state.periodDescriptor || {};
   const defaults = descriptor.defaults || {};
-  const label = selection.preset === 'specific_month' && selection.month && selection.year
-    ? formatSpecificMonthLabel(selection.month, selection.year)
-    : (PRESET_LABELS[selection.preset] || selection.preset);
+  let label = PRESET_LABELS[selection.preset] || selection.preset;
+  if (selection.preset === 'specific_month' && selection.month && selection.year) {
+    label = formatSpecificMonthLabel(selection.month, selection.year);
+  } else if (selection.preset === 'specific_year' && selection.year) {
+    label = String(selection.year);
+  }
   let startTs = null;
   let endTs = null;
   if (selection.preset === 'this_year' || selection.preset === 'all_time') {
@@ -207,6 +216,10 @@ function buildRangeFromSelection(selection) {
     const month = Number(selection.month || defaults.month || 1);
     startTs = Math.floor(Date.UTC(year, month - 1, 1) / 1000);
     endTs = Math.floor(Date.UTC(year, month, 1) / 1000);
+  } else if (selection.preset === 'specific_year') {
+    const year = Number(selection.year || new Date().getUTCFullYear() - 1);
+    startTs = Math.floor(Date.UTC(year, 0, 1) / 1000);
+    endTs = Math.floor(Date.UTC(year + 1, 0, 1) / 1000);
   }
   const kind = (descriptor.presets || []).find((p) => p.value === selection.preset)?.kind
     || (selection.preset === 'this_month' || selection.preset === 'last_month' || selection.preset === 'specific_month' ? 'month' : 'year');
@@ -331,11 +344,7 @@ async function buildBadgeUrl({ preview = false } = {}) {
     path = `/badge/${encodeURIComponent(username)}`;
     params.set('service', getSelectedService());
     if (state.activeRange && state.activeRange.preset) {
-      params.set('range', state.activeRange.preset);
-      if (state.activeRange.preset === 'specific_month') {
-        if (state.activeRange.month) params.set('month', String(state.activeRange.month));
-        if (state.activeRange.year) params.set('year', String(state.activeRange.year));
-      }
+      appendRangeParams(params, state.activeRange);
     }
   }
   return `${path}?${params.toString()}`;
@@ -1795,7 +1804,7 @@ const LOW_DATA_MIN_TRACKS = 1;
 const LOW_DATA_MIN_MINUTES = 5;
 
 function isCustomPreset(preset) {
-  return preset === 'specific_month' || preset === 'last_12_months' || preset === 'last_year';
+  return preset === 'specific_month' || preset === 'specific_year' || preset === 'last_12_months' || preset === 'last_year';
 }
 
 function readResponsePeriod(response) {
