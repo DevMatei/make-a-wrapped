@@ -1,16 +1,20 @@
-# Make a Wrapped API v1
+# make a wrapped api v1
 
-The API turns listening stats into a finished Wrapped poster. Send stats from a supported provider or your own JSON, and the server returns a PNG or SVG. Your app does not need to render the poster.
+the api turns listening stats into a finished wrapped poster. send stats from a supported provider or your own json, get a png or svg back. your app doesn't have to render anything.
 
-- **Endpoint:** `POST https://wrapped.devmatei.com/api/v1/wrapped`
-- **Local endpoint:** `POST http://127.0.0.1:5000/api/v1/wrapped`
-- **Authentication:** no account or API key
-- **Success response:** image bytes (`image/png` by default, or `image/svg+xml`)
-- **Error response:** JSON, including when the requested output is an image
+| | |
+| --- | --- |
+| **endpoint** | `POST https://wrapped.devmatei.com/api/v1/wrapped` |
+| **local** | `POST http://127.0.0.1:5000/api/v1/wrapped` |
+| **auth** | none, no account or api key |
+| **success** | image bytes, `image/png` by default or `image/svg+xml` |
+| **errors** | always json, even when you asked for an image |
 
-## Quick start
+**contents:** [quick start](#quick-start) · [request fields](#request-fields) · [providers](#use-a-provider) · [custom data](#custom-data) · [artwork](#artwork) · [templates](#templates) · [template catalog](#template-catalog) · [errors](#errors) · [limits](#limits) · [running it locally](#running-it-locally)
 
-This example creates a poster from custom stats and saves the returned PNG to `wrapped.png`:
+## quick start
+
+render a poster from your own stats and save it as `wrapped.png`:
 
 ```sh
 curl --fail-with-body https://wrapped.devmatei.com/api/v1/wrapped \
@@ -29,11 +33,18 @@ curl --fail-with-body https://wrapped.devmatei.com/api/v1/wrapped \
   --output wrapped.png
 ```
 
-On success, the response has `Content-Type: image/png` and a download filename. Use `"format": "svg"` for `Content-Type: image/svg+xml`. If `format` is omitted, the API returns PNG.
+or straight from someone's listenbrainz:
 
-## Handle the response in an app
+```sh
+curl --fail-with-body https://wrapped.devmatei.com/api/v1/wrapped \
+  -H 'Content-Type: application/json' \
+  -d '{"source": {"type": "provider", "provider": "listenbrainz", "username": "YOUR_USERNAME"}}' \
+  --output wrapped.png
+```
 
-Check `response.ok` before treating the body as an image. On failure, parse the JSON error and use its message. On success, save or display the returned image bytes:
+### from javascript
+
+check `response.ok` before treating the body as an image. on failure, read the json error:
 
 ```js
 const response = await fetch("https://wrapped.devmatei.com/api/v1/wrapped", {
@@ -64,9 +75,21 @@ if (!response.ok) {
 const image = await response.blob();
 ```
 
-## Use an existing provider
+## request fields
 
-Provider requests reuse the project's existing ListenBrainz, Last.fm, or Libre.fm integrations. The server loads stats, finds available artwork, applies the selected template, and returns the rendered file.
+| field | type | notes |
+| --- | --- | --- |
+| `source` | object | load stats from a provider. see [use a provider](#use-a-provider) |
+| `data` | object | your own stats. see [custom data](#custom-data) |
+| `template` | string | template slug, defaults to `black` |
+| `format` | string | `png` (default) or `svg` |
+| `artwork` | object | optional artwork lookup. see [artwork](#artwork) |
+
+send either `source` or `data`, not both. any other top level field returns `400`.
+
+## use a provider
+
+provider requests reuse the site's own listenbrainz, last.fm and libre.fm integrations. the server loads the stats, finds artwork, applies the template and sends back the file.
 
 ```sh
 curl --fail-with-body https://wrapped.devmatei.com/api/v1/wrapped \
@@ -85,27 +108,20 @@ curl --fail-with-body https://wrapped.devmatei.com/api/v1/wrapped \
   --output listenbrainz-wrapped.png
 ```
 
-Set `provider` to `listenbrainz`, `lastfm`, or `librefm`. Set `username` to the public username for that service. `limit` controls how many top artists and tracks are requested; it accepts an integer from 1 to 10 and defaults to 5.
+| field | values | default |
+| --- | --- | --- |
+| `type` | `provider` | required |
+| `provider` | `listenbrainz`, `lastfm`, `librefm` | required |
+| `username` | the public username on that service | required |
+| `range.preset` | `this_year`, `last_year`, `last_12_months`, `this_month`, `last_month`, `specific_month`, `all_time` | `this_year` |
+| `range.month`, `range.year` | integers, only for `specific_month` | |
+| `limit` | how many top artists and tracks, `1` to `10` | `5` |
 
-Supported `range.preset` values are `this_year` (default), `last_year`, `last_12_months`, `this_month`, `last_month`, `specific_month`, and `all_time`. For `specific_month`, also pass integer `month` and `year` fields.
+navidrome stays browser only, because that integration keeps the server url and password on the user's device. apps that use navidrome can collect the stats themselves and send them as [custom data](#custom-data).
 
-Navidrome remains browser-only because its integration keeps the server URL and password on the user's device. Apps that use Navidrome can send their own stats through the `data` field instead. For example, replace the provider object above with:
+## custom data
 
-```json
-{
-  "data": {
-    "artists": ["Artist One", "Artist Two"],
-    "tracks": ["Track One", "Track Two"],
-    "minutes": 12345,
-    "genre": "Indie rock",
-    "period": {"label": "2025"}
-  }
-}
-```
-
-## Custom data format
-
-Pass the data your app has already collected. Include at least one of `artists` or `tracks`. Each list accepts up to 10 strings. `minutes` can be a non-negative integer or a display string such as `"12,345"`. `genre` is a string. `period` is optional and currently accepts a `label` string.
+pass the stats your app already has:
 
 ```json
 {
@@ -121,11 +137,22 @@ Pass the data your app has already collected. Include at least one of `artists` 
 }
 ```
 
-The API validates every field and rejects unknown data fields. `artwork` can be a PNG, JPEG, or WebP data URL when your app already has a cover image. Its decoded size must be at most 32 KiB. For larger or provider-hosted covers, use the artwork lookup options below.
+| field | type | notes |
+| --- | --- | --- |
+| `artists` | array of strings | up to 10 |
+| `tracks` | array of strings | up to 10 |
+| `minutes` | integer or string | a non-negative integer, or a display string like `"12,345"` |
+| `genre` | string | |
+| `period.label` | string | optional, shown on the poster |
+| `artwork` | string | optional png, jpeg or webp data url, at most 32 KiB decoded |
 
-## Select artwork
+include at least one of `artists` or `tracks`. text values can be up to 120 characters. unknown fields in `data` return `400`.
 
-For provider stats, artwork defaults to the same provider and username. You can choose a different supported provider, use an artist image or release cover, and set how the image fits the template artwork slot:
+for bigger covers or covers from a service, skip `data.artwork` and use an [artwork lookup](#artwork) instead. you can't use both in one request.
+
+## artwork
+
+with provider stats, artwork comes from the same provider and username by default. the `artwork` object lets you change that:
 
 ```json
 {
@@ -144,9 +171,16 @@ For provider stats, artwork defaults to the same provider and username. You can 
 }
 ```
 
-`artwork.provider` accepts `listenbrainz`, `lastfm`, or `librefm`. `artwork.source` accepts `artist` or `release`; it defaults to `artist`. `artwork.fit` accepts `cover` (crop to fill, the default) or `contain` (show the full image).
+| field | values | default |
+| --- | --- | --- |
+| `provider` | `listenbrainz`, `lastfm`, `librefm` | the stats provider |
+| `username` | username on that service | the stats username |
+| `source` | `artist` (artist image) or `release` (album cover) | `artist` |
+| `fit` | `cover` (crop to fill) or `contain` (show the whole image) | `cover` |
+| `range` | same shape as `source.range` | the stats range |
+| `enabled` | `false` skips artwork | `true` |
 
-With custom stats, provide the artwork lookup username too. This lets an app submit its own stats and ask Last.fm or ListenBrainz for a matching cover:
+with custom data there's no provider to fall back on, so pass `provider` and `username` yourself. that way an app can send its own stats and still get a matching cover:
 
 ```json
 {
@@ -165,23 +199,23 @@ With custom stats, provide the artwork lookup username too. This lets an app sub
 }
 ```
 
-Artwork lookup is best effort. If the service has no image or is temporarily unavailable, the API still generates the poster without artwork. Set `"enabled": false` to skip provider artwork.
+artwork lookup is best effort. if the service has no image or is down, you still get the poster, just without artwork.
 
-## Choose a template
+## templates
 
-The `template` field is an official or approved community template slug. It defaults to `black`. Use the template catalog below to find slugs. Existing template dimensions are preserved, subject to the API render size limit.
+`template` is the slug of an official or approved community template, `black` by default. find slugs with the [template catalog](#template-catalog) or on the [template library](https://wrapped.devmatei.com/marketplace). the template's own canvas size is kept, within the render size [limits](#limits).
 
-## Template catalog
+## template catalog
 
-The catalog endpoints let you show the template library on your own site: list templates, page through them, and embed preview images. They are read-only `GET` requests with CORS enabled, so they work straight from the browser.
+the catalog endpoints let you show the template library on your own site: list templates, page through them and embed preview images. they're read-only `GET` requests with cors on, so they work straight from the browser.
 
-### List templates
+### list templates
 
 ```sh
 curl 'https://wrapped.devmatei.com/api/v1/templates?limit=12&sort=popular'
 ```
 
-| Parameter | Values | Default |
+| param | values | default |
 | --- | --- | --- |
 | `limit` | `1` to `50` | `20` |
 | `sort` | `popular`, `newest`, `name` | `popular` |
@@ -191,7 +225,7 @@ curl 'https://wrapped.devmatei.com/api/v1/templates?limit=12&sort=popular'
 | `q` | search text, up to 60 characters, matched against name, slug, tags and creator | none |
 | `cursor` | `page.next_cursor` from the previous response | first page |
 
-Unknown parameters return `400`, so typos don't silently return the wrong list.
+unknown params return `400`, so a typo doesn't quietly give you the wrong list.
 
 ```json
 {
@@ -220,23 +254,23 @@ Unknown parameters return `400`, so typos don't silently return the wrong list.
 }
 ```
 
-`links.use` opens the generator with that template already selected. `created_at` is `null` for official templates. `creator` can be `null`, and `creator.website` is only included when it is an http(s) link.
+`links.use` opens the generator with that template already picked. `created_at` is `null` for official templates. `creator` can be `null`, and `creator.website` only shows up when it's an http(s) link.
 
-### Paging
+### paging
 
-Pass `page.next_cursor` back as `cursor` with the same filters and sort to get the next page. When `has_more` is `false`, `next_cursor` is `null` and you have everything. A cursor only works with the query that produced it; mixing it with different filters returns `400`, so start again without a cursor.
+pass `page.next_cursor` back as `cursor`, with the same filters and sort, to get the next page. when `has_more` is `false`, `next_cursor` is `null` and you have everything. a cursor only works with the query that made it. mix it with different filters and you get a `400`, so start again without one.
 
-Cursors point at a position in the sorted list rather than a page number, so templates being added or removed between requests won't make you skip or repeat items. The exception is `sort=popular`: use counts change all the time, so a template can move between pages while you are paging. If you need a complete, stable sync, use `sort=newest` or `sort=name`.
+cursors point at a spot in the sorted list, not a page number, so templates added or removed between requests won't make you skip or repeat anything. the exception is `sort=popular`: use counts change all the time, so a template can jump pages while you're paging. for a complete, stable sync use `sort=newest` or `sort=name`.
 
-### Get one template
+### get one template
 
 ```sh
 curl https://wrapped.devmatei.com/api/v1/templates/black
 ```
 
-Returns the same fields as the list under `template`, plus `definition`: the full template JSON (canvas, background, artwork slot, elements) in case you want to draw it yourself. Image background paths are returned as absolute URLs.
+returns the same fields as the list under `template`, plus `definition`: the full template json (canvas, background, artwork slot, elements) in case you want to draw it yourself. image backgrounds come back as absolute urls.
 
-### Preview images
+### preview images
 
 ```html
 <img
@@ -244,13 +278,13 @@ Returns the same fields as the list under `template`, plus `definition`: the ful
   width="360" height="640" loading="lazy" alt="Midnight template">
 ```
 
-Previews are PNGs of the template filled with sample stats and placeholder artwork. `size` is `sm` (360px wide), `md` (540px, the default) or `lg` (1080px). Height follows the template's canvas ratio.
+previews are pngs of the template filled with sample stats and placeholder artwork. `size` is `sm` (360px wide), `md` (540px, the default) or `lg` (1080px). height follows the template's canvas ratio.
 
-Use `links.preview` from the catalog, and append `&size=sm` if you want a different size. It includes `v`, the template version. With a matching `v`, the image is cached for a year, since a template edit changes the version and therefore the URL. Without `v`, the image is cached for five minutes.
+use `links.preview` from the catalog and append `&size=sm` (or `lg`) for another size. it already includes `v`, the template version. with a matching `v` the image is cached for a year, since editing a template changes the version and so the url. without `v` it's cached for five minutes.
 
-The first request for a preview renders it; after that it is served from disk. If the renderer is busy, you get `503` with `Retry-After`. Show a placeholder and retry later.
+the first request renders the preview, after that it's served from disk. if the renderer is busy you get a `503` with `Retry-After`, so show a placeholder and retry later.
 
-### Embed example
+### embed example
 
 ```js
 async function loadTemplates(cursor) {
@@ -287,13 +321,13 @@ async function showMore() {
 }
 ```
 
-### Caching
+### caching
 
-Catalog responses carry an `ETag` and `Cache-Control: public, max-age=60` (`max-age=300` for a single template). Send `If-None-Match` with the last `ETag` to get an empty `304` when nothing changed. The server builds the catalog in memory and refreshes it every 30 seconds (`TEMPLATE_CATALOG_TTL`), so a newly approved template can take that long to show up.
+catalog responses have an `ETag` and `Cache-Control: public, max-age=60` (`max-age=300` for a single template). send `If-None-Match` with the last `ETag` and you get an empty `304` when nothing changed. the server builds the catalog in memory and rebuilds it every 30 seconds (`TEMPLATE_CATALOG_TTL`), so a freshly approved template can take that long to show up.
 
-## Errors
+## errors
 
-Every API error has a JSON body with a stable shape, including invalid requests, missing API paths, rate limits, and renderer failures. The status code identifies the class of error; `error.code` and `error.message` explain it.
+every api error has the same json shape, including bad input, unknown api paths, rate limits and renderer failures. the status code tells you the kind of error, `error.code` and `error.message` explain it.
 
 ```json
 {
@@ -304,37 +338,57 @@ Every API error has a JSON body with a stable shape, including invalid requests,
 }
 ```
 
-| Status | Meaning | What to do |
+| status | meaning | what to do |
 | --- | --- | --- |
-| `400` | Invalid input or unsupported field | Check the JSON schema and field values. |
-| `304` | Catalog or preview unchanged since your `If-None-Match` | Reuse your cached copy. |
-| `404` | Unknown template or API path | Check the template slug or endpoint URL. |
-| `413` | Request body or generated image exceeds its size limit | Send a smaller request or use another template. |
-| `415` | Request is not JSON | Send `Content-Type: application/json`. |
-| `422` | Template assets or canvas cannot be rendered | Select another available template. |
-| `429` | Rate limit or artwork service queue is busy | Respect `Retry-After` when present, then retry with backoff. |
-| `502` | Provider did not return usable stats | Check the username and try again later. |
-| `503` | Render queue is full, render timed out, or renderer is unavailable | Respect `Retry-After` and retry with backoff. |
-| `500` | Unexpected generation failure | Retry later; internal details are kept out of the response. |
+| `304` | catalog or preview unchanged since your `If-None-Match` | reuse your cached copy |
+| `400` | invalid input or unsupported field | check the field names and values |
+| `404` | unknown template or api path | check the slug or url |
+| `413` | request body or generated image too big | send less, or try another template |
+| `415` | request isn't json | send `Content-Type: application/json` |
+| `422` | template assets or canvas can't be rendered | pick another template |
+| `429` | rate limited, or the artwork queue is busy | wait for `Retry-After` if present, then back off |
+| `500` | unexpected failure | retry later. internal details are kept out of the response |
+| `502` | the provider didn't return usable stats | check the username and try again later |
+| `503` | render queue full, render timed out or renderer unavailable | wait for `Retry-After` and back off |
 
-The server returns `Retry-After` for rate limiting and temporary render capacity errors. Clients should avoid immediate retry loops.
+`Retry-After` is sent for rate limits and temporary render capacity errors. please don't retry in a tight loop.
 
-## Limits and deployment notes
+## limits
 
-No API key is required. Requests are limited per client IP: `POST /api/v1/wrapped` by the image rate limit, 15 per minute by default (`APP_IMAGE_RATE_LIMIT`), catalog requests at 120 per minute (`APP_CATALOG_RATE_LIMIT`), and preview images at 240 per minute (`APP_PREVIEW_RATE_LIMIT`). The preview limit is higher because a single page of thumbnails makes many requests. Rendered previews are cached in `data/template-previews` (`TEMPLATE_PREVIEW_DIR`). JSON request bodies are limited to 64 KiB. Templates are capped at 2.5 million canvas pixels, source images at 16 million pixels, and generated files at 12 MiB.
+no api key needed. limits are per client ip:
 
-Rendering uses CPU and memory, so the server limits concurrent renders and keeps a bounded wait queue. Docker Compose runs four Gunicorn workers with eight request threads each, one active render per worker, and Redis-backed rate limits shared between workers. Requests that cannot be served in a reasonable time receive `503` with `Retry-After`; clients should retry with exponential backoff and jitter. These limits protect the service during bursts, but no finite server can promise zero errors during unlimited traffic.
+| what | limit | env var |
+| --- | --- | --- |
+| `POST /api/v1/wrapped` | 15 per minute | `APP_IMAGE_RATE_LIMIT` |
+| catalog requests | 120 per minute | `APP_CATALOG_RATE_LIMIT` |
+| preview images | 240 per minute | `APP_PREVIEW_RATE_LIMIT` |
 
-For local development, the API renderer needs Node.js 20 or newer and npm. Install the Node dependencies with `npm ci`, then start Flask:
+previews get a higher limit because one page of thumbnails is a lot of requests.
+
+| size limit | value |
+| --- | --- |
+| json request body | 64 KiB |
+| `data.artwork` | 32 KiB decoded |
+| text values | 120 characters |
+| template canvas | 2.5 million pixels |
+| source images | 16 million pixels |
+| generated file | 12 MiB |
+
+rendering eats cpu and memory, so the server caps concurrent renders and keeps a bounded wait queue. the docker compose setup runs four gunicorn workers with eight threads each, one active render per worker, and redis backed rate limits shared between workers. requests that can't be served in time get a `503` with `Retry-After`, so retry with exponential backoff and some jitter.
+
+## running it locally
+
+the api renderer needs node 20+ and npm on top of the python setup. install the node dependencies, then start flask:
 
 ```sh
+npm ci
 ./.venv/bin/python wrapped-fm.py
 ```
 
-To run the Docker Compose deployment locally instead:
+the local endpoint is `http://127.0.0.1:5000/api/v1/wrapped`. or run the docker compose setup, which serves the app on port `8000`:
 
 ```sh
 docker compose up --build
 ```
 
-The local Flask endpoint is `http://127.0.0.1:5000/api/v1/wrapped`; Docker Compose exposes the app on port `8000`.
+rendered previews are cached in `data/template-previews` (`TEMPLATE_PREVIEW_DIR`).

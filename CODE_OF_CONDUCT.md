@@ -4,7 +4,7 @@ short version: be decent to each other. this is a hobby project, keep it chill.
 
 ## the pledge
 
-we want make a wrapped to be a welcoming space for anyone who wants to pitch in. harassment and bigotry of any kind are not ok, full stop. we're all here because we like music, data, and self-hosting, not to make anyone feel bad.
+make a wrapped should be a welcoming space for anyone who wants to pitch in. harassment and bigotry of any kind are not ok, full stop. we're all here because we like music, data, and self-hosting, not to make anyone feel bad.
 
 ## what counts as not ok
 
@@ -27,8 +27,8 @@ if someone breaks these rules, the maintainers can warn them, remove their comme
 
 ## reporting
 
-see something that crosses a line? tell us. you can reach us at [hello@devmatei.com](mailto:hello@devmatei.com). reports stay private and we'll take them seriously. if you just have questions, reach out too, we're happy to talk it out.
+see something that crosses a line? tell us at [hello@devmatei.com](mailto:hello@devmatei.com), or ping me on the [discord](https://discord.gg/ucFGpJdznF). reports stay private and we'll take them seriously. if you just have questions, reach out too, we're happy to talk it out.
 
 ## scope
 
-this applies to the repo, issues, pull requests, discussions, and anywhere people talk about this project.
+this applies to the repo, issues, pull requests, discussions, the discord, and anywhere else people talk about this project.
