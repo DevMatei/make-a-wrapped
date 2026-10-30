@@ -8,6 +8,8 @@ Spotify Wrapped-style recap generator for ListenBrainz, Last.fm, Libre.fm, and N
 
 [Make a Wrapped](https://wrapped.devmatei.com/) - built by [devmatei.com](https://devmatei.com)
 
+there's a [discord](https://discord.gg/ucFGpJdznF) too, come say hi, post your wrapped, report bugs, whatever
+
 ## 🔌 developer api (beta)
 
 Generate and download server-rendered Wrapped posters from supported providers or your own stats. Start with the [API developer guide](./docs/API.md) for request examples, templates, artwork options, and error handling.
