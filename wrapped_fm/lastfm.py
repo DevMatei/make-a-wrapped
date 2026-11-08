@@ -163,7 +163,7 @@ def _resolve_lastfm_period(range_obj: Optional[DateRange]) -> str:
 
 
 def _needs_aggregation(range_obj: Optional[DateRange]) -> bool:
-    return bool(range_obj and (range_obj.is_custom or not range_obj.lastfm_period))
+    return bool(range_obj and not range_obj.lastfm_period)
 
 
 def _fetch_top_names(username: str, method: str, path: Sequence[str], limit: int, range_obj: Optional[DateRange], service: Optional[str] = None) -> List[str]:

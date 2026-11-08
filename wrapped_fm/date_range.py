@@ -52,6 +52,7 @@ LB_NATIVE_RANGES: Dict[str, str] = {
 
 LASTFM_NATIVE_PERIODS: Dict[str, str] = {
     PRESET_THIS_YEAR: "12month",
+    PRESET_LAST_12_MONTHS: "12month",
     PRESET_THIS_MONTH: "1month",
     PRESET_ALL_TIME: "overall",
 }
