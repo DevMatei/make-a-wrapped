@@ -1,19 +1,17 @@
-# contributing
+# Contributing
 
-hey, thanks for wanting to help out :D
+Thanks for considering a contribution to Make a Wrapped. This guide covers the project workflow and a few expectations for changes.
 
-make a wrapped turns your listenbrainz, last.fm, libre.fm or navidrome history into a spotify wrapped style poster. it's a hobby project, not a company, so the rules are loose. just keep these in mind.
+## Branches
 
-## branches
-
-| branch | what it is |
+| Branch | Purpose |
 | --- | --- |
-| `develop` | where work happens. branch off it and open your pr back into it. every push builds a `:develop` docker image |
-| `main` | the release line. only gets merges from `develop`, and each release is a `vX.Y.Z` tag on top. docker `:latest` and versioned tags build from it |
+| `develop` | Main development branch. Base work here and target pull requests here. Pushes build the `:develop` Docker image. |
+| `main` | Release branch. Releases are merged from `develop` and tagged `vX.Y.Z`; Docker builds publish `:latest` and versioned tags. |
 
-## setup
+## Setup
 
-you need python 3 and, if you touch the api or template previews, node 20+.
+You need Python 3 and, for the API or template previews, Node.js 20 or later.
 
 ```bash
 git clone https://github.com/DevMatei/make-a-wrapped.git
@@ -27,55 +25,56 @@ cp .env.example .env
 python wrapped-fm.py
 ```
 
-then open http://localhost:5000. last.fm stats need a `LASTFM_API_KEY` in `.env`, the other services work without one. every other setting is listed in the config section of the [readme](../README.md).
+Open http://localhost:5000. Last.fm stats require `LASTFM_API_KEY` in `.env`; other services work without it. See the [README configuration section](../README.md) for other settings.
 
-## checks
+## Checks
 
-run these before you push:
+Before opening a pull request, run:
 
 ```bash
 python -m py_compile wrapped-fm.py
 python -m unittest discover -s wrapped_fm/tests -t .
 ```
 
-## code rules
+## Code guidelines
 
-clarity beats cleverness.
+- Prefer clear, direct code over clever abstractions.
+- Follow PEP 8 for Python. Add type hints where they make the code easier to understand.
+- Keep functions focused. Validate external input and handle expected failures and edge cases cleanly.
+- Add comments when they explain a non-obvious reason. Avoid comments that merely restate the code.
+- Keep changes focused and consistent with the surrounding code.
+- Use short, lowercase commit messages that describe the change. See `git log` for examples.
+- Do not commit cache or data files.
 
-- pep8 for python.
-- type hints where they help, not everywhere.
-- small functions that do one thing.
-- comments only where the why isn't obvious.
-- short, lowercase commit messages that say what changed, like `fix template preview 404 for names with underscores`. check `git log` for the vibe.
-- don't commit cache or data files, `.gitignore` exists for a reason.
+## AI tools
 
-## before you open a pr
+You may use AI tools while working on a contribution. You are responsible for the result: review the code, understand what it does, and be ready to explain your changes. Run the relevant checks and correct any problems before submitting.
 
-- prs go into `develop`, not `main`.
-- for big changes, open an issue first so we can agree on the direction. small stuff like typos can go straight to a pr.
-- one feature or one fix per pr, not a kitchen sink.
-- ui change? attach a screenshot, i need to see it.
-- fill out the pr template, i actually read it.
+Review AI-generated changes for project conventions, security, input validation, and failure handling. Remove unnecessary comments, especially comments that just narrate the code. Keep useful comments that explain why something is done.
 
-## where you can help
+This reflects my view too: tools are fine, but contributors should understand the code they submit. See [Linus Torvalds's email on AI and understanding contributions](https://lore.landau.one/lkml/CAHk-%3DwhTs09_ozN%2Be09GU68N1wPP56MUzDjrg9rnKxQUa0A_4Q%40mail.gmail.com/).
 
-- bug reports with steps to reproduce, plus your browser and os.
-- support for scrobblers it doesn't cover yet.
-- new templates. make one in the [editor](https://wrapped.devmatei.com/editor) and submit it, no pr needed.
-- perf ideas for data fetching, caching and retries.
+## Pull requests
 
-questions or ideas? the [discord](https://discord.gg/ucFGpJdznF) is the fastest way to reach me.
+- Target `develop`, not `main`.
+- For a larger change, open an issue first to discuss the direction. Small fixes, such as typos, can go straight to a pull request.
+- Keep each pull request focused on one feature or fix.
+- Include a screenshot for user interface changes.
+- Fill out the pull request template.
 
-## security
+## Contributions to consider
 
-found a vulnerability? don't open a public issue, see [SECURITY.md](../SECURITY.md).
+- Bug reports with reproduction steps, browser, and operating system.
+- Support for additional scrobblers.
+- New templates. Templates can be created in the [editor](https://wrapped.devmatei.com/editor) and submitted without a pull request.
+- Improvements to data fetching, caching, or retries.
 
-## license
+For questions or ideas, use the [Discord](https://discord.gg/ucFGpJdznF).
 
-by contributing, you agree your changes are licensed under the project's [agpl-3.0](../LICENSE) license.
+## Security
 
-## the vibe
+Do not report vulnerabilities in a public issue. Follow the instructions in [SECURITY.md](../SECURITY.md).
 
-this is a homelab passion project, not a product with a roadmap. i built it because i wanted a wrapped that actually cares about self-hosters. don't resell it, don't rebrand it, and don't hammer the public apis or abuse the rate limits. be nice in issues and reviews, assume good faith, and remember everyone's just here for the data crunching.
+## License
 
-that's it. if you made it this far, nice. thanks for helping make it more fun. i'm matei.
+Contributions are licensed under the project's [AGPL-3.0 license](../LICENSE).
