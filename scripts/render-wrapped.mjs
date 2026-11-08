@@ -1,4 +1,5 @@
 import { createCanvas, GlobalFonts, loadImage, SvgExportFlag } from '@napi-rs/canvas';
+import { existsSync } from 'node:fs';
 import { normaliseTemplate, renderTemplate } from '../static/js/templates/engine.js';
 import { paintSampleArt } from '../static/js/templates/sample-art.js';
 
@@ -64,6 +65,13 @@ async function render() {
 
   GlobalFonts.registerFromPath('./static/font/Nunito-Regular.ttf', 'Nunito');
   GlobalFonts.registerFromPath('./static/font/Nunito-Bold.ttf', 'Nunito');
+  const cjkFontPath = [
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+    '/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc',
+  ].find(existsSync);
+  if (cjkFontPath) {
+    GlobalFonts.registerFromPath(cjkFontPath, 'Noto Sans CJK JP');
+  }
 
   renderTemplate(canvas.getContext('2d'), template, {
     data: input.data,

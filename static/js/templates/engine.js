@@ -93,7 +93,7 @@ export function fontString(font, sizeOverride) {
   const family = (font && font.family) || 'Nunito';
   const weight = Number.isFinite(font && font.weight) ? font.weight : 700;
   const size = sizeOverride || (font && Number.isFinite(font.size) ? font.size : 48);
-  return `${weight} ${size}px ${family}`;
+  return `${weight} ${size}px "${family}", "Noto Sans CJK JP"`;
 }
 
 function ellipsize(ctx, text, maxWidth) {
@@ -119,14 +119,14 @@ function ellipsize(ctx, text, maxWidth) {
 export function fitText(ctx, text, { font = { weight: 700, size: 48, family: 'Nunito' }, maxWidth, minFontSize = 12, ellipsizeText = true } = {}) {
   let size = Number.isFinite(font && font.size) ? font.size : 48;
   const value = typeof text === 'string' ? text : '';
-  let current = `${(font && font.weight) || 700} ${size}px ${(font && font.family) || 'Nunito'}`;
+  let current = fontString(font, size);
   ctx.save();
   ctx.font = current;
   if (maxWidth && maxWidth > 0) {
     const floor = Number.isFinite(minFontSize) ? minFontSize : 12;
     while (size > floor && ctx.measureText(value).width > maxWidth) {
       size -= 2;
-      current = `${(font && font.weight) || 700} ${size}px ${(font && font.family) || 'Nunito'}`;
+      current = fontString(font, size);
       ctx.font = current;
     }
     if (ctx.measureText(value).width > maxWidth && ellipsizeText) {
