@@ -890,6 +890,7 @@ function drawCanvas() {
       data: { ...getSampleData('short-names').data, username: 'sample' },
       art: sampleArt,
       period: state.activeRange,
+      artworkSource: state.artworkSource,
     });
     return;
   }
@@ -899,6 +900,7 @@ function drawCanvas() {
     allowTransform: state.customArtworkActive || state.artworkOverrideActive,
     imageTransform: state.imageTransform,
     period: state.activeRange,
+    artworkSource: state.artworkSource,
   });
 }
 

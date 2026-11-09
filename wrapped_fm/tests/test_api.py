@@ -91,17 +91,18 @@ class WrappedApiTests(ApiTestCase):
         fetch_art = self.patch(api, "fetch_top_artist_image", return_value=SimpleNamespace(content=SAMPLE_PNG))
         render = self.patch(api, "_render_image", return_value=b"generated image")
         cases = [
-            ("other provider release", {"source": {"type": "provider", "provider": "listenbrainz", "username": "fan"}, "artwork": {"provider": "lastfm", "source": "release"}}, False),
-            ("custom data lookup", {"data": {"artists": ["A"]}, "artwork": {"provider": "listenbrainz", "username": "fan", "fit": "cover"}}, False),
-            ("inline contain", {"data": {"artists": ["A"], "artwork": SAMPLE_DATA_URL}, "artwork": {"fit": "contain"}}, True),
+            ("other provider release", {"source": {"type": "provider", "provider": "listenbrainz", "username": "fan"}, "artwork": {"provider": "lastfm", "source": "release"}}, False, "center"),
+            ("custom data lookup", {"data": {"artists": ["A"]}, "artwork": {"provider": "listenbrainz", "username": "fan", "fit": "cover"}}, False, "auto"),
+            ("inline contain", {"data": {"artists": ["A"], "artwork": SAMPLE_DATA_URL}, "artwork": {"fit": "contain"}}, True, "auto"),
         ]
 
-        for name, payload, contain in cases:
+        for name, payload, contain, crop_focus in cases:
             with self.subTest(name=name):
                 response = self.post(payload)
 
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(render.call_args.args[0]["artwork"]["contain"], contain)
+                self.assertEqual(render.call_args.args[0]["artwork"].get("cropFocus", "auto"), crop_focus)
 
         self.assertEqual(fetch_art.call_args_list[0].kwargs["service"], "lastfm")
         self.assertEqual(fetch_art.call_args_list[0].kwargs["preferred_source"], "release")

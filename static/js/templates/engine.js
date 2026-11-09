@@ -27,6 +27,7 @@ export function normaliseTemplate(raw) {
     artwork: {
       enabled: artwork.enabled !== false,
       contain: artwork.contain === true,
+      cropFocus: artwork.cropFocus === 'center' ? 'center' : 'auto',
       x: Number.isFinite(artwork.x) ? artwork.x : 268,
       y: Number.isFinite(artwork.y) ? artwork.y : 244,
       size: Number.isFinite(artwork.size) ? artwork.size : 544,
@@ -305,7 +306,7 @@ function drawArtwork(ctx, template, art, artTransform) {
 
   const drawWidth = imgWidth * fitScale * scale;
   const drawHeight = imgHeight * fitScale * scale;
-  const focus = config.contain ? { x: 0.5, y: 0.5 } : findCropFocus(ctx, art);
+  const focus = config.contain || config.cropFocus === 'center' ? { x: 0.5, y: 0.5 } : findCropFocus(ctx, art);
   const drawX = destX + (destSize - drawWidth) * focus.x + offsetX;
   const drawY = destY + (destSize - drawHeight) * focus.y + offsetY;
   const radius = Number.isFinite(config.borderRadius) ? config.borderRadius : 32;

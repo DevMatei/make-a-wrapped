@@ -613,6 +613,8 @@ def generate_wrapped_api() -> Response:
         render_template = copy.deepcopy(selected_template)
         if image_data and isinstance(render_template.get("artwork"), dict):
             render_template["artwork"]["contain"] = artwork_fit == "contain"
+            if artwork_options and artwork_options[0].get("source") == "release":
+                render_template["artwork"]["cropFocus"] = "center"
         image_bytes = _render_image(render_template, data, image_data, output_format)
     finally:
         _render_slots.release()
