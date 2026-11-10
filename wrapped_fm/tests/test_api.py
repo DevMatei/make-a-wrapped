@@ -33,7 +33,7 @@ class ApiTestCase(unittest.TestCase):
 class WrappedApiTests(ApiTestCase):
     def setUp(self):
         super().setUp()
-        self.increment_count = self.patch(api, "increment_wrapped_count")
+        self.record_generation = self.patch(api, "record_generation")
         self.record_template_use = self.patch(api.template_store, "record_template_use")
 
     def post(self, payload):
@@ -68,7 +68,7 @@ class WrappedApiTests(ApiTestCase):
                     self.assertNotIn("<text", svg)
 
         self.assertEqual(self.post(cases[0][1]).headers["Content-Disposition"], 'attachment; filename="wrapped-black.png"')
-        self.increment_count.assert_called()
+        self.record_generation.assert_called()
         self.record_template_use.assert_called_with("black")
 
     def test_renders_multipart_artwork_after_sanitizing(self):
@@ -111,6 +111,21 @@ class WrappedApiTests(ApiTestCase):
                 self.assertEqual(artists.call_args.args[1], expected)
                 self.assertEqual(tracks.call_args.args[1], expected)
                 self.assertEqual(artwork.call_args.args[1], api.resolve_preset("last_year"))
+
+    def test_api_generation_records_allowlisted_client(self):
+        self.patch(api, "API_STATS_CLIENTS", new=frozenset({"navidrome-app"}))
+        self.mock_listenbrainz()
+        self.patch(api, "_provider_artwork", return_value=None)
+        self.patch(api, "_render_image", return_value=b"generated image")
+        response = self.client.post(
+            "/api/v1/wrapped",
+            data=json.dumps({"source": {"type": "provider", "provider": "listenbrainz", "username": "fan"}}),
+            content_type="application/json",
+            headers={"X-Wrapped-Client": "Navidrome-App"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.record_generation.assert_called_with("api", "black", service="listenbrainz", client="navidrome-app")
 
     def test_artwork_options(self):
         self.mock_listenbrainz()

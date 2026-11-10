@@ -22,7 +22,7 @@ STATIC_DIR = BASE_DIR / "static"
 
 def create_app() -> Flask:
     app = Flask(__name__, static_url_path="", static_folder=str(STATIC_DIR))
-    app.config["MAX_CONTENT_LENGTH"] = TEMP_ARTWORK_MAX_BYTES + (1024 * 1024)
+    app.config["MAX_CONTENT_LENGTH"] = max(TEMP_ARTWORK_MAX_BYTES + (1024 * 1024), 12 * 1024 * 1024)
     app.register_blueprint(routes_bp)
     app.register_blueprint(api_v1_bp)
     init_rate_limiter(app)

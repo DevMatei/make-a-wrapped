@@ -10,7 +10,7 @@ the api turns listening stats into a finished wrapped poster. send stats from a 
 | **success** | image bytes, `image/png` by default or `image/svg+xml` |
 | **errors** | always json, even when you asked for an image |
 
-**contents:** [quick start](#quick-start) · [request fields](#request-fields) · [providers](#use-a-provider) · [custom data](#custom-data) · [artwork](#artwork) · [templates](#templates) · [template catalog](#template-catalog) · [errors](#errors) · [limits](#limits) · [running it locally](#running-it-locally)
+**contents:** [quick start](#quick-start) · [request fields](#request-fields) · [providers](#use-a-provider) · [custom data](#custom-data) · [artwork](#artwork) · [templates](#templates) · [template catalog](#template-catalog) · [stats and privacy](#stats-and-privacy) · [errors](#errors) · [limits](#limits) · [running it locally](#running-it-locally)
 
 ## quick start
 
@@ -41,6 +41,12 @@ curl --fail-with-body https://wrapped.devmatei.com/api/v1/wrapped \
   -d '{"source": {"type": "provider", "provider": "listenbrainz", "username": "YOUR_USERNAME"}}' \
   --output wrapped.png
 ```
+
+API clients can optionally identify their integration with `X-Wrapped-Client: client-id`. Only ids configured in `APP_STATS_API_CLIENTS` are broken out by name on the public [stats page](https://wrapped.devmatei.com/stats); other calls are grouped as unidentified API clients. This id is used only in aggregate daily counts.
+
+## stats and privacy
+
+`/stats` shows total generations, daily activity, music services, templates and allowlisted API clients. Counts are stored as daily aggregate counters and sync across configured instances. Provider, channel, client and generation-template breakdowns begin with this tracking update; earlier totals can’t be split retroactively. Usernames, listening data, artwork and request bodies are not recorded in the stats counters.
 
 ### from javascript
 

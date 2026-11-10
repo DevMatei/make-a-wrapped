@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import socket
 from pathlib import Path
 
@@ -103,6 +104,11 @@ TEMPLATE_CATALOG_TTL = max(0.0, float(os.getenv("TEMPLATE_CATALOG_TTL", "30")))
 TEMPLATE_OFFICIAL_DIR = Path(__file__).resolve().parent.parent / "static" / "templates"
 TEMPLATE_ASSET_MAX_BYTES = int(os.getenv("TEMPLATE_ASSET_MAX_BYTES", str(10 * 1024 * 1024)))
 TEMPLATE_REVIEW_KEY = os.getenv("TEMPLATE_REVIEW_KEY")
+API_STATS_CLIENTS = frozenset(
+    value.strip().lower()
+    for value in os.getenv("APP_STATS_API_CLIENTS", "").split(",")
+    if re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,31}", value.strip().lower())
+)
 TURNSTILE_SITE_KEY = os.getenv("TURNSTILE_SITE_KEY")
 TURNSTILE_SECRET_KEY = os.getenv("TURNSTILE_SECRET_KEY")
 TURNSTILE_VERIFY_URL = os.getenv(

@@ -1655,7 +1655,10 @@ async function recordWrappedGenerated() {
     const response = await fetch('/metrics/wrapped', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ service: getSelectedService() }),
+      body: JSON.stringify({
+        service: getSelectedService(),
+        template: canvasRenderer.getTemplate()?.slug || null,
+      }),
     });
     if (!response.ok) {
       throw new Error(await parseError(response));

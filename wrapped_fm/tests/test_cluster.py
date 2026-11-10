@@ -74,6 +74,17 @@ class CounterTests(NodeTestCase):
         self.assertEqual(stats["services"]["lastfm"], 1)
         self.assertEqual(stats["days"][-1]["count"], 2)
 
+    def test_record_generation_tracks_aggregate_dimensions(self):
+        metrics.record_generation("api", "black", service="lastfm", client="navidrome")
+
+        stats = metrics.read_stats()
+        self.assertEqual(stats["total"], 1201)
+        self.assertEqual(stats["sources"], {"api": 1})
+        self.assertEqual(stats["generation_services"]["lastfm"], 1)
+        self.assertEqual(stats["templates"], {"black": 1})
+        self.assertEqual(stats["api_clients"], {"navidrome": 1})
+        self.assertEqual(stats["daily_sources"][-1]["source"], "api")
+
     def test_merge_takes_max_per_row_without_double_counting(self):
         metrics.increment_wrapped_count()
         peer_rows = [["hetzner", "wrapped", "2026-10-25", 5], ["legacy", "wrapped", "", 1200]]

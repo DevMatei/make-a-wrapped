@@ -24,6 +24,7 @@ from werkzeug.exceptions import HTTPException
 from . import catalog
 from . import templates as template_store
 from .config import (
+    API_STATS_CLIENTS,
     API_RENDER_CONCURRENCY,
     API_RENDER_QUEUE_LIMIT,
     API_RENDER_QUEUE_TIMEOUT,
@@ -56,7 +57,7 @@ from .images import (
     fetch_top_artist_image,
 )
 from .rate_limiter import rate_limit
-from .metrics import increment_wrapped_count
+from .metrics import record_generation
 
 logger = logging.getLogger("wrapped_fm.api")
 bp = Blueprint("wrapped_api_v1", __name__, url_prefix="/api/v1")
@@ -141,7 +142,7 @@ def api_internal_error_response(error: Exception) -> Response:
 def _add_api_cors_headers(response: Response) -> Response:
     response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, If-None-Match"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, If-None-Match, X-Wrapped-Client"
     response.headers["Access-Control-Expose-Headers"] = "ETag, Retry-After"
     response.headers["Access-Control-Max-Age"] = "600"
     return response
@@ -734,7 +735,14 @@ def generate_wrapped_api() -> Response:
         _render_slots.release()
 
     try:
-        increment_wrapped_count(service=(source_info or {}).get("provider"))
+        requested_client = request.headers.get("X-Wrapped-Client", "").strip().lower()
+        client = requested_client if requested_client in API_STATS_CLIENTS else "unidentified"
+        record_generation(
+            "api",
+            selected_template.get("slug"),
+            service=(source_info or {}).get("provider"),
+            client=client,
+        )
         template_store.record_template_use(selected_template["slug"])
     except Exception:
         logger.exception("Could not record API Wrapped generation")

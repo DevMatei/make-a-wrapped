@@ -38,6 +38,7 @@ LEGACY_USES_FILE = Path(TEMPLATE_LIBRARY_DIR).parent / "template-uses.json"
 WRAPPED = "wrapped"
 TEMPLATE_PREFIX = "template:"
 SERVICE_PREFIX = "wrapped:"
+GENERATION_PREFIX = "generation:"
 SERVICES = ("listenbrainz", "lastfm", "librefm", "navidrome")
 
 _METRIC_RE = re.compile(r"^[a-z0-9][a-z0-9:_-]{0,79}$")
@@ -162,6 +163,24 @@ def increment_wrapped_count(delta: int = 1, service: Optional[str] = None) -> in
     return total
 
 
+def record_generation(
+    channel: str,
+    template_slug: Optional[str],
+    *,
+    service: Optional[str] = None,
+    client: Optional[str] = None,
+) -> int:
+    total = increment_wrapped_count(service=service)
+    increment(f"{GENERATION_PREFIX}source:{channel}")
+    if service in SERVICES:
+        increment(f"{GENERATION_PREFIX}provider:{service}")
+    if isinstance(template_slug, str) and re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,47}", template_slug):
+        increment(f"{GENERATION_PREFIX}template:{template_slug}")
+    if channel == "api" and client:
+        increment(f"{GENERATION_PREFIX}client:{client}")
+    return total
+
+
 def read_stats(days: int = 30) -> Dict[str, object]:
     maybe_sync()
     with closing(_connect()) as conn:
@@ -171,11 +190,29 @@ def read_stats(days: int = 30) -> Dict[str, object]:
             " GROUP BY day ORDER BY day DESC LIMIT ?",
             (WRAPPED, max(1, min(days, 366))),
         ).fetchall()
+        source_cutoff = daily[0][0] if daily else "9999-12-31"
+        daily_sources = conn.execute(
+            "SELECT day, metric, SUM(n) FROM counts"
+            " WHERE metric LIKE ? AND day >= ? GROUP BY day, metric ORDER BY day DESC",
+            (f"{GENERATION_PREFIX}source:%", source_cutoff),
+        ).fetchall()
     services = read_totals(SERVICE_PREFIX)
+    sources = read_totals(f"{GENERATION_PREFIX}source:")
+    providers = read_totals(f"{GENERATION_PREFIX}provider:")
+    templates = read_totals(f"{GENERATION_PREFIX}template:")
+    clients = read_totals(f"{GENERATION_PREFIX}client:")
     return {
         "total": total,
         "services": {name: services.get(name, 0) for name in SERVICES},
         "days": [{"day": day, "count": int(n)} for day, n in reversed(daily)],
+        "sources": sources,
+        "generation_services": {name: providers.get(name, 0) for name in SERVICES},
+        "templates": templates,
+        "api_clients": clients,
+        "daily_sources": [
+            {"day": day, "source": metric[len(GENERATION_PREFIX + "source:"):], "count": int(n)}
+            for day, metric, n in reversed(daily_sources)
+        ],
     }
 
 
