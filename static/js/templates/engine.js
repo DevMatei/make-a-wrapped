@@ -140,6 +140,28 @@ export function fitText(ctx, text, { font = { weight: 700, size: 48, family: 'Nu
   return { text: value, font: current };
 }
 
+export function wrapText(ctx, text, maxWidth) {
+  const value = typeof text === 'string' ? text.trim() : '';
+  if (!value || !maxWidth || maxWidth <= 0) {
+    return [value];
+  }
+  const lines = [];
+  let line = '';
+  value.split(/\s+/).forEach((word) => {
+    const candidate = line ? `${line} ${word}` : word;
+    if (line && ctx.measureText(candidate).width > maxWidth) {
+      lines.push(line);
+      line = word;
+    } else {
+      line = candidate;
+    }
+  });
+  if (line) {
+    lines.push(line);
+  }
+  return lines;
+}
+
 function drawBackground(ctx, template) {
   const { width, height } = template.canvas;
   const background = template.background;
@@ -387,6 +409,13 @@ function drawElement(ctx, template, element, data) {
     });
   } else {
     const value = resolveSlotDisplay(data, element.slot);
+    if (element.wrap) {
+      const lines = wrapText(ctx, value, maxWidth);
+      const lineHeight = Number.isFinite(element.lineHeight) ? element.lineHeight : Math.ceil(font.size * 1.2);
+      lines.forEach((line, index) => ctx.fillText(line, x, y + index * lineHeight));
+      ctx.restore();
+      return;
+    }
     const minFontSize = Number.isFinite(element.minFontSize) ? element.minFontSize : 12;
     const layout = fitText(ctx, value, {
       font,

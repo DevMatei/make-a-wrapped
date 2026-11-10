@@ -241,6 +241,8 @@ def _validate_element(raw, index: int) -> Dict[str, Any]:
         element["maxWidth"] = _validate_number(raw.get("maxWidth", 0), 0, 0, CANVAS_WIDTH)
         element["minFontSize"] = _validate_number(raw.get("minFontSize", 24), 12, 8, 200)
         element["ellipsize"] = bool(raw.get("ellipsize", True))
+        if kind == "slot" and slot == "genre":
+            element["wrap"] = bool(raw.get("wrap", False))
         if kind == "list":
             element["lineHeight"] = _validate_number(raw.get("lineHeight", 72), 72, 8, 300)
             element["prefix"] = bool(raw.get("prefix", True))
