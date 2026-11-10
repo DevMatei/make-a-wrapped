@@ -4,12 +4,17 @@ from __future__ import annotations
 
 import base64
 import copy
+import fcntl
 import json
 import logging
 import os
 import re
+import resource
+import shutil
 import struct
 import subprocess
+import sys
+import time
 import threading
 from pathlib import Path
 
@@ -58,6 +63,9 @@ bp = Blueprint("wrapped_api_v1", __name__, url_prefix="/api/v1")
 
 MAX_API_REQUEST_BYTES = 64 * 1024
 MAX_CUSTOM_ARTWORK_BYTES = 32 * 1024
+MAX_MULTIPART_REQUEST_BYTES = 12 * 1024 * 1024
+MAX_UPLOADED_ARTWORK_BYTES = 10 * 1024 * 1024
+MAX_SANITIZED_ARTWORK_BYTES = 8 * 1024 * 1024
 MAX_PROVIDER_ARTWORK_BYTES = 6 * 1024 * 1024
 MAX_SOURCE_IMAGE_PIXELS = 16_000_000
 MAX_CANVAS_PIXELS = 2_500_000
@@ -354,7 +362,33 @@ def _provider_data(source: dict) -> tuple[dict, dict, object]:
     return data, {"type": "provider", "provider": service, "username": username}, range_obj
 
 
-def _read_payload() -> dict:
+def _read_payload() -> tuple[dict, bytes | None]:
+    if request.mimetype == "multipart/form-data":
+        if request.content_length is None:
+            abort(411, description="Multipart requests must include Content-Length.")
+        if request.content_length > MAX_MULTIPART_REQUEST_BYTES:
+            abort(413, description="Multipart request exceeds the 12 MiB API limit.")
+        if set(request.form.keys()) != {"payload"} or set(request.files.keys()) != {"artwork"}:
+            abort(400, description="Multipart requests need one JSON payload field and one artwork file.")
+        files = request.files.getlist("artwork")
+        if len(files) != 1:
+            abort(400, description="Multipart requests need exactly one artwork file.")
+        artwork_file = files[0]
+        artwork_data = artwork_file.stream.read(MAX_UPLOADED_ARTWORK_BYTES + 1)
+        artwork_file.close()
+        if not artwork_data or len(artwork_data) > MAX_UPLOADED_ARTWORK_BYTES:
+            abort(413, description="Artwork file exceeds its 10 MiB upload limit.")
+        raw = request.form["payload"]
+        if len(raw.encode("utf-8")) > MAX_API_REQUEST_BYTES:
+            abort(413, description="Multipart JSON payload exceeds the 64 KiB API limit.")
+        try:
+            payload = json.loads(raw)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            abort(400, description="Multipart payload field must contain valid JSON.")
+        if not isinstance(payload, dict):
+            abort(400, description="Multipart payload field must contain a JSON object.")
+        return payload, artwork_data
+
     if request.mimetype != "application/json":
         abort(415, description="Content-Type must be application/json.")
     if request.content_length is not None and request.content_length > MAX_API_REQUEST_BYTES:
@@ -368,7 +402,79 @@ def _read_payload() -> dict:
         abort(400, description="Request body must contain valid JSON.")
     if not isinstance(payload, dict):
         abort(400, description="Request body must be a JSON object.")
-    return payload
+    return payload, None
+
+
+def _limit_image_worker() -> None:
+    memory_limit = 512 * 1024 * 1024
+    resource.setrlimit(resource.RLIMIT_AS, (memory_limit, memory_limit))
+    resource.setrlimit(resource.RLIMIT_CPU, (8, 8))
+    resource.setrlimit(resource.RLIMIT_FSIZE, (0, 0))
+    resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
+
+
+def _sanitize_uploaded_artwork(image_data: bytes) -> bytes:
+    sandbox = shutil.which("bwrap")
+    if not sandbox:
+        abort(503, description="The artwork sandbox is unavailable.")
+    project_root = Path(__file__).resolve().parent.parent
+    worker_path = project_root / "wrapped_fm" / "image_sanitizer.py"
+    command = [
+        sandbox,
+        "--unshare-all",
+        "--die-with-parent",
+        "--ro-bind", "/usr", "/usr",
+        "--ro-bind", "/lib", "/lib",
+        "--ro-bind", "/lib64", "/lib64",
+        "--ro-bind", "/etc/ld.so.cache", "/etc/ld.so.cache",
+        "--dir", "/app",
+        "--ro-bind", str(worker_path), "/app/image_sanitizer.py",
+        "--dev", "/dev",
+        "--proc", "/proc",
+        "--tmpfs", "/tmp",
+        "--chdir", "/app",
+        "--clearenv",
+        "--setenv", "HOME", "/tmp",
+        "--setenv", "PATH", "/usr/local/bin:/usr/bin:/bin",
+        "--setenv", "PYTHONDONTWRITEBYTECODE", "1",
+    ]
+    if Path(sys.prefix) != Path(sys.base_prefix):
+        command.extend(["--ro-bind", sys.prefix, sys.prefix])
+    command.extend([sys.executable, "/app/image_sanitizer.py"])
+    lock_path = Path("/tmp/make-a-wrapped-image-sanitizer.lock")
+    lock_fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        deadline = time.monotonic() + 10
+        while True:
+            try:
+                fcntl.flock(lock_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    abort(503, description="The artwork sanitizer is busy. Retry shortly.")
+                time.sleep(0.05)
+        try:
+            result = subprocess.run(
+                command,
+                input=image_data,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                timeout=10,
+                check=False,
+                preexec_fn=_limit_image_worker,
+            )
+        except subprocess.TimeoutExpired:
+            abort(422, description="Artwork could not be decoded within the image processing limit.")
+        except OSError:
+            logger.exception("Artwork sanitizer could not be started")
+            abort(503, description="The artwork sanitizer is unavailable.")
+        finally:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+    finally:
+        os.close(lock_fd)
+    if result.returncode or not result.stdout or len(result.stdout) > MAX_SANITIZED_ARTWORK_BYTES:
+        abort(400, description="Artwork must be a valid PNG, JPEG, or WebP image within the upload and pixel limits.")
+    return result.stdout
 
 
 def _template_background_bytes(template: dict) -> bytes | None:
@@ -569,7 +675,7 @@ def _render_image(
 def generate_wrapped_api() -> Response:
     if request.method == "OPTIONS":
         return current_app.response_class(status=204)
-    payload = _read_payload()
+    payload, uploaded_artwork = _read_payload()
     unknown = set(payload) - {"source", "data", "template", "format", "artwork"}
     if unknown:
         abort(400, description=f"Unsupported request fields: {', '.join(sorted(unknown))}.")
@@ -593,12 +699,20 @@ def generate_wrapped_api() -> Response:
         source_info = None
         image_data = None
         if "source" in payload:
+            if uploaded_artwork:
+                abort(400, description="Uploaded artwork is supported with custom data requests only.")
             source = payload["source"]
             if not isinstance(source, dict) or source.get("type") != "provider":
                 abort(400, description="source.type must be provider.")
             data, source_info, range_obj = _provider_data(source)
         else:
             data, image_data = _custom_data(payload["data"])
+            if uploaded_artwork:
+                if image_data:
+                    abort(400, description="Choose either data.artwork or the multipart artwork file.")
+                image_data = _sanitize_uploaded_artwork(uploaded_artwork)
+            elif image_data:
+                image_data = _sanitize_uploaded_artwork(image_data)
             artwork_options_raw = payload.get("artwork")
             if image_data and isinstance(artwork_options_raw, dict) and set(artwork_options_raw) - {"fit"}:
                 abort(400, description="Choose either data.artwork or an artwork provider source.")

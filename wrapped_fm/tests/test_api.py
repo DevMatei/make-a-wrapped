@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
 import tempfile
 import unittest
@@ -69,6 +70,31 @@ class WrappedApiTests(ApiTestCase):
         self.assertEqual(self.post(cases[0][1]).headers["Content-Disposition"], 'attachment; filename="wrapped-black.png"')
         self.increment_count.assert_called()
         self.record_template_use.assert_called_with("black")
+
+    def test_renders_multipart_artwork_after_sanitizing(self):
+        render = self.patch(api, "_render_image", return_value=b"generated image")
+        response = self.client.post(
+            "/api/v1/wrapped",
+            data={
+                "payload": json.dumps({"data": {"artists": ["Artist One"]}}),
+                "artwork": (io.BytesIO(SAMPLE_PNG), "cover.png", "image/png"),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(render.call_args.args[2][:4], b"RIFF")
+        self.assertEqual(render.call_args.args[2][8:12], b"WEBP")
+
+    def test_rejects_invalid_multipart_artwork(self):
+        response = self.client.post(
+            "/api/v1/wrapped",
+            data={
+                "payload": json.dumps({"data": {"artists": ["Artist One"]}}),
+                "artwork": (io.BytesIO(b"not an image"), "cover.bin", "application/octet-stream"),
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
 
     def test_provider_source_uses_listenbrainz_and_limit(self):
         artists, tracks, _, _ = self.mock_listenbrainz(count=10)
