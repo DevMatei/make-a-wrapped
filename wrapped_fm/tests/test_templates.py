@@ -72,6 +72,14 @@ class TemplateValidationTests(unittest.TestCase):
 
         self.assertNotIn("<script", result["elements"][0]["text"])
 
+    def test_genre_slot_keeps_line_wrapping_setting(self):
+        template = _valid_template()
+        template["elements"].append({"id": "genre", "kind": "slot", "slot": "genre", "wrap": True})
+
+        result = store.validate_template(template)
+
+        self.assertTrue(result["elements"][2]["wrap"])
+
     def test_official_baseline_distributes_total_to_weights(self):
         with mock.patch.object(store, "read_wrapped_count", return_value=1000):
             baseline = store._official_baseline_uses()

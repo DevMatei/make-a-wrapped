@@ -1,4 +1,4 @@
-import { fontString, fitText, normaliseTemplate, prepareBackgroundImage, renderTemplate, resolveColor, resolveSlotDisplay } from './templates/engine.js';
+import { fontString, fitText, normaliseTemplate, prepareBackgroundImage, renderTemplate, resolveColor, resolveSlotDisplay, wrapText } from './templates/engine.js';
 import { buildCreatorPayload, getCreatorDisplay, getCreatorId, setCreatorDisplay } from './templates/creator.js';
 import { fetchTemplate } from './templates/store.js';
 import { SAMPLES, getSampleData } from './templates/sample-data.js';
@@ -67,11 +67,13 @@ let bgIsLocal = false;
 let slugTouched = false;
 let turnstileToken = null;
 let turnstileEnabled = false;
+let turnstileConfigLoaded = false;
 let turnstileSiteKey = '';
 let turnstileWidgetId = null;
 let turnstileWrapper = null;
 let turnstileWaiter = null;
 let turnstileWaiterResolve = null;
+let turnstileInitPromise = Promise.resolve();
 let draftSource = '';
 let draftTimer = null;
 let lastDraftJson = '';
@@ -138,6 +140,14 @@ function measureBounds(element) {
   } else {
     const value = resolveSlotDisplay(data, element.slot);
     const maxWidth = Number.isFinite(element.maxWidth) ? element.maxWidth : 0;
+    if (element.wrap) {
+      const lines = wrapText(ctx, value, maxWidth);
+      const lineWidth = Math.max(0, ...lines.map((line) => ctx.measureText(line).width));
+      width = Math.min(maxWidth || lineWidth, lineWidth);
+      height = lines.length * (element.lineHeight || Math.ceil(element.font.size * 1.2));
+      ctx.restore();
+      return { x: element.x, y: element.y, width, height };
+    }
     const layout = fitText(ctx, value, { font: element.font, maxWidth, minFontSize: element.minFontSize });
     ctx.font = layout.font;
     width = Math.min(ctx.measureText(layout.text).width, maxWidth || ctx.measureText(layout.text).width);
@@ -738,7 +748,10 @@ function renderPropertiesPanel() {
     const slotOptions = (element.kind === 'list')
       ? [{ value: 'artists', label: 'top artists' }, { value: 'tracks', label: 'top tracks' }]
       : [{ value: 'minutes', label: 'minutes listened' }, { value: 'genre', label: 'top genre' }];
-    propertiesEl.appendChild(fieldSelect(slotOptions, element.slot, 'show', (value) => { element.slot = value; render(); renderElementsList(); }));
+    propertiesEl.appendChild(fieldSelect(slotOptions, element.slot, 'show', (value) => { element.slot = value; render(); renderElementsList(); renderPropertiesPanel(); }));
+    if (element.kind === 'slot' && element.slot === 'genre') {
+      propertiesEl.appendChild(fieldToggle(element.wrap === true, 'wrap across lines', (value) => { element.wrap = value; markDirty(); }));
+    }
     propertiesEl.appendChild(fieldNumber(element.maxWidth || 0, 'max width', (value) => { element.maxWidth = value; markDirty(); }));
     propertiesEl.appendChild(fieldNumber(element.minFontSize || 24, 'min font size', (value) => { element.minFontSize = value; markDirty(); }));
   }
@@ -1208,8 +1221,53 @@ async function refreshTurnstileToken() {
   if (turnstileWaiter) {
     return turnstileWaiter;
   }
-  if (!window.turnstile || typeof window.turnstile.execute !== 'function' || turnstileWidgetId === null) {
+  const ready = await waitForTurnstileApi();
+  if (!ready || !window.turnstile || typeof window.turnstile.execute !== 'function') {
+    showToast('human verification could not load. refresh the page and try again.', 'error');
     return null;
+  }
+  if (turnstileWidgetId === null) {
+    turnstileWrapper = document.createElement('div');
+    turnstileWrapper.className = 'editor-turnstile';
+    const label = document.createElement('span');
+    label.textContent = 'human verification';
+    turnstileWrapper.appendChild(label);
+    const container = document.createElement('div');
+    turnstileWrapper.appendChild(container);
+    document.querySelector('.editor-header__actions').appendChild(turnstileWrapper);
+    turnstileWidgetId = window.turnstile.render(container, {
+      sitekey: turnstileSiteKey,
+      action: 'submit_template',
+      execution: 'execute',
+      appearance: 'interaction-only',
+      callback: (token) => {
+        turnstileToken = token;
+        turnstileWrapper.hidden = true;
+        if (turnstileWaiterResolve) {
+          turnstileWaiterResolve(token);
+        }
+        turnstileWaiter = null;
+        turnstileWaiterResolve = null;
+        showToast('verified! ready to submit.', 'success');
+      },
+      'expired-callback': () => {
+        turnstileToken = null;
+        if (turnstileWaiterResolve) {
+          turnstileWaiterResolve(null);
+        }
+        turnstileWaiter = null;
+        turnstileWaiterResolve = null;
+      },
+      'error-callback': () => {
+        turnstileToken = null;
+        if (turnstileWaiterResolve) {
+          turnstileWaiterResolve(null);
+        }
+        turnstileWaiter = null;
+        turnstileWaiterResolve = null;
+        showToast('human verification failed to load. try again.', 'error');
+      },
+    });
   }
   if (turnstileWrapper) {
     turnstileWrapper.hidden = false;
@@ -1247,7 +1305,7 @@ async function turnstileHeaders() {
   if (!turnstileEnabled) {
     return {};
   }
-  const token = await refreshTurnstileToken();
+  const token = await awaitTurnstileToken();
   if (!token) {
     throw new Error('complete the human verification to continue.');
   }
@@ -1255,6 +1313,10 @@ async function turnstileHeaders() {
 }
 
 async function ensureTurnstile() {
+  if (!turnstileConfigLoaded) {
+    showToast('could not load submission settings. refresh the page and try again.', 'error');
+    return false;
+  }
   if (!turnstileEnabled) {
     return true;
   }
@@ -1272,6 +1334,7 @@ async function ensureTurnstile() {
 }
 
 async function submitTemplate() {
+  await turnstileInitPromise;
   const name = nameInput.value.trim();
   const slug = slugInput.value.trim().toLowerCase();
   if (!name || name.toLowerCase() === DEFAULT_NAME.toLowerCase()) {
@@ -1363,56 +1426,12 @@ async function initTurnstile() {
   try {
     const response = await fetch('/api/client-config', { cache: 'no-store' });
     const payload = await response.json();
+    turnstileConfigLoaded = response.ok;
     turnstileEnabled = Boolean(payload.turnstileEnabled && payload.turnstileSiteKey);
     turnstileSiteKey = payload.turnstileSiteKey || '';
   } catch (error) {
+    turnstileConfigLoaded = false;
     turnstileEnabled = false;
-  }
-  if (turnstileEnabled) {
-    const ready = await waitForTurnstileApi();
-    if (ready && window.turnstile && typeof window.turnstile.render === 'function') {
-      turnstileWrapper = document.createElement('div');
-      turnstileWrapper.className = 'editor-turnstile';
-      turnstileWrapper.hidden = true;
-      const label = document.createElement('span');
-      label.textContent = 'verification';
-      turnstileWrapper.appendChild(label);
-      const container = document.createElement('div');
-      turnstileWrapper.appendChild(container);
-      document.querySelector('.editor-header__actions').appendChild(turnstileWrapper);
-      turnstileWidgetId = window.turnstile.render(container, {
-        sitekey: turnstileSiteKey,
-        action: 'submit_template',
-        callback: (token) => {
-          turnstileToken = token;
-          if (turnstileWrapper) {
-            turnstileWrapper.hidden = true;
-          }
-          if (turnstileWaiterResolve) {
-            turnstileWaiterResolve(token);
-          }
-          turnstileWaiter = null;
-          turnstileWaiterResolve = null;
-          showToast('verified! ready to submit.', 'success');
-        },
-        'expired-callback': () => {
-          turnstileToken = null;
-          if (turnstileWaiterResolve) {
-            turnstileWaiterResolve(null);
-          }
-          turnstileWaiter = null;
-          turnstileWaiterResolve = null;
-        },
-        'error-callback': () => {
-          turnstileToken = null;
-          if (turnstileWaiterResolve) {
-            turnstileWaiterResolve(null);
-          }
-          turnstileWaiter = null;
-          turnstileWaiterResolve = null;
-        },
-      });
-    }
   }
 }
 
@@ -1464,7 +1483,7 @@ async function init() {
     lastDraftJson = cleanJson;
   }
   loadCreatorInfo();
-  initTurnstile();
+  turnstileInitPromise = initTurnstile();
   await loadFonts(templateFontFamilies(template));
   if (document.fonts && document.fonts.ready) {
     document.fonts.ready.then(() => render());
