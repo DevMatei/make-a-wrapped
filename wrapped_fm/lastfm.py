@@ -493,6 +493,7 @@ def _aggregate_recent_in_range(username: str, range_obj: DateRange, service: Opt
 def _aggregate_recent_uncached(username: str, range_obj: DateRange, service: Optional[str] = None) -> _AggregatedRecent:
     result = _AggregatedRecent()
     artist_counter: Counter = Counter()
+    artist_name_counter: Counter = Counter()
     track_counter: Counter = Counter()
     album_counter: Counter = Counter()
 
@@ -515,11 +516,14 @@ def _aggregate_recent_uncached(username: str, range_obj: DateRange, service: Opt
                 continue
             artist_info = entry.get("artist") or {}
             artist_name = (artist_info.get("#text") or "").strip() if isinstance(artist_info, dict) else ""
+            artist_mbid = (artist_info.get("mbid") or "").strip() if isinstance(artist_info, dict) else ""
             album_info = entry.get("album") or {}
             album_name = (album_info.get("#text") or "").strip() if isinstance(album_info, dict) else ""
             track_name = (entry.get("name") or "").strip()
             if artist_name:
-                artist_counter[artist_name] += 1
+                artist_key = ("mbid", artist_mbid) if artist_mbid else ("name", " ".join(artist_name.casefold().split()))
+                artist_counter[artist_key] += 1
+                artist_name_counter[(artist_key, artist_name)] += 1
             if track_name and artist_name:
                 track_counter[(track_name, artist_name)] += 1
             if album_name and artist_name:
@@ -559,7 +563,11 @@ def _aggregate_recent_uncached(username: str, range_obj: DateRange, service: Opt
         logger.warning("recenttracks aggregation failed for %s: %s", username, exc)
         result.failed = True
 
-    result.top_artists = artist_counter.most_common(50)
+    result.top_artists = [
+        (max((name for (key, name) in artist_name_counter if key == artist_key),
+             key=lambda name: artist_name_counter[(artist_key, name)]), count)
+        for artist_key, count in artist_counter.most_common(50)
+    ]
     result.top_tracks = [
         (track, artist, plays)
         for (track, artist), plays in track_counter.most_common(50)

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
 import tempfile
 import unittest
@@ -32,7 +33,7 @@ class ApiTestCase(unittest.TestCase):
 class WrappedApiTests(ApiTestCase):
     def setUp(self):
         super().setUp()
-        self.increment_count = self.patch(api, "increment_wrapped_count")
+        self.record_generation = self.patch(api, "record_generation")
         self.record_template_use = self.patch(api.template_store, "record_template_use")
 
     def post(self, payload):
@@ -67,8 +68,33 @@ class WrappedApiTests(ApiTestCase):
                     self.assertNotIn("<text", svg)
 
         self.assertEqual(self.post(cases[0][1]).headers["Content-Disposition"], 'attachment; filename="wrapped-black.png"')
-        self.increment_count.assert_called()
+        self.record_generation.assert_called()
         self.record_template_use.assert_called_with("black")
+
+    def test_renders_multipart_artwork_after_sanitizing(self):
+        render = self.patch(api, "_render_image", return_value=b"generated image")
+        response = self.client.post(
+            "/api/v1/wrapped",
+            data={
+                "payload": json.dumps({"data": {"artists": ["Artist One"]}}),
+                "artwork": (io.BytesIO(SAMPLE_PNG), "cover.png", "image/png"),
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(render.call_args.args[2][:4], b"RIFF")
+        self.assertEqual(render.call_args.args[2][8:12], b"WEBP")
+
+    def test_rejects_invalid_multipart_artwork(self):
+        response = self.client.post(
+            "/api/v1/wrapped",
+            data={
+                "payload": json.dumps({"data": {"artists": ["Artist One"]}}),
+                "artwork": (io.BytesIO(b"not an image"), "cover.bin", "application/octet-stream"),
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
 
     def test_provider_source_uses_listenbrainz_and_limit(self):
         artists, tracks, _, _ = self.mock_listenbrainz(count=10)
@@ -86,22 +112,38 @@ class WrappedApiTests(ApiTestCase):
                 self.assertEqual(tracks.call_args.args[1], expected)
                 self.assertEqual(artwork.call_args.args[1], api.resolve_preset("last_year"))
 
+    def test_api_generation_records_allowlisted_client(self):
+        self.patch(api, "API_STATS_CLIENTS", new=frozenset({"navidrome-app"}))
+        self.mock_listenbrainz()
+        self.patch(api, "_provider_artwork", return_value=None)
+        self.patch(api, "_render_image", return_value=b"generated image")
+        response = self.client.post(
+            "/api/v1/wrapped",
+            data=json.dumps({"source": {"type": "provider", "provider": "listenbrainz", "username": "fan"}}),
+            content_type="application/json",
+            headers={"X-Wrapped-Client": "Navidrome-App"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.record_generation.assert_called_with("api", "black", service="listenbrainz", client="navidrome-app")
+
     def test_artwork_options(self):
         self.mock_listenbrainz()
         fetch_art = self.patch(api, "fetch_top_artist_image", return_value=SimpleNamespace(content=SAMPLE_PNG))
         render = self.patch(api, "_render_image", return_value=b"generated image")
         cases = [
-            ("other provider release", {"source": {"type": "provider", "provider": "listenbrainz", "username": "fan"}, "artwork": {"provider": "lastfm", "source": "release"}}, False),
-            ("custom data lookup", {"data": {"artists": ["A"]}, "artwork": {"provider": "listenbrainz", "username": "fan", "fit": "cover"}}, False),
-            ("inline contain", {"data": {"artists": ["A"], "artwork": SAMPLE_DATA_URL}, "artwork": {"fit": "contain"}}, True),
+            ("other provider release", {"source": {"type": "provider", "provider": "listenbrainz", "username": "fan"}, "artwork": {"provider": "lastfm", "source": "release"}}, False, "center"),
+            ("custom data lookup", {"data": {"artists": ["A"]}, "artwork": {"provider": "listenbrainz", "username": "fan", "fit": "cover"}}, False, "auto"),
+            ("inline contain", {"data": {"artists": ["A"], "artwork": SAMPLE_DATA_URL}, "artwork": {"fit": "contain"}}, True, "auto"),
         ]
 
-        for name, payload, contain in cases:
+        for name, payload, contain, crop_focus in cases:
             with self.subTest(name=name):
                 response = self.post(payload)
 
                 self.assertEqual(response.status_code, 200)
                 self.assertEqual(render.call_args.args[0]["artwork"]["contain"], contain)
+                self.assertEqual(render.call_args.args[0]["artwork"].get("cropFocus", "auto"), crop_focus)
 
         self.assertEqual(fetch_art.call_args_list[0].kwargs["service"], "lastfm")
         self.assertEqual(fetch_art.call_args_list[0].kwargs["preferred_source"], "release")

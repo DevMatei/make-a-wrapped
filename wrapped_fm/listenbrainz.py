@@ -448,9 +448,18 @@ def _aggregate_listens_uncached(username: str, range_obj: DateRange) -> _Aggrega
 
 
 def _format_top_artists(counter: Counter, limit: int) -> List[Dict[str, object]]:
+    grouped: Dict[Tuple[str, Optional[str]], Dict[str, object]] = {}
+    for (name, mbid), count in counter.items():
+        key = ("mbid", mbid) if mbid else ("name", " ".join(name.casefold().split()))
+        entry = grouped.setdefault(key, {"artist_name": name, "artist_mbid": mbid or None, "listen_count": 0})
+        entry["listen_count"] = int(entry["listen_count"]) + count
+        if count > entry.get("display_count", 0):
+            entry["artist_name"] = name
+            entry["display_count"] = count
+    results = sorted(grouped.values(), key=lambda entry: int(entry["listen_count"]), reverse=True)
     return [
-        {"artist_name": name, "artist_mbid": mbid or None, "listen_count": count}
-        for (name, mbid), count in counter.most_common(limit)
+        {key: value for key, value in entry.items() if key != "display_count"}
+        for entry in results[:limit]
     ]
 
 

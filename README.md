@@ -183,7 +183,9 @@ everything goes in `.env`. [`.env.example`](./.env.example) has the common ones 
 | `APP_API_RENDER_CONCURRENCY`, `APP_API_RENDER_QUEUE_LIMIT`, `APP_API_RENDER_QUEUE_TIMEOUT` | `1`, `16`, `30` | api render queue, per worker |
 | `RATE_LIMIT_STORAGE` | `memory://` | set to a redis url when running several workers |
 | `APP_RATE_LIMIT_SALT` | empty | set something random, it salts the hashed client ips |
+| `APP_STATS_API_CLIENTS` | empty | comma-separated API client ids accepted for aggregate stats |
 | `APP_TRUST_PROXY_HEADERS` | `0` | set to `1` only behind a reverse proxy you control |
+| `APP_STATS_API_CLIENTS` | empty | comma-separated short ids of API integrations to break out on `/stats` |
 | `HTTP_TIMEOUT`, `HTTP_POOL_MAXSIZE` | `10`, `40` | |
 | `LISTENBRAINZ_CACHE_TTL`, `LISTENBRAINZ_CACHE_SIZE` | `60`, `256` | |
 | `LOG_LEVEL` | `INFO` | |
@@ -195,7 +197,7 @@ everything goes in `.env`. [`.env.example`](./.env.example) has the common ones 
 
 | var | default | what it does |
 | --- | --- | --- |
-| `COUNTER_DB` | `data/counters.db` | sqlite file for the wrapped counter and template uses |
+| `COUNTER_DB` | `data/counters.db` | sqlite file for wrapped, generation and template counters |
 | `WRAPPED_COUNT_FILE` | `data/wrapped-count.txt` | old counter file, imported once on first start |
 | `WRAPPED_COUNT_SINCE` | `2025-10-26` | label for when you started counting |
 | `BADGE_CACHE_TTL`, `BADGE_CACHE_SIZE` | `21600` (6h), `512` | |

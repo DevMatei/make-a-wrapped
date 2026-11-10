@@ -73,7 +73,7 @@ from .lastfm import (
     get_lastfm_top_tracks,
 )
 from . import cluster, metrics
-from .metrics import increment_wrapped_count, read_wrapped_count
+from .metrics import read_wrapped_count, record_generation
 from .rate_limiter import rate_limit
 from .temp_artwork import (
     ArtworkExpiredError,
@@ -227,6 +227,11 @@ def root() -> Response:
 @bp.route("/templates")
 def templates_page() -> Response:
     return current_app.send_static_file("templates.html")
+
+
+@bp.route("/stats")
+def stats_page() -> Response:
+    return current_app.send_static_file("stats.html")
 
 
 @bp.route("/marketplace")
@@ -583,7 +588,8 @@ def get_wrapped_metric() -> Response:
 def increment_wrapped_metric() -> Response:
     payload = request.get_json(silent=True) or {}
     service = payload.get("service") if isinstance(payload, dict) else None
-    count = increment_wrapped_count(service=service)
+    template = payload.get("template") if isinstance(payload, dict) else None
+    count = record_generation("site", template, service=service)
     return jsonify({"count": count, "since": WRAPPED_COUNT_SINCE})
 
 

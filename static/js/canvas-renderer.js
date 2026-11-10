@@ -24,12 +24,13 @@ export function createCanvasRenderer({ canvas, themeSelect, artistImg }) {
     prepareBackgroundImage(template, callback, callback);
   }
 
-  function draw({ data, art: artOverride, isCoverReady, allowTransform, imageTransform, period }) {
+  function draw({ data, art: artOverride, isCoverReady, allowTransform, imageTransform, period, artworkSource }) {
     if (!template) {
       return;
     }
     const art = artOverride !== undefined ? artOverride : isCoverReady && artistImg && artistImg.complete && artistImg.naturalWidth > 0 ? artistImg : null;
     const hasData = Boolean(data && data.username);
+    template.artwork.cropFocus = artworkSource === 'release' ? 'center' : 'auto';
     renderTemplate(ctx, template, {
       data,
       art,

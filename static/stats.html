@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <title>Wrapped Stats | Make a Wrapped</title>
+    <meta name="description" content="A privacy-respecting look at how many Wrapped posters Make a Wrapped has generated.">
+    <meta name="robots" content="index, follow">
+    <meta name="author" content="DevMatei">
+    <link rel="canonical" href="https://wrapped.devmatei.com/stats">
+    <meta name="theme-color" content="#15121f">
+    <meta name="color-scheme" content="dark">
+    <script>try{var t=localStorage.getItem('wrapped-theme');document.documentElement.dataset.theme=/^(lavender|mint|sunset)$/.test(t)?t:'lavender'}catch(e){document.documentElement.dataset.theme='lavender'}</script>
+    <link rel="icon" type="image/svg+xml" href="favicon-lavender.svg">
+    <link rel="stylesheet" href="style.css">
+    <script type="module" src="js/site.js"></script>
+    <script type="module" src="js/stats.js"></script>
+  </head>
+  <body>
+    <header class="topline">
+      <a href="/">make a wrapped</a> <span aria-hidden="true">/</span> <span aria-current="page">stats</span>
+    </header>
+    <main class="page stats-page">
+      <header class="page-head stats-page__head">
+        <div>
+          <h1>wrapped stats</h1>
+        </div>
+        <div class="stats-period" role="group" aria-label="Activity chart period">
+          <button type="button" data-days="30" aria-pressed="false">30 days</button>
+          <button type="button" data-days="90" aria-pressed="true">90 days</button>
+          <button type="button" data-days="365" aria-pressed="false">1 year</button>
+        </div>
+      </header>
+
+      <p class="stats-message" id="stats-message" role="status" aria-live="polite">loading the numbers…</p>
+
+      <section class="stats-summary" id="stats-summary" aria-label="Summary" hidden></section>
+
+      <section class="stats-panel" aria-labelledby="activity-title">
+        <div class="stats-panel__head">
+          <div>
+            <h2 id="activity-title">generation activity</h2>
+            <p>posters generated per day</p>
+          </div>
+          <span class="stats-panel__hint" id="activity-range"></span>
+        </div>
+        <div class="stats-chart-wrap">
+          <svg id="activity-chart" class="stats-chart" role="img" aria-labelledby="activity-title chart-description" viewBox="0 0 960 240" preserveAspectRatio="none"></svg>
+          <p id="chart-description" class="visually-hidden">A bar chart showing daily Wrapped generations.</p>
+        </div>
+      </section>
+
+      <div class="stats-columns">
+        <section class="stats-panel" aria-labelledby="sources-title">
+          <div class="stats-panel__head">
+            <div>
+              <h2 id="sources-title">where they’re made</h2>
+              <p>generation channel</p>
+            </div>
+          </div>
+          <div id="sources-list" class="stats-list"></div>
+        </section>
+
+        <section class="stats-panel" aria-labelledby="providers-title">
+          <div class="stats-panel__head">
+            <div>
+              <h2 id="providers-title">music services</h2>
+              <p>provider-backed generations</p>
+            </div>
+          </div>
+          <div id="providers-list" class="stats-list"></div>
+        </section>
+
+        <section class="stats-panel" aria-labelledby="templates-title">
+          <div class="stats-panel__head">
+            <div>
+              <h2 id="templates-title">popular templates</h2>
+              <p>counted on generation</p>
+            </div>
+          </div>
+          <div id="templates-list" class="stats-list"></div>
+        </section>
+
+        <section class="stats-panel" aria-labelledby="clients-title">
+          <div class="stats-panel__head">
+            <div>
+              <h2 id="clients-title">api apps</h2>
+              <p>reported by allowlisted clients</p>
+            </div>
+          </div>
+          <div id="clients-list" class="stats-list"></div>
+        </section>
+      </div>
+
+      <p class="stats-privacy-note">daily aggregate counts only · detailed breakdowns start with this update</p>
+    </main>
+    <footer class="site-footer">
+      <p><a href="/">make a wrapped</a> · <a href="/templates">templates</a> · <a href="https://github.com/DevMatei/make-a-wrapped" target="_blank" rel="noopener noreferrer">open source</a></p>
+    </footer>
+  </body>
+</html>

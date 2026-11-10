@@ -10,7 +10,7 @@ the api turns listening stats into a finished wrapped poster. send stats from a 
 | **success** | image bytes, `image/png` by default or `image/svg+xml` |
 | **errors** | always json, even when you asked for an image |
 
-**contents:** [quick start](#quick-start) · [request fields](#request-fields) · [providers](#use-a-provider) · [custom data](#custom-data) · [artwork](#artwork) · [templates](#templates) · [template catalog](#template-catalog) · [errors](#errors) · [limits](#limits) · [running it locally](#running-it-locally)
+**contents:** [quick start](#quick-start) · [request fields](#request-fields) · [providers](#use-a-provider) · [custom data](#custom-data) · [artwork](#artwork) · [templates](#templates) · [template catalog](#template-catalog) · [stats and privacy](#stats-and-privacy) · [errors](#errors) · [limits](#limits) · [running it locally](#running-it-locally)
 
 ## quick start
 
@@ -41,6 +41,12 @@ curl --fail-with-body https://wrapped.devmatei.com/api/v1/wrapped \
   -d '{"source": {"type": "provider", "provider": "listenbrainz", "username": "YOUR_USERNAME"}}' \
   --output wrapped.png
 ```
+
+API clients can optionally identify their integration with `X-Wrapped-Client: client-id`. Only ids configured in `APP_STATS_API_CLIENTS` are broken out by name on the public [stats page](https://wrapped.devmatei.com/stats); other calls are grouped as unidentified API clients. This id is used only in aggregate daily counts.
+
+## stats and privacy
+
+`/stats` shows total generations, daily activity, music services, templates and allowlisted API clients. Counts are stored as daily aggregate counters and sync across configured instances. Provider, channel, client and generation-template breakdowns begin with this tracking update; earlier totals can’t be split retroactively. Usernames, listening data, artwork and request bodies are not recorded in the stats counters.
 
 ### from javascript
 
@@ -148,7 +154,16 @@ pass the stats your app already has:
 
 include at least one of `artists` or `tracks`. text values can be up to 120 characters. unknown fields in `data` return `400`.
 
-for bigger covers or covers from a service, skip `data.artwork` and use an [artwork lookup](#artwork) instead. you can't use both in one request.
+for a high-resolution custom cover, send the stats as the `payload` form field and the image as the `artwork` file in one multipart request:
+
+```sh
+curl --fail-with-body https://wrapped.devmatei.com/api/v1/wrapped \
+  -F 'payload={"template":"black","data":{"artists":["Artist One"]},"format":"png"}' \
+  -F 'artwork=@cover.jpg;type=image/jpeg' \
+  --output wrapped.png
+```
+
+multipart artwork may be PNG, JPEG, or WebP, up to 10 MiB and 16 million pixels. The server decodes it in a network-disabled, read-only sandbox with a 512 MiB address-space limit. Only one image is sanitized at a time per host. It applies orientation, shrinks the image to at most 2048 pixels per side, and re-encodes it as WebP before rendering. Animated images are rejected. The raw upload is not saved as application data; the multipart temporary file is closed after it is read. `data.artwork` remains available for small data URLs. Don't include both forms of uploaded artwork in one request.
 
 ## artwork
 
@@ -368,6 +383,8 @@ previews get a higher limit because one page of thumbnails is a lot of requests.
 | size limit | value |
 | --- | --- |
 | json request body | 64 KiB |
+| multipart request body | 12 MiB |
+| multipart `artwork` file | 10 MiB |
 | `data.artwork` | 32 KiB decoded |
 | text values | 120 characters |
 | template canvas | 2.5 million pixels |

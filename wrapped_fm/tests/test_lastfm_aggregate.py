@@ -9,8 +9,8 @@ from unittest.mock import patch
 from wrapped_fm import date_range, lastfm
 
 
-def _recent(artist, track, uts):
-    return {"name": track, "artist": {"#text": artist}, "album": {"#text": "Album"}, "date": {"uts": str(uts)}}
+def _recent(artist, track, uts, mbid=""):
+    return {"name": track, "artist": {"#text": artist, "mbid": mbid}, "album": {"#text": "Album"}, "date": {"uts": str(uts)}}
 
 
 def _pages(*pages):
@@ -53,6 +53,23 @@ class LastfmAggregationTests(unittest.TestCase):
         self.assertEqual(call.call_args.args[0], "user.gettopartists")
         self.assertEqual(call.call_args.args[1]["period"], "12month")
         self.assertEqual(custom, ["Beta"])
+
+    def test_aggregate_recent_merges_artist_name_variants_by_mbid(self):
+        start = 1_700_000_000
+        range_obj = date_range.DateRange(
+            preset="specific_month", label="Nov 2023", kind="month", start_ts=start, end_ts=start + 3600,
+            lb_range=None, lastfm_period=None, is_custom=True,
+        )
+        tracks = [
+            _recent("Ye", "Song A", start + 1, "same-artist"),
+            _recent("Kanye West", "Song B", start + 2, "same-artist"),
+            _recent("Kanye West", "Song C", start + 3, "same-artist"),
+        ]
+
+        with _pages(tracks):
+            aggregated = lastfm._aggregate_recent_in_range("testuser", range_obj)
+
+        self.assertEqual(aggregated.top_artists[0], ("Kanye West", 3))
 
 
 if __name__ == "__main__":
