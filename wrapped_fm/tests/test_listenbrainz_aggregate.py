@@ -74,6 +74,26 @@ class ListenBrainzAggregationTests(unittest.TestCase):
         self.assertEqual(payload["_meta"]["total_listen_count"], 12)
         self.assertFalse(payload["_meta"]["reached_limit"])
 
+    def test_aggregate_artists_merges_name_variants_with_same_mbid(self):
+        listens = []
+        for artist, mbid, count in (
+            ("Artist Name", "artist-id", 2),
+            ("ARTIST NAME", "artist-id", 3),
+            ("Other Artist", "other-id", 1),
+        ):
+            for index in range(count):
+                entry = _listen(artist, f"{artist} {index}", START + index)
+                entry["track_metadata"]["additional_info"]["artist_mbids"] = [mbid]
+                listens.append(entry)
+
+        with _pages(listens):
+            payload = listenbrainz._aggregate_payload_for_range("testuser", "artists", JUNE, count=5)
+
+        self.assertEqual(payload["artists"], [
+            {"artist_name": "ARTIST NAME", "artist_mbid": "artist-id", "listen_count": 5},
+            {"artist_name": "Other Artist", "artist_mbid": "other-id", "listen_count": 1},
+        ])
+
 
 if __name__ == "__main__":
     unittest.main()
