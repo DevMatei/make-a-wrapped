@@ -431,7 +431,7 @@ def _sanitize_uploaded_artwork(image_data: bytes) -> bytes:
         "--dir", "/app",
         "--ro-bind", str(worker_path), "/app/image_sanitizer.py",
         "--dev", "/dev",
-        "--proc", "/proc",
+        "--tmpfs", "/proc",
         "--tmpfs", "/tmp",
         "--chdir", "/app",
         "--clearenv",
@@ -474,6 +474,22 @@ def _sanitize_uploaded_artwork(image_data: bytes) -> bytes:
     finally:
         os.close(lock_fd)
     if result.returncode or not result.stdout or len(result.stdout) > MAX_SANITIZED_ARTWORK_BYTES:
+        raw_detail = result.stderr.decode("utf-8", errors="replace")
+        printable_detail = "".join(
+            char if char.isprintable() else " "
+            for char in raw_detail
+        )
+        detail = " ".join(printable_detail.split())[:500]
+        if result.returncode:
+            logger.warning(
+                "Artwork sanitizer exited with status %s: %s",
+                result.returncode,
+                detail or "no diagnostic output",
+            )
+        elif not result.stdout:
+            logger.warning("Artwork sanitizer returned no output")
+        else:
+            logger.warning("Artwork sanitizer output exceeded its size limit (%d bytes)", len(result.stdout))
         abort(400, description="Artwork must be a valid PNG, JPEG, or WebP image within the upload and pixel limits.")
     return result.stdout
 

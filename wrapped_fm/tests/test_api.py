@@ -13,6 +13,7 @@ from unittest import mock
 
 from wrapped_fm import api, catalog
 from wrapped_fm.app import create_app
+from werkzeug.exceptions import HTTPException
 
 SAMPLE_PNG = (Path(__file__).resolve().parents[2] / "static" / "favicon-lavender-16.png").read_bytes()
 SAMPLE_DATA_URL = "data:image/png;base64," + base64.b64encode(SAMPLE_PNG).decode("ascii")
@@ -73,6 +74,11 @@ class WrappedApiTests(ApiTestCase):
 
     def test_renders_multipart_artwork_after_sanitizing(self):
         render = self.patch(api, "_render_image", return_value=b"generated image")
+        sanitizer = self.patch(
+            api.subprocess,
+            "run",
+            return_value=SimpleNamespace(returncode=0, stdout=b"RIFFxxxxWEBP", stderr=b""),
+        )
         response = self.client.post(
             "/api/v1/wrapped",
             data={
@@ -84,6 +90,10 @@ class WrappedApiTests(ApiTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(render.call_args.args[2][:4], b"RIFF")
         self.assertEqual(render.call_args.args[2][8:12], b"WEBP")
+        command = sanitizer.call_args.args[0]
+        self.assertIn("--tmpfs", command)
+        self.assertIn("/proc", command)
+        self.assertNotIn("--proc", command)
 
     def test_rejects_invalid_multipart_artwork(self):
         response = self.client.post(
@@ -95,6 +105,22 @@ class WrappedApiTests(ApiTestCase):
         )
 
         self.assertEqual(response.status_code, 400)
+
+    def test_sanitizer_failure_logs_only_bounded_diagnostic(self):
+        self.patch(api.shutil, "which", return_value="/usr/bin/bwrap")
+        self.patch(
+            api.subprocess,
+            "run",
+            return_value=SimpleNamespace(returncode=1, stdout=b"", stderr=b"bwrap: namespace denied\n"),
+        )
+
+        with self.app.test_request_context("/api/v1/wrapped"), self.assertLogs(api.logger, level="WARNING") as logs:
+            with self.assertRaises(HTTPException) as error:
+                api._sanitize_uploaded_artwork(b"private image bytes")
+
+        self.assertEqual(error.exception.code, 400)
+        self.assertIn("bwrap: namespace denied", logs.output[0])
+        self.assertNotIn("private image bytes", logs.output[0])
 
     def test_provider_source_uses_listenbrainz_and_limit(self):
         artists, tracks, _, _ = self.mock_listenbrainz(count=10)
