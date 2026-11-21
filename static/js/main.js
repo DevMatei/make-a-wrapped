@@ -1959,6 +1959,13 @@ async function loadCoverArt(username) {
         }
         state.imageWarningMessage = '';
         return true;
+    if (/<p>/i.test(text)) {
+      const doc = new DOMParser().parseFromString(text, 'text/html');
+      const description = doc.querySelector('p')?.textContent.trim();
+      if (description) {
+        return description;
+      }
+    }
       } catch (error) {
         const networkIssue = isLikelyNetworkError(error);
         const timeoutIssue = (error?.message || '').toLowerCase().includes('timeout');
