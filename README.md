@@ -214,6 +214,20 @@ everything goes in `.env`. [`.env.example`](./.env.example) has the common ones 
 
 </details>
 
+### navidrome behind authelia / authentik (header auth)
+
+if your navidrome sits behind a reverse proxy that logs people in and passes a `Remote-User` header, you can host make a wrapped behind the same proxy and skip the password field entirely. the browser talks to a small proxy on this app (`/navidrome-proxy/*`), and the app forwards the signed in user to navidrome.
+
+| var | default | what it does |
+| --- | --- | --- |
+| `NAVIDROME_AUTH_MODE` | empty | set to `header` to turn it on |
+| `NAVIDROME_URL` | empty | navidrome's internal url, e.g. `http://navidrome:4533` |
+| `TRUSTED_USER_HEADER` | `Remote-User` | header your proxy sets with the username |
+| `NAVIDROME_TRUSTED_PROXIES` | empty | comma separated ips / cidrs of your proxy. requests from anywhere else get no header passed through. empty trusts everything, so set it |
+| `NAVIDROME_PROXY_RATE_LIMIT` | `1200 per minute` | the stats pull makes a lot of small calls |
+
+on the navidrome side, add this app's ip to `ND_EXTAUTH_TRUSTEDSOURCES` (older versions call it `ND_REVERSEPROXYWHITELIST`) and make sure navidrome reads the same header (`ND_EXTAUTH_USERHEADER`). only expose this app through the proxy in this mode, never directly, or anyone who can reach it can send their own header.
+
 ### running more than one server
 
 handy if you want a backup box for when the main one goes down. leave all of this empty for a single server.

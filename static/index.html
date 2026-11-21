@@ -217,7 +217,8 @@
             </div>
 
             <div id="navidrome-fields" class="service-fields" hidden>
-              <div class="field field--wide">
+              <p class="hint" id="navidrome-header-note" hidden>signed in through your proxy as <strong id="navidrome-header-user"></strong>. no password needed.</p>
+              <div class="field field--wide" data-navidrome-login>
                 <label class="label" for="navidrome-server">server url</label>
                 <input
                   id="navidrome-server"
@@ -230,7 +231,7 @@
                   spellcheck="false"
                 >
               </div>
-              <div class="field">
+              <div class="field" data-navidrome-login>
                 <label class="label" for="navidrome-username">username</label>
                 <input
                   id="navidrome-username"
@@ -243,7 +244,7 @@
                   minlength="2"
                 >
               </div>
-              <div class="field">
+              <div class="field" data-navidrome-login>
                 <label class="label" for="navidrome-password">password or app token</label>
                 <input
                   id="navidrome-password"

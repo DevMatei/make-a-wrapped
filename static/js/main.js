@@ -87,6 +87,9 @@ const artworkOverrideInput = document.getElementById('artwork-override');
 const navidromeFields = document.getElementById('navidrome-fields');
 const navidromeServerInput = document.getElementById('navidrome-server');
 const navidromePasswordInput = document.getElementById('navidrome-password');
+const navidromeLoginFields = Array.from(document.querySelectorAll('[data-navidrome-login]'));
+const navidromeHeaderNote = document.getElementById('navidrome-header-note');
+const navidromeHeaderUser = document.getElementById('navidrome-header-user');
 const malojaFields = document.getElementById('maloja-fields');
 const malojaServerInput = document.getElementById('maloja-server');
 const customFields = document.getElementById('custom-fields');
@@ -101,6 +104,8 @@ let turnstileWidgetId = null;
 const clientConfig = {
   turnstileEnabled: false,
   turnstileSiteKey: '',
+  navidromeHeaderAuth: false,
+  navidromeUser: '',
 };
 let clientConfigPromise = null;
 let turnstileRefreshPromise = null;
@@ -266,6 +271,26 @@ function isNavidromeSelected() {
 }
 
 const SNAPSHOT_BADGE_SERVICES = new Set(['navidrome', 'maloja', 'custom']);
+
+function isNavidromeHeaderMode() {
+  return Boolean(clientConfig.navidromeHeaderAuth);
+}
+
+function applyNavidromeHeaderMode() {
+  const headerMode = isNavidromeHeaderMode();
+  navidromeLoginFields.forEach((field) => {
+    field.hidden = headerMode;
+  });
+  if (navidromeHeaderNote) {
+    navidromeHeaderNote.hidden = !headerMode;
+  }
+  if (navidromeHeaderUser) {
+    navidromeHeaderUser.textContent = clientConfig.navidromeUser || 'nobody (check your proxy)';
+  }
+  if (navidromeUsernameInput) {
+    navidromeUsernameInput.required = !headerMode && isNavidromeSelected();
+  }
+}
 
 function clearNavidromeState() {
   if (state.coverObjectUrl && !state.customArtworkActive) {
@@ -434,7 +459,7 @@ function handleServiceChange(nextValue) {
     clearInvalid(usernameField);
   }
   if (navidromeUsernameInput) {
-    navidromeUsernameInput.required = isNavidrome;
+    navidromeUsernameInput.required = isNavidrome && !isNavidromeHeaderMode();
   }
   if (navidromeFields) {
     navidromeFields.hidden = !isNavidrome;
@@ -472,6 +497,12 @@ function clearInvalid(field) {
 }
 
 function readNavidromeCredentials(username) {
+  if (isNavidromeHeaderMode()) {
+    if (!clientConfig.navidromeUser) {
+      throw new Error("your proxy didn't pass a signed in navidrome user. sign in through it and reload.");
+    }
+    return { serverUrl: `${window.location.origin}/navidrome-proxy`, password: '', headerAuth: true };
+  }
   if (!navidromeServerInput || !navidromePasswordInput) {
     throw new Error('navidrome inputs are missing.');
   }
@@ -1173,6 +1204,9 @@ async function loadClientConfig() {
     const payload = await response.json();
     clientConfig.turnstileEnabled = Boolean(payload.turnstileEnabled);
     clientConfig.turnstileSiteKey = payload.turnstileSiteKey || '';
+    clientConfig.navidromeHeaderAuth = Boolean(payload.navidromeHeaderAuth);
+    clientConfig.navidromeUser = typeof payload.navidromeUser === 'string' ? payload.navidromeUser : '';
+    applyNavidromeHeaderMode();
     return true;
   } catch (error) {
     console.warn('Unable to load client config', error);
@@ -1752,6 +1786,9 @@ async function generateWrapped(event) {
   let customData = null;
   if (selectedService === 'navidrome') {
     try {
+      if (isNavidromeHeaderMode()) {
+        username = clientConfig.navidromeUser;
+      }
       navidromeCredentials = readNavidromeCredentials(username);
     } catch (credentialError) {
       setStatus(credentialError.message, 'error');
@@ -1789,6 +1826,7 @@ async function generateWrapped(event) {
       username,
       navidromeCredentials.password,
       readNavidromeMethod(),
+      { headerAuth: Boolean(navidromeCredentials.headerAuth) },
     );
     state.navidromeStats = null;
   }

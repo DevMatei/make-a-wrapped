@@ -5,15 +5,16 @@ import {
 } from './constants.js';
 
 export class NavidromeNativeApi {
-  constructor(serverUrl, username, password) {
+  constructor(serverUrl, username, password, { headerAuth = false } = {}) {
     this.root = normaliseServerUrl(serverUrl);
     this.user = username;
     this.password = password;
+    this.headerAuth = headerAuth;
     this.token = null;
   }
 
   async authenticate() {
-    if (this.token) {
+    if (this.headerAuth || this.token) {
       return this.token;
     }
     let response;
@@ -49,7 +50,9 @@ export class NavidromeNativeApi {
     try {
       response = await fetch(`${this.root}${path}${query}`, {
         method: 'GET',
-        headers: { Accept: 'application/json', 'x-nd-authorization': `Bearer ${this.token}` },
+        headers: this.headerAuth
+          ? { Accept: 'application/json' }
+          : { Accept: 'application/json', 'x-nd-authorization': `Bearer ${this.token}` },
       });
     } catch (error) {
       throw new Error('Unable to reach your Navidrome server. Check the URL and network settings.');
