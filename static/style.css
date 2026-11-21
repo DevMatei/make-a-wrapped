@@ -656,6 +656,21 @@ kbd {
   gap: 8px;
 }
 
+.heads-up {
+  margin: 0 0 18px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--accent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--muted);
+  font-size: 0.8125rem;
+  line-height: 1.5;
+}
+
+.heads-up a {
+  color: inherit;
+}
+
 .hint {
   margin: 0;
   font-size: 0.8125rem;
