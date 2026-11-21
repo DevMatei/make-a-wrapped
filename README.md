@@ -2,7 +2,7 @@
 
 # 🎧 make a wrapped
 
-**spotify wrapped style recaps for listenbrainz, last.fm, libre.fm and navidrome.**<br>
+**spotify wrapped style recaps for listenbrainz, last.fm, libre.fm, navidrome and maloja.**<br>
 free, open source, no account, and you don't have to wait for december.
 
 <a href="https://github.com/DevMatei/make-a-wrapped/stargazers"><img src="https://img.shields.io/github/stars/DevMatei/make-a-wrapped?style=for-the-badge&labelColor=1a1625&color=c084fc&logo=github&logoColor=c084fc" alt="stars"></a>
@@ -34,7 +34,7 @@ there's a [discord](https://discord.gg/ucFGpJdznF) too, come say hi, post your w
 
 ## 💡 what it does
 
-* **four services:** listenbrainz, last.fm, libre.fm and navidrome. public stats need no login, and navidrome runs fully in your browser so your server password never touches mine
+* **five services plus custom:** listenbrainz, last.fm, libre.fm, navidrome and maloja. public stats need no login, and navidrome runs fully in your browser so your server password never touches mine. no supported service? pick custom and type your own top artists, tracks, minutes and genre
 * **any time frame:** this year, last year, last 12 months, this month, last month, a specific month or all time. no waiting for december
 * **artist art that actually shows up:** tries last.fm first, then musicbrainz and wikidata. if all of that fails, upload your own and zoom/position it by hand
 * **templates:** built-in themes plus community ones from the [template library](https://wrapped.devmatei.com/marketplace), and a [visual editor](https://wrapped.devmatei.com/editor) to make your own without touching code (both **beta**)
@@ -65,7 +65,7 @@ put your top artist on your github profile or website. it's a live svg, cached s
 ![minutes](https://wrapped.devmatei.com/badge/YOUR_USERNAME?type=minutes&service=lastfm&range=this_month&color=ff6b9d)
 ```
 
-**navidrome badges** work differently, since your server credentials never touch this app. make your wrapped, hit "copy readme badge", and your browser publishes just the final numbers (top artist, track, genre, minutes, nothing else) under a private key kept in your browser. the badge url stays the same when you regenerate, only you can update it, and it expires after 60 days unless you refresh it.
+**navidrome, maloja and custom badges** work differently, since your server credentials never touch this app. make your wrapped, hit "copy readme badge", and your browser publishes just the final numbers (top artist, track, genre, minutes, nothing else) under a private key kept in your browser. the badge url stays the same when you regenerate, only you can update it, and it expires after 60 days unless you refresh it.
 
 ## 🔌 developer api (beta)
 
@@ -148,6 +148,7 @@ everything goes in `.env`. [`.env.example`](./.env.example) has the common ones 
 | `LISTENBRAINZ_USER_AGENT`, `MUSICBRAINZ_USER_AGENT`, `LASTFM_USER_AGENT`, `LIBREFM_USER_AGENT` | `make-a-wrapped/1.0 (...)` | be nice and put your own contact in these if you self-host |
 | `SITE_URL` | `https://wrapped.devmatei.com` | public url, used for seo tags and api links |
 | `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` | none | picked up automatically if you tunnel through a proxy |
+| `MALOJA_ALLOW_PRIVATE` | `false` | let people point the maloja source at lan / private ips. only turn this on for a private instance |
 
 </details>
 
@@ -213,6 +214,20 @@ everything goes in `.env`. [`.env.example`](./.env.example) has the common ones 
 
 </details>
 
+### navidrome behind authelia / authentik (header auth)
+
+if your navidrome sits behind a reverse proxy that logs people in and passes a `Remote-User` header, you can host make a wrapped behind the same proxy and skip the password field entirely. the browser talks to a small proxy on this app (`/navidrome-proxy/*`), and the app forwards the signed in user to navidrome.
+
+| var | default | what it does |
+| --- | --- | --- |
+| `NAVIDROME_AUTH_MODE` | empty | set to `header` to turn it on |
+| `NAVIDROME_URL` | empty | navidrome's internal url, e.g. `http://navidrome:4533` |
+| `TRUSTED_USER_HEADER` | `Remote-User` | header your proxy sets with the username |
+| `NAVIDROME_TRUSTED_PROXIES` | empty | comma separated ips / cidrs of your proxy. requests from anywhere else get no header passed through. empty trusts everything, so set it |
+| `NAVIDROME_PROXY_RATE_LIMIT` | `1200 per minute` | the stats pull makes a lot of small calls |
+
+on the navidrome side, add this app's ip to `ND_EXTAUTH_TRUSTEDSOURCES` (older versions call it `ND_REVERSEPROXYWHITELIST`) and make sure navidrome reads the same header (`ND_EXTAUTH_USERHEADER`). only expose this app through the proxy in this mode, never directly, or anyone who can reach it can send their own header.
+
 ### running more than one server
 
 handy if you want a backup box for when the main one goes down. leave all of this empty for a single server.
@@ -276,7 +291,7 @@ i'm matei ([devmatei](https://devmatei.com)), full-stack dev from moldova. i bui
 
 [agpl-3.0](./LICENSE), share alike. if you run a modified version publicly, share your changes.
 
-not affiliated with spotify, listenbrainz, last.fm, libre.fm, navidrome or musicbrainz. just a fan thing built for fun.
+not affiliated with spotify, listenbrainz, last.fm, libre.fm, navidrome, maloja or musicbrainz. just a fan thing built for fun.
 
 <div align="center">
 <br>

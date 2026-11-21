@@ -1,4 +1,4 @@
-const SERVICE_VALUES = ['listenbrainz', 'lastfm', 'librefm', 'navidrome'];
+const SERVICE_VALUES = ['listenbrainz', 'lastfm', 'librefm', 'navidrome', 'maloja', 'custom'];
 
 export function createServiceSelector() {
   const serviceInput = document.getElementById('service');

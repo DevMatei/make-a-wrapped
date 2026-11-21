@@ -4,11 +4,11 @@ import { collectNavidromeStats } from './navidrome/stats.js';
 import { collectNavidromeStatsNative } from './navidrome/stats-native.js';
 
 export class NavidromeClient {
-  constructor(serverUrl, username, password, method = 'experimental') {
-    this.api = new NavidromeApi(serverUrl, username, password);
+  constructor(serverUrl, username, password, method = 'experimental', { headerAuth = false } = {}) {
+    this.api = new NavidromeApi(serverUrl, username, password, { headerAuth });
     this.method = method;
     this.nativeApi = method === 'experimental'
-      ? new NavidromeNativeApi(serverUrl, username, password)
+      ? new NavidromeNativeApi(serverUrl, username, password, { headerAuth })
       : null;
   }
 

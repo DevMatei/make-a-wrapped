@@ -3,14 +3,23 @@ import { NAVIDROME_API_VERSION, NAVIDROME_CLIENT_ID } from './constants.js';
 import { buildRandomSalt, normaliseServerUrl } from './helpers.js';
 
 export class NavidromeApi {
-  constructor(serverUrl, username, password) {
+  constructor(serverUrl, username, password, { headerAuth = false } = {}) {
     this.root = normaliseServerUrl(serverUrl);
     this.user = username;
     this.password = password;
+    this.headerAuth = headerAuth;
     this.base = `${this.root}/rest`;
   }
 
   buildParams(params = {}, { json = true } = {}) {
+    if (this.headerAuth) {
+      return new URLSearchParams({
+        v: NAVIDROME_API_VERSION,
+        c: NAVIDROME_CLIENT_ID,
+        ...(json ? { f: 'json' } : {}),
+        ...params,
+      });
+    }
     const salt = buildRandomSalt();
     const token = md5(`${this.password}${salt}`);
     const search = new URLSearchParams({

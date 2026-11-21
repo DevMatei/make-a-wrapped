@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import io
+import ipaddress
 import json
 import logging
 import os
+import re
 
 import requests
 from flask import (
@@ -16,6 +18,7 @@ from flask import (
     jsonify,
     request,
     send_file,
+    stream_with_context,
 )
 from werkzeug.exceptions import HTTPException
 
@@ -33,6 +36,10 @@ from .config import (
     BADGE_SNAPSHOT_TTL_SECONDS,
     CLUSTER_PRIMARY,
     IMAGE_RATE_LIMIT,
+    NAVIDROME_HEADER_AUTH,
+    NAVIDROME_PROXY_RATE_LIMIT,
+    NAVIDROME_TRUSTED_PROXIES,
+    NAVIDROME_URL,
     SITE_URL,
     STATS_RATE_LIMIT,
     TEMPLATE_ASSET_MAX_BYTES,
@@ -41,6 +48,7 @@ from .config import (
     TEMP_ARTWORK_TTL_SECONDS,
     TURNSTILE_ENABLED,
     TURNSTILE_SITE_KEY,
+    TRUSTED_USER_HEADER,
     WRAPPED_COUNT_SINCE,
 )
 from .date_range import (
@@ -54,6 +62,7 @@ from .images import (
     ImageQueueBusyError,
     ImageQueueFullError,
     ImageUnavailableError,
+    fetch_artist_image_by_names,
     fetch_top_artist_image,
 )
 from .listenbrainz import (
@@ -73,6 +82,7 @@ from .lastfm import (
     get_lastfm_top_tracks,
 )
 from . import cluster, metrics
+from .maloja import fetch_maloja_stats, normalise_server_url as normalise_maloja_url
 from .metrics import read_wrapped_count, record_generation
 from .rate_limiter import rate_limit
 from .temp_artwork import (
@@ -490,10 +500,17 @@ def navidrome_landing() -> Response:
     return current_app.send_static_file("navidrome-wrapped.html")
 
 
+@bp.route("/spotify-wrapped-alternative")
+def spotify_alternative_landing() -> Response:
+    return current_app.send_static_file("spotify-wrapped-alternative.html")
+
+
 def _client_config_payload() -> dict:
     return {
         "turnstileEnabled": bool(TURNSTILE_ENABLED),
         "turnstileSiteKey": TURNSTILE_SITE_KEY or "",
+        "navidromeHeaderAuth": bool(NAVIDROME_HEADER_AUTH),
+        "navidromeUser": _navidrome_header_user(),
     }
 
 
@@ -858,17 +875,9 @@ def get_top_genre_artist(artist_name: str) -> str:
     return current_app.response_class(genre, mimetype="text/plain")
 
 
-@bp.route("/top/img/<username>")
-@require_turnstile
-@rate_limit(IMAGE_RATE_LIMIT)
-def get_top_artist_img(username: str) -> Response:
-    service = _resolve_stats_service()
-    source = request.args.get("source", "artist").strip().lower() or "artist"
-    if source not in {"artist", "release"}:
-        source = "artist"
-    range_obj = _resolve_date_range()
+def _artwork_response(fetch, range_obj=None) -> Response:
     try:
-        image_result = fetch_top_artist_image(username, preferred_source=source, service=service, range_obj=range_obj)
+        image_result = fetch()
         content_type = (image_result.content_type or "").split(";")[0].strip().lower()
         if content_type not in ALLOWED_ARTWORK_TYPES:
             raise ImageUnavailableError
@@ -886,7 +895,8 @@ def get_top_artist_img(username: str) -> Response:
         response = Response(fallback_data, content_type="image/png")
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["X-Image-Fallback"] = "true"
-        _set_period_header(response, range_obj)
+        if range_obj is not None:
+            _set_period_header(response, range_obj)
         return response
 
     response = Response(image_result.content, content_type=content_type or "image/jpeg")
@@ -894,5 +904,120 @@ def get_top_artist_img(username: str) -> Response:
     response.headers["X-Image-Queue-Position"] = str(image_result.queue_position)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Content-Security-Policy"] = BADGE_SANDBOX_POLICY
-    _set_period_header(response, range_obj)
+    if range_obj is not None:
+        _set_period_header(response, range_obj)
+    return response
+
+
+@bp.route("/top/img/<username>")
+@require_turnstile
+@rate_limit(IMAGE_RATE_LIMIT)
+def get_top_artist_img(username: str) -> Response:
+    service = _resolve_stats_service()
+    source = request.args.get("source", "artist").strip().lower() or "artist"
+    if source not in {"artist", "release"}:
+        source = "artist"
+    range_obj = _resolve_date_range()
+    return _artwork_response(
+        lambda: fetch_top_artist_image(username, preferred_source=source, service=service, range_obj=range_obj),
+        range_obj,
+    )
+
+
+@bp.route("/img/artist")
+@require_turnstile
+@rate_limit(IMAGE_RATE_LIMIT)
+def get_artist_img_by_name() -> Response:
+    names = [name[:200] for name in request.args.getlist("name") if name.strip()][:3]
+    if not names:
+        abort(400, description="Missing artist name")
+    return _artwork_response(lambda: fetch_artist_image_by_names(names))
+
+
+@bp.route("/api/maloja/stats")
+@require_turnstile
+@rate_limit(STATS_RATE_LIMIT)
+def get_maloja_stats() -> Response:
+    server = normalise_maloja_url(request.args.get("server"))
+    range_obj = _resolve_date_range()
+    stats = fetch_maloja_stats(server, range_obj)
+    response = jsonify({**stats, "period": _range_metadata(range_obj)})
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+NAVIDROME_PROXY_PATHS = {
+    "rest/ping", "rest/ping.view",
+    "rest/search3", "rest/search3.view",
+    "rest/getCoverArt", "rest/getCoverArt.view",
+    "api/scrobble", "api/song",
+}
+NAVIDROME_SONG_PATH = re.compile(r"api/song/[A-Za-z0-9_-]{1,64}")
+NAVIDROME_STRIPPED_PARAMS = {"u", "p", "t", "s", "apikey", "jwt"}
+navidrome_proxy_session = requests.Session()
+
+
+def _navidrome_proxy_trusted() -> bool:
+    if not NAVIDROME_TRUSTED_PROXIES:
+        return True
+    try:
+        # check the direct peer, not whatever ProxyFix rewrote remote_addr to
+        orig = request.environ.get("werkzeug.proxy_fix.orig") or {}
+        remote = ipaddress.ip_address(orig.get("REMOTE_ADDR") or request.remote_addr or "")
+    except ValueError:
+        return False
+    for entry in NAVIDROME_TRUSTED_PROXIES:
+        try:
+            if remote in ipaddress.ip_network(entry, strict=False):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def _navidrome_header_user() -> str:
+    if not NAVIDROME_HEADER_AUTH or not _navidrome_proxy_trusted():
+        return ""
+    return (request.headers.get(TRUSTED_USER_HEADER) or "").strip()[:128]
+
+
+@bp.route("/navidrome-proxy/<path:subpath>")
+@rate_limit(NAVIDROME_PROXY_RATE_LIMIT)
+def navidrome_proxy(subpath: str) -> Response:
+    if not NAVIDROME_HEADER_AUTH:
+        abort(404)
+    username = _navidrome_header_user()
+    if not username:
+        abort(401, description="No signed in user came through the proxy.")
+    if subpath not in NAVIDROME_PROXY_PATHS and not NAVIDROME_SONG_PATH.fullmatch(subpath):
+        abort(404)
+    params = [
+        (key, value)
+        for key, value in request.args.items(multi=True)
+        if key.lower() not in NAVIDROME_STRIPPED_PARAMS
+    ]
+    try:
+        upstream = navidrome_proxy_session.get(
+            f"{NAVIDROME_URL}/{subpath}",
+            params=params,
+            headers={TRUSTED_USER_HEADER: username, "Accept": request.headers.get("Accept", "*/*")},
+            timeout=60,
+            stream=True,
+            allow_redirects=False,
+        )
+    except requests.RequestException as exc:
+        logger.warning("navidrome proxy failed: %s", exc)
+        abort(502, description="Couldn't reach Navidrome.")
+    response = Response(
+        stream_with_context(upstream.iter_content(65536)),
+        status=upstream.status_code,
+        content_type=upstream.headers.get("Content-Type", "application/octet-stream"),
+    )
+    total = upstream.headers.get("X-Total-Count")
+    if total:
+        response.headers["X-Total-Count"] = total
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Content-Security-Policy"] = BADGE_SANDBOX_POLICY
+    response.call_on_close(upstream.close)
     return response

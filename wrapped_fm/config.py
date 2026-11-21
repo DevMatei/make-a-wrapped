@@ -119,6 +119,19 @@ TURNSTILE_CACHE_TTL = int(os.getenv("TURNSTILE_CACHE_TTL", "120"))
 TURNSTILE_TIMEOUT = float(os.getenv("TURNSTILE_TIMEOUT", "5"))
 TURNSTILE_ENABLED = bool(TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY)
 
+# maloja servers are fetched server side, so private addresses are blocked unless you self-host
+MALOJA_ALLOW_PRIVATE = _env_bool("MALOJA_ALLOW_PRIVATE", "false")
+
+# header mode: this app sits behind the same auth proxy as navidrome and passes the user header on
+NAVIDROME_AUTH_MODE = os.getenv("NAVIDROME_AUTH_MODE", "").strip().lower()
+NAVIDROME_URL = os.getenv("NAVIDROME_URL", "").strip().rstrip("/")
+TRUSTED_USER_HEADER = os.getenv("TRUSTED_USER_HEADER", "Remote-User").strip() or "Remote-User"
+NAVIDROME_TRUSTED_PROXIES = [
+    value.strip() for value in os.getenv("NAVIDROME_TRUSTED_PROXIES", "").split(",") if value.strip()
+]
+NAVIDROME_PROXY_RATE_LIMIT = os.getenv("NAVIDROME_PROXY_RATE_LIMIT", "1200 per minute")
+NAVIDROME_HEADER_AUTH = NAVIDROME_AUTH_MODE == "header" and bool(NAVIDROME_URL)
+
 LISTENBRAINZ_USER_AGENT = os.getenv(
     "LISTENBRAINZ_USER_AGENT",
     "make-a-wrapped/1.0 (+https://github.com/devmatei/make-a-wrapped)",
