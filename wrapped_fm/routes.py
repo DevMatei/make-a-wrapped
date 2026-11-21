@@ -500,6 +500,11 @@ def navidrome_landing() -> Response:
     return current_app.send_static_file("navidrome-wrapped.html")
 
 
+@bp.route("/spotify-wrapped-alternative")
+def spotify_alternative_landing() -> Response:
+    return current_app.send_static_file("spotify-wrapped-alternative.html")
+
+
 def _client_config_payload() -> dict:
     return {
         "turnstileEnabled": bool(TURNSTILE_ENABLED),
