@@ -6,8 +6,8 @@
     <meta name="referrer" content="no-referrer">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <title>Make a Wrapped - Spotify Wrapped for ListenBrainz, Last.fm & Navidrome</title>
-    <meta name="description" content="Make a Wrapped generates Spotify Wrapped style posters from ListenBrainz, Last.fm, or Navidrome libraries. Free, open source, and runnable on any homelab.">
-    <meta name="keywords" content="Make a Wrapped, ListenBrainz, Last.fm, Navidrome, Spotify Wrapped alternative, music stats, open source, scrobbles, devmatei, music statistics, listening history, shareable poster">
+    <meta name="description" content="Make a Wrapped generates Spotify Wrapped style posters from ListenBrainz, Last.fm, Navidrome or Maloja, or from your own numbers. Free, open source, and runnable on any homelab.">
+    <meta name="keywords" content="Make a Wrapped, ListenBrainz, Last.fm, Navidrome, Maloja, Spotify Wrapped alternative, wrapped without spotify, music stats, open source, scrobbles, devmatei, music statistics, listening history, shareable poster">
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
     <meta name="author" content="DevMatei">
     <link rel="canonical" href="https://wrapped.devmatei.com/">
@@ -49,7 +49,7 @@
         "@context": "https://schema.org",
         "@type": "WebApplication",
         "name": "Make a Wrapped",
-        "alternateName": ["ListenBrainz Wrapped", "Last.fm Wrapped", "Navidrome Wrapped", "Wrapped FM"],
+        "alternateName": ["ListenBrainz Wrapped", "Last.fm Wrapped", "Navidrome Wrapped", "Maloja Wrapped", "Wrapped FM"],
         "applicationCategory": "MultimediaApplication",
         "operatingSystem": "Web Browser",
         "url": "https://wrapped.devmatei.com/",
@@ -131,7 +131,7 @@
             "name": "What music services are supported?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Make a Wrapped supports ListenBrainz, Last.fm, and Navidrome (via Subsonic API)."
+              "text": "Make a Wrapped supports ListenBrainz, Last.fm, Libre.fm, Navidrome and Maloja. There is also a Custom source where you type your own top artists, tracks, minutes and genre."
             }
           },
           {
@@ -139,7 +139,7 @@
             "name": "How is Make a Wrapped different from Spotify Wrapped?",
             "acceptedAnswer": {
               "@type": "Answer",
-              "text": "Spotify Wrapped only works for Spotify and only appears in December. Make a Wrapped works with ListenBrainz, Last.fm, Libre.fm and Navidrome, and you can generate a poster for any month or year at any time."
+              "text": "Spotify Wrapped only works for Spotify and only appears in December. Make a Wrapped works with ListenBrainz, Last.fm, Libre.fm, Navidrome and Maloja (or numbers you type in), and you can generate a poster for any month or year at any time."
             }
           },
           {
@@ -177,7 +177,7 @@
               </div>
             </div>
             <p>
-              a free open source wrapped generator for listenbrainz, last.fm, libre.fm and navidrome. your friends post spotify wrapped every year and you are sitting there with your scrobbles like "i have taste too". now you can prove it, whenever you want, not just in december.
+              a free open source wrapped generator for listenbrainz, last.fm, libre.fm, navidrome and maloja. your friends post spotify wrapped every year and you are sitting there with your scrobbles like "i have taste too". now you can prove it, whenever you want, not just in december.
             </p>
             <p class="intro__meta">
               <a class="counter-line" id="counter-line" href="/stats"><span class="counter" id="wrapped-count">0</span> made so far</a> · <a href="/marketplace">templates</a> · <a href="/editor">editor</a> · <a href="https://github.com/DevMatei/make-a-wrapped" target="_blank" rel="noopener noreferrer">github</a> · <a href="https://discord.gg/ucFGpJdznF" target="_blank" rel="noopener noreferrer">discord</a> · <a class="intro__support" href="https://ko-fi.com/F1F016B4WM" target="_blank" rel="noopener noreferrer">support it ♥</a>
@@ -195,6 +195,8 @@
                 <label class="segmented__opt"><input type="radio" name="service-choice" value="lastfm"><span>last.fm</span></label>
                 <label class="segmented__opt"><input type="radio" name="service-choice" value="librefm"><span>libre.fm <span class="tag">beta</span></span></label>
                 <label class="segmented__opt"><input type="radio" name="service-choice" value="navidrome"><span>navidrome</span></label>
+                <label class="segmented__opt"><input type="radio" name="service-choice" value="maloja"><span>maloja</span></label>
+                <label class="segmented__opt"><input type="radio" name="service-choice" value="custom"><span>custom</span></label>
               </div>
               <input type="hidden" id="service" name="service" value="listenbrainz">
             </fieldset>
@@ -261,6 +263,47 @@
               <p class="hint" id="navidrome-method-hint">
                 experimental pulls real per-play history through the native api (navidrome 0.64.0+). if it fails, try legacy.
               </p>
+            </div>
+
+            <div id="maloja-fields" class="service-fields" hidden>
+              <div class="field field--wide">
+                <label class="label" for="maloja-server">maloja url</label>
+                <input
+                  id="maloja-server"
+                  name="maloja-server"
+                  type="url"
+                  placeholder="https://maloja.example.com"
+                  autocomplete="url"
+                  inputmode="url"
+                  autocapitalize="off"
+                  spellcheck="false"
+                >
+              </div>
+              <p class="hint">public charts only, no api key. the server has to be reachable from the internet.</p>
+            </div>
+
+            <div id="custom-fields" class="service-fields" hidden>
+              <div class="field field--wide">
+                <label class="label" for="custom-name">name on the poster</label>
+                <input id="custom-name" name="custom-name" type="text" placeholder="e.g. matei" maxlength="40" autocomplete="off" spellcheck="false">
+              </div>
+              <div class="field">
+                <label class="label" for="custom-artists">top artists</label>
+                <textarea id="custom-artists" name="custom-artists" rows="5" placeholder="one per line, up to 5"></textarea>
+              </div>
+              <div class="field">
+                <label class="label" for="custom-tracks">top tracks</label>
+                <textarea id="custom-tracks" name="custom-tracks" rows="5" placeholder="one per line, up to 5"></textarea>
+              </div>
+              <div class="field">
+                <label class="label" for="custom-minutes">minutes listened</label>
+                <input id="custom-minutes" name="custom-minutes" type="text" inputmode="numeric" placeholder="e.g. 42069" maxlength="12" autocomplete="off">
+              </div>
+              <div class="field">
+                <label class="label" for="custom-genre">top genre</label>
+                <input id="custom-genre" name="custom-genre" type="text" placeholder="e.g. shoegaze" maxlength="40" autocomplete="off">
+              </div>
+              <p class="hint">for when your stats live somewhere we can't read. type whatever you want, artist art gets looked up from your top artist, or upload your own.</p>
             </div>
 
             <div class="field-row">
@@ -457,7 +500,7 @@
     </main>
 
     <footer class="site-footer">
-      <p>not affiliated with spotify, listenbrainz, last.fm, libre.fm, navidrome or musicbrainz. just a fan project. see the <a href="/stats">wrapped stats</a>, <a href="https://discord.gg/ucFGpJdznF" target="_blank" rel="noopener noreferrer">join the discord</a>, <a href="https://ko-fi.com/F1F016B4WM" target="_blank" rel="noopener noreferrer">support it on ko-fi</a> or <a href="https://sponsor.devmatei.com/" target="_blank" rel="noopener">advertise here</a>. legal stuff: <a href="mailto:legal@devmatei.com" data-legal-email>legal@devmatei.com</a></p>
+      <p>not affiliated with spotify, listenbrainz, last.fm, libre.fm, navidrome, maloja or musicbrainz. just a fan project. see the <a href="/stats">wrapped stats</a>, <a href="https://discord.gg/ucFGpJdznF" target="_blank" rel="noopener noreferrer">join the discord</a>, <a href="https://ko-fi.com/F1F016B4WM" target="_blank" rel="noopener noreferrer">support it on ko-fi</a> or <a href="https://sponsor.devmatei.com/" target="_blank" rel="noopener">advertise here</a>. legal stuff: <a href="mailto:legal@devmatei.com" data-legal-email>legal@devmatei.com</a></p>
     </footer>
 
     <img id="artist-img" src="img/black.png" alt="" hidden>

@@ -466,6 +466,33 @@ def _download_cover_art(release_mbid: str, caa_release_mbid: Optional[str]) -> O
     return None
 
 
+def fetch_artist_image_by_names(artist_names: List[str]) -> ImageResult:
+    names = [name.strip() for name in artist_names if name and name.strip()][:3]
+    if not names:
+        raise ImageUnavailableError
+    queue_position = _enter_image_queue()
+    if queue_position is None:
+        raise ImageQueueFullError
+    acquired = image_download_semaphore.acquire(timeout=IMAGE_QUEUE_TIMEOUT)
+    if not acquired:
+        _leave_image_queue()
+        raise ImageQueueBusyError
+    try:
+        for name in names:
+            art = _download_lastfm_artist_image(name, None, service="lastfm")
+            if art:
+                return ImageResult(art[0] or "image/jpeg", art[1], max(queue_position - 1, 0))
+        for name in names:
+            artist_mbid = search_artist_mbid(name)
+            art = _download_artist_image(artist_mbid) if artist_mbid else None
+            if art:
+                return ImageResult(art[0] or "image/jpeg", art[1], max(queue_position - 1, 0))
+    finally:
+        image_download_semaphore.release()
+        _leave_image_queue()
+    raise ImageUnavailableError
+
+
 def fetch_top_artist_image(
     username: str,
     *,

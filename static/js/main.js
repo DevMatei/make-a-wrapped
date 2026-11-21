@@ -87,6 +87,14 @@ const artworkOverrideInput = document.getElementById('artwork-override');
 const navidromeFields = document.getElementById('navidrome-fields');
 const navidromeServerInput = document.getElementById('navidrome-server');
 const navidromePasswordInput = document.getElementById('navidrome-password');
+const malojaFields = document.getElementById('maloja-fields');
+const malojaServerInput = document.getElementById('maloja-server');
+const customFields = document.getElementById('custom-fields');
+const customNameInput = document.getElementById('custom-name');
+const customArtistsInput = document.getElementById('custom-artists');
+const customTracksInput = document.getElementById('custom-tracks');
+const customMinutesInput = document.getElementById('custom-minutes');
+const customGenreInput = document.getElementById('custom-genre');
 const wrappedCountEl = document.getElementById('wrapped-count');
 const wrappedCountSinceEl = document.getElementById('wrapped-count-since');
 let turnstileWidgetId = null;
@@ -257,6 +265,8 @@ function isNavidromeSelected() {
   return getSelectedService() === 'navidrome';
 }
 
+const SNAPSHOT_BADGE_SERVICES = new Set(['navidrome', 'maloja', 'custom']);
+
 function clearNavidromeState() {
   if (state.coverObjectUrl && !state.customArtworkActive) {
     URL.revokeObjectURL(state.coverObjectUrl);
@@ -330,7 +340,7 @@ async function buildBadgeUrl({ preview = false } = {}) {
   params.set('type', state.badgeType);
   params.set('color', state.badgeColor);
   let path;
-  if (isNavidromeSelected()) {
+  if (SNAPSHOT_BADGE_SERVICES.has(getSelectedService())) {
     const badgeId = await ensureNavidromeBadgePublished();
     path = `/badge/nv/${badgeId}`;
     if (preview) {
@@ -410,15 +420,16 @@ function setActiveBadgeChip(list, attr, value) {
 function handleServiceChange(nextValue) {
   const selectedService = nextValue || getSelectedService();
   const isNavidrome = selectedService === 'navidrome';
+  const needsUsername = !['navidrome', 'maloja', 'custom'].includes(selectedService);
   const copy = getUsernameCopy(selectedService);
   if (usernameLabel) {
     usernameLabel.textContent = copy.label;
   }
   if (usernameWrap) {
-    usernameWrap.hidden = isNavidrome;
+    usernameWrap.hidden = !needsUsername;
   }
   if (usernameField) {
-    usernameField.required = !isNavidrome;
+    usernameField.required = needsUsername;
     usernameField.placeholder = copy.placeholder;
     clearInvalid(usernameField);
   }
@@ -427,6 +438,12 @@ function handleServiceChange(nextValue) {
   }
   if (navidromeFields) {
     navidromeFields.hidden = !isNavidrome;
+  }
+  if (malojaFields) {
+    malojaFields.hidden = selectedService !== 'maloja';
+  }
+  if (customFields) {
+    customFields.hidden = selectedService !== 'custom';
   }
   if (turnstileWrapper) {
     turnstileWrapper.hidden = Boolean(isNavidrome || !isTurnstileEnabled());
@@ -495,6 +512,46 @@ function updateNavidromeMethodHint() {
   }
 }
 
+function readMalojaServer() {
+  const raw = malojaServerInput ? malojaServerInput.value.trim() : '';
+  if (!raw) {
+    throw new FieldError('enter your maloja url.', malojaServerInput);
+  }
+  return raw.replace(/\/+$/, '');
+}
+
+function readLines(input, limit = 5) {
+  if (!input) {
+    return [];
+  }
+  return input.value
+    .split('\n')
+    .map((line) => line.replace(/^\s*\d+[.)]\s*/, '').replace(/\s+/g, ' ').trim())
+    .filter(Boolean)
+    .slice(0, limit)
+    .map((line) => line.slice(0, 80));
+}
+
+function readCustomData() {
+  const artists = readLines(customArtistsInput);
+  const tracks = readLines(customTracksInput);
+  if (!artists.length && !tracks.length) {
+    throw new FieldError('add at least one artist or track.', customArtistsInput);
+  }
+  const minutesRaw = customMinutesInput ? customMinutesInput.value.replace(/[\s,._]/g, '') : '';
+  if (minutesRaw && !/^\d{1,9}$/.test(minutesRaw)) {
+    throw new FieldError('minutes should be a plain number.', customMinutesInput);
+  }
+  const name = (customNameInput && customNameInput.value.trim().slice(0, 40)) || 'you';
+  return {
+    name,
+    artists,
+    tracks,
+    minutes: minutesRaw ? Number(minutesRaw).toLocaleString() : '0',
+    genre: (customGenreInput && customGenreInput.value.trim().slice(0, 40)) || 'No genre',
+  };
+}
+
 function getServiceLabel(key) {
   if (SERVICE_LABELS[key]) {
     return SERVICE_LABELS[key];
@@ -558,6 +615,8 @@ const state = {
   turnstileTokenExpiry: null,
   navidromeClient: null,
   navidromeStats: null,
+  malojaServer: null,
+  customData: null,
   sectionWarnings: [],
   imageWarningMessage: '',
   periodDescriptor: null,
@@ -579,7 +638,15 @@ if (serviceHiddenInput) {
 }
 handleServiceChange(serviceSelector.getValue());
 
-[usernameField, navidromeServerInput, navidromeUsernameInput, navidromePasswordInput].forEach((input) => {
+[
+  usernameField,
+  navidromeServerInput,
+  navidromeUsernameInput,
+  navidromePasswordInput,
+  malojaServerInput,
+  customArtistsInput,
+  customMinutesInput,
+].forEach((input) => {
   if (input) {
     input.addEventListener('input', () => clearInvalid(input));
   }
@@ -1065,7 +1132,7 @@ function formatErrorWithGuidance(error, context = '') {
   const lowerMessage = baseMessage.toLowerCase();
   const issueLink = `<a href="${GITHUB_ISSUES_URL}" target="_blank" rel="noopener noreferrer">open an issue on github</a>`;
 
-  if (error.__emptyResult || lowerMessage.includes('navidrome')) {
+  if (error.__emptyResult || lowerMessage.includes('navidrome') || lowerMessage.includes('maloja')) {
     return baseMessage;
   }
 
@@ -1267,7 +1334,7 @@ async function turnstileFetch(path, options = {}, { forceRefreshToken = false } 
   const mergedOptions = await applyTurnstileHeadersAsync(options, { forceRefreshToken });
   try {
     let timeoutMs = 30000;
-    if (path.includes('/top/img/')) {
+    if (path.includes('/top/img/') || path.startsWith('/img/artist')) {
       timeoutMs = 60000;
     }
     const controller = new AbortController();
@@ -1678,15 +1745,31 @@ async function generateWrapped(event) {
   await ensureClientConfigLoaded();
   const selectedService = getSelectedService();
   const usernameInput = selectedService === 'navidrome' ? navidromeUsernameInput : usernameField;
-  const username = usernameInput ? usernameInput.value.trim() : '';
+  let username = usernameInput ? usernameInput.value.trim() : '';
 
   let navidromeCredentials = null;
+  let malojaServer = null;
+  let customData = null;
   if (selectedService === 'navidrome') {
     try {
       navidromeCredentials = readNavidromeCredentials(username);
     } catch (credentialError) {
       setStatus(credentialError.message, 'error');
       markInvalid(credentialError.field);
+      return;
+    }
+  } else if (selectedService === 'maloja' || selectedService === 'custom') {
+    try {
+      if (selectedService === 'maloja') {
+        malojaServer = readMalojaServer();
+        username = malojaServer.replace(/^https?:\/\//i, '').split('/')[0];
+      } else {
+        customData = readCustomData();
+        username = customData.name;
+      }
+    } catch (fieldError) {
+      setStatus(fieldError.message, 'error');
+      markInvalid(fieldError.field);
       return;
     }
   } else if (!username) {
@@ -1714,6 +1797,8 @@ async function generateWrapped(event) {
   state.hasResult = false;
   state.isCoverReady = Boolean(state.customArtworkActive && state.customArtworkUrl);
   state.generatedData = { username, service: selectedService };
+  state.malojaServer = malojaServer;
+  state.customData = customData;
   state.sectionWarnings = [];
   hideBadgePanel();
 
@@ -1744,7 +1829,9 @@ async function generateWrapped(event) {
     if (resultsCard) resultsCard.hidden = false;
     await recordWrappedGenerated();
 
-    const baseLabel = `done. here's ${username}'s wrapped for ${periodLabel}.`;
+    const baseLabel = selectedService === 'custom'
+      ? "done. here's your wrapped."
+      : `done. here's ${username}'s wrapped for ${periodLabel}.`;
     if (state.sectionWarnings.length) {
       const affected = state.sectionWarnings.map((entry) => entry.section.toLowerCase()).join(', ');
       setStatus(`${baseLabel} some parts didn't load (${affected}), try again in a bit.`, 'error');
@@ -1834,6 +1921,13 @@ async function parseError(response) {
     if (!text) {
       return fallback;
     }
+    if (/<p>/i.test(text)) {
+      const doc = new DOMParser().parseFromString(text, 'text/html');
+      const description = doc.querySelector('p')?.textContent.trim();
+      if (description) {
+        return description;
+      }
+    }
     return text.replace(/<[^>]+>/g, '').trim() || fallback;
   } catch (error) {
     console.error(error);
@@ -1875,7 +1969,7 @@ async function uploadArtworkToServer(file) {
   await applyCustomArtwork();
 }
 
-async function loadCoverArt(username) {
+async function loadCoverArt(username, { artistNames = null } = {}) {
   if (isNavidromeSelected()) {
     if (state.customArtworkActive && state.customArtworkUrl) {
       return applyCustomArtwork();
@@ -1902,7 +1996,12 @@ async function loadCoverArt(username) {
     if (source === 'release') {
       imageParams.set('source', 'release');
     }
-    const imagePath = `/top/img/${encodeURIComponent(username)}${imageParams.toString() ? `?${imageParams.toString()}` : ''}`;
+    if (artistNames) {
+      artistNames.slice(0, 3).forEach((name) => imageParams.append('name', name));
+    }
+    const imagePath = artistNames
+      ? `/img/artist?${imageParams.toString()}`
+      : `/top/img/${encodeURIComponent(username)}${imageParams.toString() ? `?${imageParams.toString()}` : ''}`;
     const { response, blob } = await fetchWithTurnstileRetry(async () => {
       const res = await turnstileFetch(imagePath, { cache: 'no-store' });
       if (res.status === 429) {
@@ -1928,7 +2027,14 @@ async function loadCoverArt(username) {
     return { response, blob, source };
   };
 
-  const preferredSources = state.artworkSource === 'release' ? ['release', 'artist'] : ['artist', 'release'];
+  let preferredSources = state.artworkSource === 'release' ? ['release', 'artist'] : ['artist', 'release'];
+  if (artistNames) {
+    if (!artistNames.length) {
+      await loadImage(artistImg, BACKGROUND_SOURCES.black);
+      return false;
+    }
+    preferredSources = ['artist'];
+  }
   const triedSources = new Set();
   const failedSources = [];
 
@@ -1959,13 +2065,6 @@ async function loadCoverArt(username) {
         }
         state.imageWarningMessage = '';
         return true;
-    if (/<p>/i.test(text)) {
-      const doc = new DOMParser().parseFromString(text, 'text/html');
-      const description = doc.querySelector('p')?.textContent.trim();
-      if (description) {
-        return description;
-      }
-    }
       } catch (error) {
         const networkIssue = isLikelyNetworkError(error);
         const timeoutIssue = (error?.message || '').toLowerCase().includes('timeout');
@@ -2035,6 +2134,16 @@ async function loadNavidromeCoverArt() {
 async function updateSections(username, sections) {
   if (isNavidromeSelected()) {
     await updateNavidromeSections(sections);
+    refreshSectionDisplays();
+    return;
+  }
+  if (getSelectedService() === 'maloja') {
+    await updateMalojaSections(sections);
+    refreshSectionDisplays();
+    return;
+  }
+  if (getSelectedService() === 'custom') {
+    await updateCustomSections(sections);
     refreshSectionDisplays();
     return;
   }
@@ -2296,6 +2405,60 @@ async function updateNavidromeSections(sections) {
       state.isCoverReady = await loadNavidromeCoverArt();
     }
   }
+}
+
+async function loadNamedArtistArt(sections) {
+  if (!sections.includes('image')) {
+    return;
+  }
+  if (state.customArtworkActive && state.customArtworkUrl) {
+    state.isCoverReady = await applyCustomArtwork();
+    return;
+  }
+  setStatus('finding artist art...');
+  try {
+    state.isCoverReady = await loadCoverArt(state.generatedData.username, {
+      artistNames: state.generatedData.artists || [],
+    });
+  } catch (error) {
+    console.warn('artist art lookup failed', error);
+    await loadImage(artistImg, BACKGROUND_SOURCES.black);
+    state.isCoverReady = false;
+  }
+}
+
+async function updateMalojaSections(sections) {
+  if (!state.malojaServer) {
+    throw new Error('enter your maloja url again.');
+  }
+  if (sections.some((section) => section !== 'image') || !Array.isArray(state.generatedData.artists)) {
+    setStatus('asking your maloja server for charts...');
+    const params = new URLSearchParams({ server: state.malojaServer });
+    const stats = await fetchJson(`/api/maloja/stats?${params.toString()}`);
+    state.generatedData.artists = sanitiseRankedArray(stats.artists).slice(0, 5);
+    state.generatedData.tracks = sanitiseRankedArray(stats.tracks).slice(0, 5);
+    state.generatedData.minutes = typeof stats.minutes === 'string' ? stats.minutes : '0';
+    state.generatedData.genre = normaliseGenreLabel(stats.genre || 'No genre');
+    if (stats.name) {
+      state.generatedData.username = String(stats.name);
+    }
+    if (stats.period) {
+      state.generatedData.period = stats.period;
+    }
+  }
+  await loadNamedArtistArt(sections);
+}
+
+async function updateCustomSections(sections) {
+  const data = state.customData;
+  if (!data) {
+    throw new Error('fill in your stats first.');
+  }
+  state.generatedData.artists = data.artists;
+  state.generatedData.tracks = data.tracks;
+  state.generatedData.minutes = data.minutes;
+  state.generatedData.genre = data.genre;
+  await loadNamedArtistArt(sections);
 }
 
 function refreshSectionDisplays() {

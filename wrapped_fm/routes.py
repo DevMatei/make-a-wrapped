@@ -54,6 +54,7 @@ from .images import (
     ImageQueueBusyError,
     ImageQueueFullError,
     ImageUnavailableError,
+    fetch_artist_image_by_names,
     fetch_top_artist_image,
 )
 from .listenbrainz import (
@@ -73,6 +74,7 @@ from .lastfm import (
     get_lastfm_top_tracks,
 )
 from . import cluster, metrics
+from .maloja import fetch_maloja_stats, normalise_server_url as normalise_maloja_url
 from .metrics import read_wrapped_count, record_generation
 from .rate_limiter import rate_limit
 from .temp_artwork import (
@@ -858,17 +860,9 @@ def get_top_genre_artist(artist_name: str) -> str:
     return current_app.response_class(genre, mimetype="text/plain")
 
 
-@bp.route("/top/img/<username>")
-@require_turnstile
-@rate_limit(IMAGE_RATE_LIMIT)
-def get_top_artist_img(username: str) -> Response:
-    service = _resolve_stats_service()
-    source = request.args.get("source", "artist").strip().lower() or "artist"
-    if source not in {"artist", "release"}:
-        source = "artist"
-    range_obj = _resolve_date_range()
+def _artwork_response(fetch, range_obj=None) -> Response:
     try:
-        image_result = fetch_top_artist_image(username, preferred_source=source, service=service, range_obj=range_obj)
+        image_result = fetch()
         content_type = (image_result.content_type or "").split(";")[0].strip().lower()
         if content_type not in ALLOWED_ARTWORK_TYPES:
             raise ImageUnavailableError
@@ -886,7 +880,8 @@ def get_top_artist_img(username: str) -> Response:
         response = Response(fallback_data, content_type="image/png")
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["X-Image-Fallback"] = "true"
-        _set_period_header(response, range_obj)
+        if range_obj is not None:
+            _set_period_header(response, range_obj)
         return response
 
     response = Response(image_result.content, content_type=content_type or "image/jpeg")
@@ -894,5 +889,43 @@ def get_top_artist_img(username: str) -> Response:
     response.headers["X-Image-Queue-Position"] = str(image_result.queue_position)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Content-Security-Policy"] = BADGE_SANDBOX_POLICY
-    _set_period_header(response, range_obj)
+    if range_obj is not None:
+        _set_period_header(response, range_obj)
+    return response
+
+
+@bp.route("/top/img/<username>")
+@require_turnstile
+@rate_limit(IMAGE_RATE_LIMIT)
+def get_top_artist_img(username: str) -> Response:
+    service = _resolve_stats_service()
+    source = request.args.get("source", "artist").strip().lower() or "artist"
+    if source not in {"artist", "release"}:
+        source = "artist"
+    range_obj = _resolve_date_range()
+    return _artwork_response(
+        lambda: fetch_top_artist_image(username, preferred_source=source, service=service, range_obj=range_obj),
+        range_obj,
+    )
+
+
+@bp.route("/img/artist")
+@require_turnstile
+@rate_limit(IMAGE_RATE_LIMIT)
+def get_artist_img_by_name() -> Response:
+    names = [name[:200] for name in request.args.getlist("name") if name.strip()][:3]
+    if not names:
+        abort(400, description="Missing artist name")
+    return _artwork_response(lambda: fetch_artist_image_by_names(names))
+
+
+@bp.route("/api/maloja/stats")
+@require_turnstile
+@rate_limit(STATS_RATE_LIMIT)
+def get_maloja_stats() -> Response:
+    server = normalise_maloja_url(request.args.get("server"))
+    range_obj = _resolve_date_range()
+    stats = fetch_maloja_stats(server, range_obj)
+    response = jsonify({**stats, "period": _range_metadata(range_obj)})
+    response.headers["Cache-Control"] = "no-store"
     return response

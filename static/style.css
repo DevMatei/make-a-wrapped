@@ -688,6 +688,7 @@ select,
 textarea {
   width: 100%;
   min-height: 44px;
+  resize: vertical;
   padding: 10px 12px;
   border-radius: var(--r);
   border: 1px solid var(--line);
@@ -889,7 +890,7 @@ input[type="range"] {
 
 .segmented {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
   padding: 4px;
   border-radius: 12px;

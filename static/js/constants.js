@@ -31,6 +31,8 @@ export const SERVICE_LABELS = {
   lastfm: 'Last.fm',
   librefm: 'Libre.fm (beta)',
   navidrome: 'Navidrome',
+  maloja: 'Maloja',
+  custom: 'Custom',
 };
 
 export const ARTWORK_STORAGE_KEY = 'wrappedArtworkData';

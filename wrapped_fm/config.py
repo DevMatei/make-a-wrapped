@@ -119,6 +119,9 @@ TURNSTILE_CACHE_TTL = int(os.getenv("TURNSTILE_CACHE_TTL", "120"))
 TURNSTILE_TIMEOUT = float(os.getenv("TURNSTILE_TIMEOUT", "5"))
 TURNSTILE_ENABLED = bool(TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY)
 
+# maloja servers are fetched server side, so private addresses are blocked unless you self-host
+MALOJA_ALLOW_PRIVATE = _env_bool("MALOJA_ALLOW_PRIVATE", "false")
+
 LISTENBRAINZ_USER_AGENT = os.getenv(
     "LISTENBRAINZ_USER_AGENT",
     "make-a-wrapped/1.0 (+https://github.com/devmatei/make-a-wrapped)",
