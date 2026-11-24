@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import datetime
 import logging
 import time
 from collections import Counter
@@ -325,20 +324,9 @@ def estimate_total_listen_minutes(
             logger.warning("LB listening-activity failed for %s: %s", username, exc)
             return "0"
 
+        # lb also returns the previous period for comparison, so only count buckets inside the range
         activity_items = activity.get("listening_activity", [])
-        if resolved.preset == "this_year":
-            current_year = datetime.datetime.now(datetime.timezone.utc).year
-            listen_counts = [
-                normalise_count(item.get("listen_count", 0))
-                for item in activity_items
-                if item.get("from_ts") and datetime.datetime.fromtimestamp(item["from_ts"], tz=datetime.timezone.utc).year == current_year
-            ]
-        else:
-            listen_counts = [
-                normalise_count(item.get("listen_count", 0))
-                for item in activity_items
-            ]
-        total_listens = sum(listen_counts)
+        total_listens = _count_listens_from_activity(activity_items, resolved.start_ts, resolved.end_ts)
 
     if total_listens <= 0:
         return "0"
