@@ -25,6 +25,7 @@ from .http import (
     request_with_handling,
 )
 from .listenbrainz import (
+    LB_COMPATIBLE_SERVICES,
     get_top_artists_payload,
     get_top_releases_payload,
     get_top_tracks_payload,
@@ -366,11 +367,11 @@ def _collect_artist_candidates(
         artists = get_lastfm_top_artists(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj, service=service)
         return [(name, None) for name in artists]
 
-    artists = get_top_artists_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj)
+    artists = get_top_artists_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj, service=service)
     if not artists and range_obj and range_obj.is_custom:
         from .date_range import resolve_preset
         fallback = resolve_preset("this_year")
-        artists = get_top_artists_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=fallback)
+        artists = get_top_artists_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=fallback, service=service)
     candidates: List[Tuple[str, Optional[str]]] = []
     for artist in artists:
         name = artist.get("artist_name") or artist.get("name")
@@ -386,7 +387,7 @@ def _collect_cover_candidates(
     service: str = "listenbrainz",
     range_obj: Optional[DateRange] = None,
 ) -> List[Tuple[str, Optional[str]]]:
-    if service != "listenbrainz":
+    if service not in LB_COMPATIBLE_SERVICES:
         return []
     weighted_candidates: Dict[Tuple[str, Optional[str]], int] = {}
 
@@ -403,17 +404,17 @@ def _collect_cover_candidates(
         if weight > current:
             weighted_candidates[key] = weight
 
-    releases = get_top_releases_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj)
+    releases = get_top_releases_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj, service=service)
     if not releases and range_obj and range_obj.is_custom:
         from .date_range import resolve_preset
         fallback = resolve_preset("this_year")
-        releases = get_top_releases_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=fallback)
+        releases = get_top_releases_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=fallback, service=service)
     for release in releases:
         listen_count = normalise_count(release.get("listen_count", 0))
         add_candidate(release.get("caa_release_mbid"), release.get("caa_release_mbid"), listen_count)
         add_candidate(release.get("release_mbid"), release.get("caa_release_mbid"), listen_count)
 
-    recordings = get_top_tracks_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj)
+    recordings = get_top_tracks_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj, service=service)
     for recording in recordings:
         listen_count = normalise_count(recording.get("listen_count", 0))
         add_candidate(recording.get("caa_release_mbid"), recording.get("caa_release_mbid"), listen_count)
@@ -514,8 +515,8 @@ def fetch_top_artist_image(
         artist_candidates: List[Tuple[str, Optional[str]]] = []
 
         for source in preference_order:
-            if source == "release" and service == "listenbrainz":
-                for release_mbid, caa_release_mbid in _collect_cover_candidates(username, range_obj=range_obj):
+            if source == "release" and service in LB_COMPATIBLE_SERVICES:
+                for release_mbid, caa_release_mbid in _collect_cover_candidates(username, service=service, range_obj=range_obj):
                     art = _download_cover_art(release_mbid, caa_release_mbid)
                     if art:
                         content_type, content = art

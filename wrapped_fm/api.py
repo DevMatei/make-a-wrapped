@@ -45,6 +45,7 @@ from .lastfm import (
     get_lastfm_top_tracks,
 )
 from .listenbrainz import (
+    LB_COMPATIBLE_SERVICES,
     clamp_top_number,
     estimate_total_listen_minutes,
     get_top_artists_payload,
@@ -73,7 +74,7 @@ MAX_CANVAS_PIXELS = 2_500_000
 MAX_RANKED_ITEMS = 10
 DEFAULT_PROVIDER_ITEM_COUNT = 5
 MAX_TEXT_LENGTH = 120
-PROVIDER_SERVICES = {"listenbrainz", "lastfm", "librefm"}
+PROVIDER_SERVICES = {"listenbrainz", "sonosphere", "lastfm", "librefm"}
 CUSTOM_FIELDS = {"artists", "tracks", "minutes", "genre", "period", "artwork"}
 PREVIEW_DATA = {
     "artists": ["Phoebe Bridgers", "Tame Impala", "Radiohead", "Fleetwood Mac", "Kendrick Lamar"],
@@ -294,7 +295,7 @@ def _provider_data(source: dict) -> tuple[dict, dict, object]:
     if service not in PROVIDER_SERVICES:
         if service == "navidrome":
             abort(400, description="Navidrome is browser-only in this project; use custom data with this API.")
-        abort(400, description="source.provider must be listenbrainz, lastfm, or librefm.")
+        abort(400, description="source.provider must be listenbrainz, sonosphere, lastfm, or librefm.")
 
     username = _clean_text(source.get("username"), "source.username")
     selected_range = source.get("range", {"preset": "this_year"})
@@ -332,11 +333,11 @@ def _provider_data(source: dict) -> tuple[dict, dict, object]:
         abort(400, description=f"source.limit must be an integer from 1 to {MAX_RANKED_ITEMS}.")
     count = clamp_top_number(item_count)
     try:
-        if service == "listenbrainz":
-            artists = [item.get("artist_name", "Unknown artist") for item in get_top_artists_payload(username, count, range_obj=range_obj)]
-            tracks = [item.get("track_name", "Unknown track") for item in get_top_tracks_payload(username, count, range_obj=range_obj)]
-            minutes = estimate_total_listen_minutes(username, range_obj=range_obj)
-            genre = get_top_genre(username, range_obj=range_obj)
+        if service in LB_COMPATIBLE_SERVICES:
+            artists = [item.get("artist_name", "Unknown artist") for item in get_top_artists_payload(username, count, range_obj=range_obj, service=service)]
+            tracks = [item.get("track_name", "Unknown track") for item in get_top_tracks_payload(username, count, range_obj=range_obj, service=service)]
+            minutes = estimate_total_listen_minutes(username, range_obj=range_obj, service=service)
+            genre = get_top_genre(username, range_obj=range_obj, service=service)
         else:
             artists = get_lastfm_top_artists(username, count, range_obj=range_obj, service=service)
             tracks = get_lastfm_top_tracks(username, count, range_obj=range_obj, service=service)
@@ -579,7 +580,7 @@ def _artwork_options(value, source_info: dict | None, range_obj) -> tuple[dict, 
 
     provider = value.get("provider", source_info.get("provider") if source_info else None)
     if not isinstance(provider, str) or provider not in PROVIDER_SERVICES:
-        abort(400, description="artwork.provider must be listenbrainz, lastfm, or librefm.")
+        abort(400, description="artwork.provider must be listenbrainz, sonosphere, lastfm, or librefm.")
     username = value.get("username", source_info.get("username") if source_info else None)
     username = _clean_text(username, "artwork.username")
     art_source = value.get("source", "artist")

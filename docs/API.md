@@ -95,7 +95,7 @@ send either `source` or `data`, not both. any other top level field returns `400
 
 ## use a provider
 
-provider requests reuse the site's own listenbrainz, last.fm and libre.fm integrations. the server loads the stats, finds artwork, applies the template and sends back the file.
+provider requests reuse the site's own listenbrainz, sonosphere, last.fm and libre.fm integrations. the server loads the stats, finds artwork, applies the template and sends back the file.
 
 ```sh
 curl --fail-with-body https://wrapped.devmatei.com/api/v1/wrapped \
@@ -117,7 +117,7 @@ curl --fail-with-body https://wrapped.devmatei.com/api/v1/wrapped \
 | field | values | default |
 | --- | --- | --- |
 | `type` | `provider` | required |
-| `provider` | `listenbrainz`, `lastfm`, `librefm` | required |
+| `provider` | `listenbrainz`, `sonosphere`, `lastfm`, `librefm` | required |
 | `username` | the public username on that service | required |
 | `range.preset` | `this_year`, `last_year`, `last_12_months`, `this_month`, `last_month`, `specific_month`, `specific_year`, `all_time` | `this_year` |
 | `range.month`, `range.year` | integers, `month` and `year` for `specific_month`, just `year` for `specific_year` | |
@@ -188,7 +188,7 @@ with provider stats, artwork comes from the same provider and username by defaul
 
 | field | values | default |
 | --- | --- | --- |
-| `provider` | `listenbrainz`, `lastfm`, `librefm` | the stats provider |
+| `provider` | `listenbrainz`, `sonosphere`, `lastfm`, `librefm` | the stats provider |
 | `username` | username on that service | the stats username |
 | `source` | `artist` (artist image) or `release` (album cover) | `artist` |
 | `fit` | `cover` (crop to fill) or `contain` (show the whole image) | `cover` |

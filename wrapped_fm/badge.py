@@ -94,21 +94,21 @@ def _fetch_value(service: str, username: str, badge_type: str, range_obj: DateRa
     if badge_type == "minutes":
         if is_lastfm_family:
             return _format_minutes(estimate_lastfm_listen_minutes(username, range_obj=range_obj, service=service))
-        return _format_minutes(estimate_total_listen_minutes(username, range_obj=range_obj))
+        return _format_minutes(estimate_total_listen_minutes(username, range_obj=range_obj, service=service))
     if badge_type == "genre":
         if is_lastfm_family:
             return get_lastfm_top_genre(username, range_obj=range_obj, service=service)
-        return get_top_genre(username, range_obj=range_obj)
+        return get_top_genre(username, range_obj=range_obj, service=service)
     if badge_type == "track":
         if is_lastfm_family:
             names = get_lastfm_top_tracks(username, 1, range_obj=range_obj, service=service)
             return names[0] if names else "no listens yet"
-        tracks = get_top_tracks_payload(username, 1, range_obj=range_obj)
+        tracks = get_top_tracks_payload(username, 1, range_obj=range_obj, service=service)
         return tracks[0].get("track_name", "no listens yet") if tracks else "no listens yet"
     if is_lastfm_family:
         names = get_lastfm_top_artists(username, 1, range_obj=range_obj, service=service)
         return names[0] if names else "no listens yet"
-    artists = get_top_artists_payload(username, 1, range_obj=range_obj)
+    artists = get_top_artists_payload(username, 1, range_obj=range_obj, service=service)
     return artists[0].get("artist_name", "no listens yet") if artists else "no listens yet"
 
 

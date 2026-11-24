@@ -24,6 +24,7 @@ from .config import (
     LISTENBRAINZ_USER_AGENT,
     MUSICBRAINZ_API,
     MUSICBRAINZ_USER_AGENT,
+    SONOSPHERE_MIN_INTERVAL,
     WIKIDATA_ENTITY_API,
 )
 
@@ -159,6 +160,13 @@ librefm_aggregate_session.headers.update(
 )
 librefm_aggregate_session._upstream_pacer = _RatePacer(LIBREFM_MIN_INTERVAL)
 _configure_no_retry_session(librefm_aggregate_session)
+
+sonosphere_session = requests.Session()
+sonosphere_session.headers.update(
+    {"User-Agent": LISTENBRAINZ_USER_AGENT, "Accept": "application/json"}
+)
+sonosphere_session._upstream_pacer = _RatePacer(SONOSPHERE_MIN_INTERVAL)
+_configure_no_retry_session(sonosphere_session)
 
 musicbrainz_aggregate_session = requests.Session()
 musicbrainz_aggregate_session.headers.update(

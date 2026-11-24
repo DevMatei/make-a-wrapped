@@ -21,13 +21,33 @@ from .config import (
     LISTENBRAINZ_CACHE_TTL,
     LISTEN_RANGE,
     MAX_TOP_RESULTS,
+    SONOSPHERE_API,
 )
 from .date_range import DateRange
-from .http import listenbrainz_aggregate_session, request_with_handling
+from .http import listenbrainz_aggregate_session, request_with_handling, sonosphere_session
 from .musicbrainz import lookup_recording_length
 
 
 logger = logging.getLogger("wrapped_fm")
+
+
+@dataclass(frozen=True)
+class _Backend:
+    api: str
+    label: str
+    session: object
+
+
+# services that speak the ListenBrainz API
+LB_BACKENDS = {
+    "listenbrainz": _Backend(LISTENBRAINZ_API, "ListenBrainz", listenbrainz_aggregate_session),
+    "sonosphere": _Backend(SONOSPHERE_API, "Sonosphere", sonosphere_session),
+}
+LB_COMPATIBLE_SERVICES = frozenset(LB_BACKENDS)
+
+
+def _backend(service: Optional[str]) -> _Backend:
+    return LB_BACKENDS.get(service or "listenbrainz", LB_BACKENDS["listenbrainz"])
 
 
 listenbrainz_cache = TTLCache(ttl=LISTENBRAINZ_CACHE_TTL, max_size=LISTENBRAINZ_CACHE_SIZE)
@@ -50,24 +70,34 @@ class _AggregatedListens:
     failed: bool = False
 
 
-def fetch_listenbrainz(path: str, params: Optional[Dict[str, str]] = None, *, timeout: Optional[float] = None) -> Dict:
+def fetch_listenbrainz(
+    path: str,
+    params: Optional[Dict[str, str]] = None,
+    *,
+    timeout: Optional[float] = None,
+    service: str = "listenbrainz",
+) -> Dict:
+    backend = _backend(service)
     param_items: Tuple[Tuple[str, str], ...] = tuple(sorted((params or {}).items()))
-    cache_key = (path, param_items)
+    cache_key = (backend.api, path, param_items)
     return listenbrainz_cache.get_or_compute(
-        cache_key, lambda: _fetch_listenbrainz_uncached(path, params, timeout)
+        cache_key, lambda: _fetch_listenbrainz_uncached(backend, path, params, timeout)
     )
 
 
-def _fetch_listenbrainz_uncached(path: str, params: Optional[Dict[str, str]], timeout: Optional[float]) -> Dict:
-    url = f"{LISTENBRAINZ_API}{path}"
-    response = request_with_handling(listenbrainz_aggregate_session, url, params=params, timeout=timeout or 5)
+def _fetch_listenbrainz_uncached(
+    backend: _Backend, path: str, params: Optional[Dict[str, str]], timeout: Optional[float]
+) -> Dict:
+    label = backend.label
+    url = f"{backend.api}{path}"
+    response = request_with_handling(backend.session, url, params=params, timeout=timeout or 5)
 
     if response.status_code == 404:
-        abort(404, description="ListenBrainz user not found")
+        abort(404, description=f"{label} user not found")
     if response.status_code >= 500:
-        abort(503, description="ListenBrainz service unavailable")
+        abort(503, description=f"{label} service unavailable")
     if not response.ok:
-        abort(response.status_code, description="ListenBrainz request failed")
+        abort(response.status_code, description=f"{label} request failed")
 
     content = response.content
     if not content.strip():
@@ -80,26 +110,28 @@ def _fetch_listenbrainz_uncached(path: str, params: Optional[Dict[str, str]], ti
     content_type = response.headers.get("Content-Type", "")
     if "application/json" not in content_type:
         logger.warning(
-            "ListenBrainz non-json response status=%s type=%s body=%s",
+            "%s non-json response status=%s type=%s body=%s",
+            label,
             response.status_code,
             content_type,
             _snippet() or "empty",
         )
-        abort(502, description="Unexpected response from ListenBrainz")
+        abort(502, description=f"Unexpected response from {label}")
 
     try:
         data = response.json()
     except ValueError:
         logger.warning(
-            "ListenBrainz undecodable response status=%s body=%s",
+            "%s undecodable response status=%s body=%s",
+            label,
             response.status_code,
             _snippet() or "empty",
         )
-        abort(502, description="Unable to decode ListenBrainz response")
+        abort(502, description=f"Unable to decode {label} response")
 
     payload = data.get("payload") if isinstance(data, dict) else None
     if payload is None:
-        abort(502, description="Missing payload in ListenBrainz response")
+        abort(502, description=f"Missing payload in {label} response")
     return payload
 
 
@@ -127,10 +159,11 @@ def _fetch_stat_payload(
     *,
     range_obj: Optional[DateRange] = None,
     count: Optional[int] = None,
+    service: str = "listenbrainz",
 ) -> Dict:
     resolved = range_obj or _default_range()
     if not resolved.lb_range:
-        return _aggregate_payload_for_range(username, endpoint, resolved, count=count)
+        return _aggregate_payload_for_range(username, endpoint, resolved, count=count, service=service)
 
     ranges = [resolved.lb_range]
     if resolved.lb_range != "all_time":
@@ -142,7 +175,7 @@ def _fetch_stat_payload(
         if count is not None:
             params["count"] = str(count)
         try:
-            payload = fetch_listenbrainz(f"/stats/user/{username}/{endpoint}", params)
+            payload = fetch_listenbrainz(f"/stats/user/{username}/{endpoint}", params, service=service)
         except Exception as exc:
             logger.warning("LB stats fetch failed for %s/%s: %s", username, stat_range, exc)
             return {}
@@ -152,18 +185,24 @@ def _fetch_stat_payload(
     return last_payload
 
 
-def get_top_artists_payload(username: str, count: int, *, range_obj: Optional[DateRange] = None) -> List[Dict]:
-    payload = _fetch_stat_payload(username, "artists", "artists", count=count, range_obj=range_obj)
+def get_top_artists_payload(
+    username: str, count: int, *, range_obj: Optional[DateRange] = None, service: str = "listenbrainz"
+) -> List[Dict]:
+    payload = _fetch_stat_payload(username, "artists", "artists", count=count, range_obj=range_obj, service=service)
     return payload.get("artists", [])
 
 
-def get_top_tracks_payload(username: str, count: int, *, range_obj: Optional[DateRange] = None) -> List[Dict]:
-    payload = _fetch_stat_payload(username, "recordings", "recordings", count=count, range_obj=range_obj)
+def get_top_tracks_payload(
+    username: str, count: int, *, range_obj: Optional[DateRange] = None, service: str = "listenbrainz"
+) -> List[Dict]:
+    payload = _fetch_stat_payload(username, "recordings", "recordings", count=count, range_obj=range_obj, service=service)
     return payload.get("recordings", [])
 
 
-def get_top_releases_payload(username: str, count: int, *, range_obj: Optional[DateRange] = None) -> List[Dict]:
-    payload = _fetch_stat_payload(username, "releases", "releases", count=count, range_obj=range_obj)
+def get_top_releases_payload(
+    username: str, count: int, *, range_obj: Optional[DateRange] = None, service: str = "listenbrainz"
+) -> List[Dict]:
+    payload = _fetch_stat_payload(username, "releases", "releases", count=count, range_obj=range_obj, service=service)
     return payload.get("releases", [])
 
 
@@ -171,9 +210,9 @@ def format_ranked_lines(items) -> str:
     return "<br>".join(f"{idx + 1}. {value}" for idx, value in enumerate(items))
 
 
-def calculate_average_track_minutes(username: str) -> Optional[float]:
+def calculate_average_track_minutes(username: str, service: str = "listenbrainz") -> Optional[float]:
     sample_limit = max(1, min(AVERAGE_TRACK_SAMPLE_LIMIT, 20))
-    recordings = get_top_tracks_payload(username, sample_limit)
+    recordings = get_top_tracks_payload(username, sample_limit, service=service)
 
     unique_mbids: List[str] = []
     for recording in recordings:
@@ -216,7 +255,7 @@ def calculate_average_track_minutes(username: str) -> Optional[float]:
 _ACTIVITY_RANGES = ("this_year", "year", "all_time")
 
 
-def _fetch_activity_items(username: str) -> List[Dict]:
+def _fetch_activity_items(username: str, service: str = "listenbrainz") -> List[Dict]:
     """Fetch listening-activity items from multiple LB ranges and merge them."""
 
     def _fetch(lb_range: str) -> List[Dict]:
@@ -224,6 +263,7 @@ def _fetch_activity_items(username: str) -> List[Dict]:
             payload = fetch_listenbrainz(
                 f"/stats/user/{username}/listening-activity",
                 {"range": lb_range},
+                service=service,
             )
         except Exception:
             return []
@@ -258,25 +298,28 @@ def _count_listens_from_activity(items: List[Dict], start_ts: int, end_ts: int) 
     return total
 
 
-def estimate_total_listen_minutes(username: str, *, range_obj: Optional[DateRange] = None) -> str:
+def estimate_total_listen_minutes(
+    username: str, *, range_obj: Optional[DateRange] = None, service: str = "listenbrainz"
+) -> str:
     resolved = range_obj or _default_range()
 
     avg_pool = ThreadPoolExecutor(max_workers=1)
-    avg_future = avg_pool.submit(calculate_average_track_minutes, username)
+    avg_future = avg_pool.submit(calculate_average_track_minutes, username, service)
     avg_pool.shutdown(wait=False)
 
     if not resolved.lb_range:
-        activity_items = _fetch_activity_items(username)
+        activity_items = _fetch_activity_items(username, service)
         if activity_items:
             total_listens = _count_listens_from_activity(activity_items, resolved.start_ts, resolved.end_ts)
         else:
-            aggregated = _aggregate_listens_in_range(username, resolved)
+            aggregated = _aggregate_listens_in_range(username, resolved, service)
             total_listens = aggregated.total_listen_count
     else:
         try:
             activity = fetch_listenbrainz(
                 f"/stats/user/{username}/listening-activity",
                 {"range": resolved.lb_range},
+                service=service,
             )
         except Exception as exc:
             logger.warning("LB listening-activity failed for %s: %s", username, exc)
@@ -311,8 +354,9 @@ def _aggregate_payload_for_range(
     range_obj: DateRange,
     *,
     count: Optional[int] = None,
+    service: str = "listenbrainz",
 ) -> Dict:
-    aggregated = _aggregate_listens_in_range(username, range_obj)
+    aggregated = _aggregate_listens_in_range(username, range_obj, service)
     attr_by_endpoint = {
         "artists": ("artists", "top_artists"),
         "recordings": ("recordings", "top_tracks"),
@@ -339,34 +383,37 @@ def _aggregate_payload_for_range(
     }
 
 
-def _aggregation_cache_key(username: str, range_obj: DateRange) -> Tuple[str, str, int, int]:
+def _aggregation_cache_key(username: str, range_obj: DateRange, service: str) -> Tuple[str, str, str, int, int]:
     start = range_obj.start_ts - (range_obj.start_ts % 3600)
     end = range_obj.end_ts - (range_obj.end_ts % 3600)
-    return (username, range_obj.preset, start, end)
+    return (service, username, range_obj.preset, start, end)
 
 
-def _aggregate_listens_in_range(username: str, range_obj: DateRange) -> _AggregatedListens:
-    cache_key = _aggregation_cache_key(username, range_obj)
+def _aggregate_listens_in_range(
+    username: str, range_obj: DateRange, service: str = "listenbrainz"
+) -> _AggregatedListens:
+    cache_key = _aggregation_cache_key(username, range_obj, service)
     return aggregation_cache.get_or_compute(
-        cache_key, lambda: _aggregate_listens_uncached(username, range_obj)
+        cache_key, lambda: _aggregate_listens_uncached(username, range_obj, service)
     )
 
 
-def _fetch_listens_page(username: str, max_ts: int) -> List[Dict]:
+def _fetch_listens_page(username: str, max_ts: int, service: str = "listenbrainz") -> List[Dict]:
+    backend = _backend(service)
     try:
-        response = listenbrainz_aggregate_session.get(
-            f"{LISTENBRAINZ_API}/user/{username}/listens",
+        response = backend.session.get(
+            f"{backend.api}/user/{username}/listens",
             params={"max_ts": str(max_ts), "count": str(LISTEN_AGGREGATION_PAGE_SIZE)},
             timeout=LISTEN_AGGREGATION_TIMEOUT,
         )
         if response.status_code == 404:
             return []
         if not response.ok:
-            logger.debug("ListenBrainz listens page %s returned %s", max_ts, response.status_code)
+            logger.debug("%s listens page %s returned %s", service, max_ts, response.status_code)
             return []
         data = response.json()
     except Exception as exc:
-        logger.debug("ListenBrainz listens page fetch failed for %s: %s", username, exc)
+        logger.debug("%s listens page fetch failed for %s: %s", service, username, exc)
         return []
     payload = data.get("payload") if isinstance(data, dict) else None
     if not isinstance(payload, dict):
@@ -375,7 +422,7 @@ def _fetch_listens_page(username: str, max_ts: int) -> List[Dict]:
     return listens if isinstance(listens, list) else []
 
 
-def _aggregate_listens_uncached(username: str, range_obj: DateRange) -> _AggregatedListens:
+def _aggregate_listens_uncached(username: str, range_obj: DateRange, service: str = "listenbrainz") -> _AggregatedListens:
     result = _AggregatedListens()
     artist_counter: Counter = Counter()
     track_counter: Counter = Counter()
@@ -423,7 +470,7 @@ def _aggregate_listens_uncached(username: str, range_obj: DateRange) -> _Aggrega
         for _ in range(LISTEN_AGGREGATION_MAX_PAGES):
             if time.monotonic() >= deadline:
                 break
-            listens = _fetch_listens_page(username, next_max_ts)
+            listens = _fetch_listens_page(username, next_max_ts, service)
             if not listens:
                 break
             count, page_oldest = parse_listens(listens, next_max_ts)
@@ -438,7 +485,7 @@ def _aggregate_listens_uncached(username: str, range_obj: DateRange) -> _Aggrega
                 break
             next_max_ts = next_ts
     except Exception as exc:
-        logger.warning("ListenBrainz aggregation failed for %s: %s", username, exc)
+        logger.warning("%s aggregation failed for %s: %s", service, username, exc)
         result.failed = True
 
     result.top_artists = _format_top_artists(artist_counter, MAX_TOP_RESULTS)

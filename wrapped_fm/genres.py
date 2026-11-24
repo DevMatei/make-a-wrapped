@@ -20,8 +20,8 @@ def _safe_lookup_tag(artist_mbid: str):
         return None
 
 
-def get_top_genre(username: str, *, range_obj=None) -> str:
-    artists = get_top_artists_payload(username, GENRE_ARTIST_SAMPLE, range_obj=range_obj)
+def get_top_genre(username: str, *, range_obj=None, service: str = "listenbrainz") -> str:
+    artists = get_top_artists_payload(username, GENRE_ARTIST_SAMPLE, range_obj=range_obj, service=service)
     mbids = [mbid for mbid in (extract_artist_mbid(artist) for artist in artists) if mbid]
     if not mbids:
         return "no genre"

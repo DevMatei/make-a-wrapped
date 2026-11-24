@@ -82,7 +82,9 @@ from .lastfm import (
     get_lastfm_top_tracks,
 )
 from . import cluster, metrics
+from .koito import fetch_koito_stats, normalise_server_url as normalise_koito_url
 from .maloja import fetch_maloja_stats, normalise_server_url as normalise_maloja_url
+from .rocksky import fetch_rocksky_stats, normalise_handle as normalise_rocksky_handle
 from .metrics import read_wrapped_count, record_generation
 from .rate_limiter import rate_limit
 from .temp_artwork import (
@@ -97,7 +99,7 @@ from .turnstile import require_turnstile
 
 logger = logging.getLogger("wrapped_fm")
 bp = Blueprint("wrapped_routes", __name__)
-SUPPORTED_STATS_SERVICES = {"listenbrainz", "lastfm", "librefm"}
+SUPPORTED_STATS_SERVICES = {"listenbrainz", "sonosphere", "lastfm", "librefm"}
 LASTFM_FAMILY_SERVICES = {"lastfm", "librefm"}
 # raster only, no SVG (can carry scripts and we serve it from our origin)
 ALLOWED_ARTWORK_TYPES = {"image/png", "image/jpeg", "image/webp", "image/gif"}
@@ -141,41 +143,41 @@ def _set_period_header(response, range_obj) -> None:
         pass
 
 
-def _safe_lb_artists(username: str, number: int, range_obj):
+def _safe_lb_artists(username: str, number: int, range_obj, service: str = "listenbrainz"):
     try:
-        return get_top_artists_payload(username, number, range_obj=range_obj), False
+        return get_top_artists_payload(username, number, range_obj=range_obj, service=service), False
     except Exception as exc:
         logger.warning("LB artists failed for %s: %s", username, exc)
         return [], True
 
 
-def _safe_lb_tracks(username: str, number: int, range_obj):
+def _safe_lb_tracks(username: str, number: int, range_obj, service: str = "listenbrainz"):
     try:
-        return get_top_tracks_payload(username, number, range_obj=range_obj), False
+        return get_top_tracks_payload(username, number, range_obj=range_obj, service=service), False
     except Exception as exc:
         logger.warning("LB tracks failed for %s: %s", username, exc)
         return [], True
 
 
-def _safe_lb_releases(username: str, number: int, range_obj):
+def _safe_lb_releases(username: str, number: int, range_obj, service: str = "listenbrainz"):
     try:
-        return get_top_releases_payload(username, number, range_obj=range_obj), False
+        return get_top_releases_payload(username, number, range_obj=range_obj, service=service), False
     except Exception as exc:
         logger.warning("LB releases failed for %s: %s", username, exc)
         return [], True
 
 
-def _safe_lb_minutes(username: str, range_obj):
+def _safe_lb_minutes(username: str, range_obj, service: str = "listenbrainz"):
     try:
-        return estimate_total_listen_minutes(username, range_obj=range_obj), False
+        return estimate_total_listen_minutes(username, range_obj=range_obj, service=service), False
     except Exception as exc:
         logger.warning("LB minutes failed for %s: %s", username, exc)
         return "0", True
 
 
-def _safe_lb_genre(username: str, range_obj):
+def _safe_lb_genre(username: str, range_obj, service: str = "listenbrainz"):
     try:
-        return get_top_genre(username, range_obj=range_obj), False
+        return get_top_genre(username, range_obj=range_obj, service=service), False
     except Exception as exc:
         logger.warning("LB genre failed for %s: %s", username, exc)
         return "No genre", True
@@ -758,7 +760,7 @@ def get_top_albums(username: str, number: int) -> str:
     if _is_lastfm_family(service):
         names, _ = _safe_lastfm_albums(username, number, range_obj, service=service)
     else:
-        releases, _ = _safe_lb_releases(username, number, range_obj)
+        releases, _ = _safe_lb_releases(username, number, range_obj, service=service)
         names = [release.get("release_name", "Unknown Release") for release in releases]
     response = current_app.response_class(format_ranked_lines(names), mimetype="text/plain")
     _set_period_header(response, range_obj)
@@ -775,7 +777,7 @@ def get_top_artists(username: str, number: int):
     if _is_lastfm_family(service):
         names, _ = _safe_lastfm_artists(username, number, range_obj, service=service)
     else:
-        artists, _ = _safe_lb_artists(username, number, range_obj)
+        artists, _ = _safe_lb_artists(username, number, range_obj, service=service)
         names = [artist.get("artist_name", "Unknown artist") for artist in artists]
     response = jsonify({"artists": names, "period": _range_metadata(range_obj)})
     _set_period_header(response, range_obj)
@@ -792,7 +794,7 @@ def get_top_artists_formatted(username: str, number: int) -> str:
     if _is_lastfm_family(service):
         names, _ = _safe_lastfm_artists(username, number, range_obj, service=service)
     else:
-        artists, _ = _safe_lb_artists(username, number, range_obj)
+        artists, _ = _safe_lb_artists(username, number, range_obj, service=service)
         names = [artist.get("artist_name", "Unknown artist") for artist in artists]
     response = current_app.response_class(format_ranked_lines(names), mimetype="text/plain")
     _set_period_header(response, range_obj)
@@ -809,7 +811,7 @@ def get_top_tracks(username: str, number: int):
     if _is_lastfm_family(service):
         names, _ = _safe_lastfm_tracks(username, number, range_obj, service=service)
     else:
-        tracks, _ = _safe_lb_tracks(username, number, range_obj)
+        tracks, _ = _safe_lb_tracks(username, number, range_obj, service=service)
         names = [track.get("track_name", "Unknown track") for track in tracks]
     response = jsonify({"tracks": names, "period": _range_metadata(range_obj)})
     _set_period_header(response, range_obj)
@@ -826,7 +828,7 @@ def get_top_tracks_formatted(username: str, number: int) -> str:
     if _is_lastfm_family(service):
         names, _ = _safe_lastfm_tracks(username, number, range_obj, service=service)
     else:
-        tracks, _ = _safe_lb_tracks(username, number, range_obj)
+        tracks, _ = _safe_lb_tracks(username, number, range_obj, service=service)
         names = [track.get("track_name", "Unknown track") for track in tracks]
     response = current_app.response_class(format_ranked_lines(names), mimetype="text/plain")
     _set_period_header(response, range_obj)
@@ -842,7 +844,7 @@ def get_listen_time(username: str) -> str:
     if _is_lastfm_family(service):
         minutes, _ = _safe_lastfm_minutes(username, range_obj, service=service)
     else:
-        minutes, _ = _safe_lb_minutes(username, range_obj)
+        minutes, _ = _safe_lb_minutes(username, range_obj, service=service)
     response = current_app.response_class(minutes, mimetype="text/plain")
     _set_period_header(response, range_obj)
     return response
@@ -857,7 +859,7 @@ def get_top_genre_user(username: str) -> str:
     if _is_lastfm_family(service):
         genre, _ = _safe_lastfm_genre(username, range_obj, service=service)
     else:
-        genre, _ = _safe_lb_genre(username, range_obj)
+        genre, _ = _safe_lb_genre(username, range_obj, service=service)
     response = current_app.response_class(genre, mimetype="text/plain")
     _set_period_header(response, range_obj)
     return response
@@ -941,6 +943,30 @@ def get_maloja_stats() -> Response:
     server = normalise_maloja_url(request.args.get("server"))
     range_obj = _resolve_date_range()
     stats = fetch_maloja_stats(server, range_obj)
+    response = jsonify({**stats, "period": _range_metadata(range_obj)})
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@bp.route("/api/koito/stats")
+@require_turnstile
+@rate_limit(STATS_RATE_LIMIT)
+def get_koito_stats() -> Response:
+    server = normalise_koito_url(request.args.get("server"))
+    range_obj = _resolve_date_range()
+    stats = fetch_koito_stats(server, range_obj)
+    response = jsonify({**stats, "period": _range_metadata(range_obj)})
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@bp.route("/api/rocksky/stats")
+@require_turnstile
+@rate_limit(STATS_RATE_LIMIT)
+def get_rocksky_stats() -> Response:
+    handle = normalise_rocksky_handle(request.args.get("username"))
+    range_obj = _resolve_date_range()
+    stats = fetch_rocksky_stats(handle, range_obj)
     response = jsonify({**stats, "period": _range_metadata(range_obj)})
     response.headers["Cache-Control"] = "no-store"
     return response

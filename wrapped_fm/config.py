@@ -21,6 +21,10 @@ logging.basicConfig(
 )
 
 LISTENBRAINZ_API = os.getenv("LISTENBRAINZ_API", "https://api.listenbrainz.org/1")
+ROCKSKY_API = os.getenv("ROCKSKY_API", "https://api.rocksky.app/xrpc").rstrip("/")
+SONOSPHERE_API = os.getenv("SONOSPHERE_API", "https://sonosphere.fm/1").rstrip("/")
+# sonosphere allows 100 requests per 10s per address
+SONOSPHERE_MIN_INTERVAL = float(os.getenv("SONOSPHERE_MIN_INTERVAL", "0.12"))
 MUSICBRAINZ_API = os.getenv("MUSICBRAINZ_API", "https://musicbrainz.org/ws/2")
 COVER_ART_API = os.getenv("COVER_ART_API", "https://coverartarchive.org/release")
 DEEZER_API = os.getenv("DEEZER_API", "https://api.deezer.com")
