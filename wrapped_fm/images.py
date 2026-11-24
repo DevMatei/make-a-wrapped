@@ -7,13 +7,15 @@ import logging
 import socket
 import threading
 from dataclasses import dataclass
-from functools import lru_cache
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
+from .cache import TTLCache
 from .config import (
     COVER_ART_API,
     COVER_ART_LOOKUP_LIMIT,
+    IMAGE_CACHE_MAX_BYTES,
+    IMAGE_CACHE_TTL,
     IMAGE_CONCURRENCY,
     IMAGE_QUEUE_LIMIT,
     IMAGE_QUEUE_TIMEOUT,
@@ -212,8 +214,26 @@ def _artist_image_candidates(artist_mbid: str) -> List[str]:
     return candidates
 
 
-@lru_cache(maxsize=256)
+def _art_size(value: Optional[Tuple[str, bytes]]) -> int:
+    return len(value[1]) if value else 0
+
+
+# one byte capped cache for downloaded art, shared by every source
+image_bytes_cache = TTLCache(
+    ttl=IMAGE_CACHE_TTL,
+    max_size=512,
+    max_bytes=IMAGE_CACHE_MAX_BYTES,
+    sizeof=_art_size,
+)
+
+
 def _download_artist_image(artist_mbid: str) -> Optional[Tuple[str, bytes]]:
+    return image_bytes_cache.get_or_compute(
+        ("mb", artist_mbid), lambda: _download_artist_image_uncached(artist_mbid)
+    )
+
+
+def _download_artist_image_uncached(artist_mbid: str) -> Optional[Tuple[str, bytes]]:
     for candidate in _artist_image_candidates(artist_mbid):
         art = _fetch_binary_image(candidate)
         if art:
@@ -300,7 +320,6 @@ def _lookup_lastfm_album_image(artist_name: str, artist_mbid: Optional[str], ser
     return None
 
 
-@lru_cache(maxsize=256)
 def _is_lastfm_family(service: str) -> bool:
     return service in ("lastfm", "librefm")
 
@@ -331,8 +350,14 @@ def _download_lastfm_user_top_album_image(
     return None
 
 
-@lru_cache(maxsize=256)
 def _download_lastfm_artist_image(artist_name: str, artist_mbid: Optional[str], service: str = "lastfm") -> Optional[Tuple[str, bytes]]:
+    return image_bytes_cache.get_or_compute(
+        ("lastfm", service, artist_name, artist_mbid),
+        lambda: _download_lastfm_artist_image_uncached(artist_name, artist_mbid, service),
+    )
+
+
+def _download_lastfm_artist_image_uncached(artist_name: str, artist_mbid: Optional[str], service: str) -> Optional[Tuple[str, bytes]]:
     provider = _resolve_provider(service)
     if not provider.api_key or not artist_name:
         return None
@@ -432,8 +457,14 @@ def _collect_cover_candidates(
     return trimmed
 
 
-@lru_cache(maxsize=256)
 def _download_cover_art(release_mbid: str, caa_release_mbid: Optional[str]) -> Optional[Tuple[str, bytes]]:
+    return image_bytes_cache.get_or_compute(
+        ("caa", release_mbid, caa_release_mbid),
+        lambda: _download_cover_art_uncached(release_mbid, caa_release_mbid),
+    )
+
+
+def _download_cover_art_uncached(release_mbid: str, caa_release_mbid: Optional[str]) -> Optional[Tuple[str, bytes]]:
     if not release_mbid:
         return None
 

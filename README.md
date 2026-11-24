@@ -183,8 +183,10 @@ everything goes in `.env`. [`.env.example`](./.env.example) has the common ones 
 | `APP_CATALOG_RATE_LIMIT` | `120 per minute` | template catalog api |
 | `APP_PREVIEW_RATE_LIMIT` | `240 per minute` | template preview images |
 | `APP_MAX_TOP_RESULTS` | `15` | |
-| `APP_IMAGE_CONCURRENCY`, `APP_IMAGE_QUEUE_LIMIT`, `APP_IMAGE_QUEUE_TIMEOUT` | `2`, `10`, `15` | artwork fetch queue |
-| `APP_API_RENDER_CONCURRENCY`, `APP_API_RENDER_QUEUE_LIMIT`, `APP_API_RENDER_QUEUE_TIMEOUT` | `1`, `16`, `30` | api render queue, per worker |
+| `APP_IMAGE_CONCURRENCY`, `APP_IMAGE_QUEUE_LIMIT`, `APP_IMAGE_QUEUE_TIMEOUT` | `4`, `20`, `15` | artwork fetch queue, per worker |
+| `IMAGE_CACHE_TTL`, `IMAGE_CACHE_MAX_BYTES` | `3600`, `25165824` (24 mb) | downloaded artist and cover art kept in memory, per worker |
+| `WEB_CONCURRENCY` | `2` | gunicorn workers in the docker image. each one is about 60 mb plus its caches |
+| `APP_API_RENDER_CONCURRENCY`, `APP_API_RENDER_QUEUE_LIMIT`, `APP_API_RENDER_QUEUE_TIMEOUT` | `2`, `16`, `30` | api render queue, per worker |
 | `RATE_LIMIT_STORAGE` | `memory://` | set to a redis url when running several workers |
 | `APP_RATE_LIMIT_SALT` | empty | set something random, it salts the hashed client ips |
 | `APP_STATS_API_CLIENTS` | empty | comma-separated API client ids accepted for aggregate stats |

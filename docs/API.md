@@ -391,7 +391,7 @@ previews get a higher limit because one page of thumbnails is a lot of requests.
 | source images | 16 million pixels |
 | generated file | 12 MiB |
 
-rendering eats cpu and memory, so the server caps concurrent renders and keeps a bounded wait queue. the docker compose setup runs four gunicorn workers with eight threads each, one active render per worker, and redis backed rate limits shared between workers. requests that can't be served in time get a `503` with `Retry-After`, so retry with exponential backoff and some jitter.
+rendering eats cpu and memory, so the server caps concurrent renders and keeps a bounded wait queue. the docker compose setup runs two gunicorn workers with sixteen threads each, two active renders per worker, and redis backed rate limits shared between workers. requests that can't be served in time get a `503` with `Retry-After`, so retry with exponential backoff and some jitter.
 
 ## running it locally
 
