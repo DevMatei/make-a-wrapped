@@ -2,7 +2,7 @@
 
 # 🎧 make a wrapped
 
-**spotify wrapped style recaps for listenbrainz, last.fm, libre.fm, navidrome and maloja.**<br>
+**spotify wrapped style recaps for listenbrainz, last.fm, libre.fm, sonosphere, navidrome, maloja, koito and rocksky.**<br>
 free, open source, no account, and you don't have to wait for december.
 
 <a href="https://github.com/DevMatei/make-a-wrapped/stargazers"><img src="https://img.shields.io/github/stars/DevMatei/make-a-wrapped?style=for-the-badge&labelColor=1a1625&color=c084fc&logo=github&logoColor=c084fc" alt="stars"></a>
@@ -34,7 +34,7 @@ there's a [discord](https://discord.gg/ucFGpJdznF) too, come say hi, post your w
 
 ## 💡 what it does
 
-* **five services plus custom:** listenbrainz, last.fm, libre.fm, navidrome and maloja. public stats need no login, and navidrome runs fully in your browser so your server password never touches mine. no supported service? pick custom and type your own top artists, tracks, minutes and genre
+* **eight services plus custom:** listenbrainz, last.fm, libre.fm, [sonosphere](https://sonosphere.fm), navidrome, maloja, [koito](https://github.com/gabehf/koito) and [rocksky](https://rocksky.app). public stats need no login, and navidrome runs fully in your browser so your server password never touches mine. no supported service? pick custom and type your own top artists, tracks, minutes and genre
 * **any time frame:** this year, last year, last 12 months, this month, last month, a specific month or all time. no waiting for december
 * **artist art that actually shows up:** tries last.fm first, then musicbrainz and wikidata. if all of that fails, upload your own and zoom/position it by hand
 * **templates:** built-in themes plus community ones from the [template library](https://wrapped.devmatei.com/marketplace), and a [visual editor](https://wrapped.devmatei.com/editor) to make your own without touching code (both **beta**)
@@ -57,7 +57,7 @@ put your top artist on your github profile or website. it's a live svg, cached s
 | param | values | default |
 | --- | --- | --- |
 | `type` | `artist`, `track`, `genre`, `minutes` | `artist` |
-| `service` | `listenbrainz`, `lastfm`, `librefm` | `listenbrainz` |
+| `service` | `listenbrainz`, `sonosphere`, `lastfm`, `librefm` | `listenbrainz` |
 | `range` | `this_year`, `last_year`, `last_12_months`, `this_month`, `last_month`, `all_time` | `this_year` |
 | `color` | hex without the `#` | `c084fc` |
 
@@ -65,7 +65,7 @@ put your top artist on your github profile or website. it's a live svg, cached s
 ![minutes](https://wrapped.devmatei.com/badge/YOUR_USERNAME?type=minutes&service=lastfm&range=this_month&color=ff6b9d)
 ```
 
-**navidrome, maloja and custom badges** work differently, since your server credentials never touch this app. make your wrapped, hit "copy readme badge", and your browser publishes just the final numbers (top artist, track, genre, minutes, nothing else) under a private key kept in your browser. the badge url stays the same when you regenerate, only you can update it, and it expires after 60 days unless you refresh it.
+**navidrome, maloja, koito, rocksky and custom badges** work differently, since your server credentials never touch this app. make your wrapped, hit "copy readme badge", and your browser publishes just the final numbers (top artist, track, genre, minutes, nothing else) under a private key kept in your browser. the badge url stays the same when you regenerate, only you can update it, and it expires after 60 days unless you refresh it.
 
 ## 🔌 developer api (beta)
 
@@ -141,6 +141,8 @@ everything goes in `.env`. [`.env.example`](./.env.example) has the common ones 
 | `LASTFM_API_KEY` | none | needed for last.fm stats and better artist images |
 | `LIBREFM_API_KEY` | a built-in key | libre.fm takes any key for reads, but a real one identifies your app |
 | `LISTENBRAINZ_API` | `https://api.listenbrainz.org/1` | |
+| `SONOSPHERE_API` | `https://sonosphere.fm/1` | sonosphere's listenbrainz compatible api, no key needed |
+| `ROCKSKY_API` | `https://api.rocksky.app/xrpc` | |
 | `LASTFM_API` | `https://ws.audioscrobbler.com/2.0/` | |
 | `LIBREFM_API` | `https://libre.fm/2.0/` | |
 | `MUSICBRAINZ_API` | `https://musicbrainz.org/ws/2` | |
@@ -148,7 +150,7 @@ everything goes in `.env`. [`.env.example`](./.env.example) has the common ones 
 | `LISTENBRAINZ_USER_AGENT`, `MUSICBRAINZ_USER_AGENT`, `LASTFM_USER_AGENT`, `LIBREFM_USER_AGENT` | `make-a-wrapped/1.0 (...)` | be nice and put your own contact in these if you self-host |
 | `SITE_URL` | `https://wrapped.devmatei.com` | public url, used for seo tags and api links |
 | `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` | none | picked up automatically if you tunnel through a proxy |
-| `MALOJA_ALLOW_PRIVATE` | `false` | let people point the maloja source at lan / private ips. only turn this on for a private instance |
+| `MALOJA_ALLOW_PRIVATE` | `false` | let people point the maloja and koito sources at lan / private ips. only turn this on for a private instance |
 
 </details>
 
@@ -163,6 +165,7 @@ everything goes in `.env`. [`.env.example`](./.env.example) has the common ones 
 | `COVER_ART_LOOKUP_LIMIT` | `15` | |
 | `LIBREFM_MIN_INTERVAL` | `2.0` | seconds between libre.fm calls |
 | `LIBREFM_DURATION_LOOKUP_LIMIT` | `3` | |
+| `SONOSPHERE_MIN_INTERVAL` | `0.12` | seconds between sonosphere calls (it allows 100 per 10s) |
 | `TEMP_ARTWORK_TTL_SECONDS` | `3600` | how long uploaded artwork lives on the server |
 | `TEMP_ARTWORK_MAX_BYTES` | `6291456` (6 mb) | |
 | `TEMP_ARTWORK_DIR` | `data/tmp-artwork` | |
@@ -180,8 +183,10 @@ everything goes in `.env`. [`.env.example`](./.env.example) has the common ones 
 | `APP_CATALOG_RATE_LIMIT` | `120 per minute` | template catalog api |
 | `APP_PREVIEW_RATE_LIMIT` | `240 per minute` | template preview images |
 | `APP_MAX_TOP_RESULTS` | `15` | |
-| `APP_IMAGE_CONCURRENCY`, `APP_IMAGE_QUEUE_LIMIT`, `APP_IMAGE_QUEUE_TIMEOUT` | `2`, `10`, `15` | artwork fetch queue |
-| `APP_API_RENDER_CONCURRENCY`, `APP_API_RENDER_QUEUE_LIMIT`, `APP_API_RENDER_QUEUE_TIMEOUT` | `1`, `16`, `30` | api render queue, per worker |
+| `APP_IMAGE_CONCURRENCY`, `APP_IMAGE_QUEUE_LIMIT`, `APP_IMAGE_QUEUE_TIMEOUT` | `4`, `20`, `15` | artwork fetch queue, per worker |
+| `IMAGE_CACHE_TTL`, `IMAGE_CACHE_MAX_BYTES` | `3600`, `25165824` (24 mb) | downloaded artist and cover art kept in memory, per worker |
+| `WEB_CONCURRENCY` | `2` | gunicorn workers in the docker image. each one is about 60 mb plus its caches |
+| `APP_API_RENDER_CONCURRENCY`, `APP_API_RENDER_QUEUE_LIMIT`, `APP_API_RENDER_QUEUE_TIMEOUT` | `2`, `16`, `30` | api render queue, per worker |
 | `RATE_LIMIT_STORAGE` | `memory://` | set to a redis url when running several workers |
 | `APP_RATE_LIMIT_SALT` | empty | set something random, it salts the hashed client ips |
 | `APP_STATS_API_CLIENTS` | empty | comma-separated API client ids accepted for aggregate stats |
@@ -291,7 +296,7 @@ i'm matei ([devmatei](https://devmatei.com)), full-stack dev from moldova. i bui
 
 [agpl-3.0](./LICENSE), share alike. if you run a modified version publicly, share your changes.
 
-not affiliated with spotify, listenbrainz, last.fm, libre.fm, navidrome, maloja or musicbrainz. just a fan thing built for fun.
+not affiliated with spotify, listenbrainz, last.fm, libre.fm, sonosphere, navidrome, maloja, koito, rocksky or musicbrainz. just a fan thing built for fun.
 
 <div align="center">
 <br>

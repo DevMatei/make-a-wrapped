@@ -24,4 +24,10 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["gunicorn", "--worker-class", "gthread", "--workers", "4", "--threads", "8", "--backlog", "512", "-b", "0.0.0.0:8000", "--timeout", "180", "wrapped-fm:app"]
+# the app mostly waits on upstream apis, so a couple of threaded workers is plenty.
+# fewer workers also means fewer copies of every in-memory cache
+ENV WEB_CONCURRENCY=2 \
+    MALLOC_ARENA_MAX=2 \
+    PYTHONUNBUFFERED=1
+
+CMD ["gunicorn", "--worker-class", "gthread", "--threads", "16", "--backlog", "512", "--max-requests", "5000", "--max-requests-jitter", "500", "-b", "0.0.0.0:8000", "--timeout", "180", "wrapped-fm:app"]

@@ -121,6 +121,11 @@ const SERVICE_USERNAME_COPY = {
     placeholder: 'e.g. devmatei',
     emptyMessage: 'enter your listenbrainz username first.',
   },
+  sonosphere: {
+    label: 'sonosphere username',
+    placeholder: 'e.g. devmatei',
+    emptyMessage: 'enter your sonosphere username first.',
+  },
   lastfm: {
     label: 'last.fm username',
     placeholder: 'e.g. rj',
@@ -130,6 +135,11 @@ const SERVICE_USERNAME_COPY = {
     label: 'libre.fm username',
     placeholder: 'e.g. mattl',
     emptyMessage: 'enter your libre.fm username first.',
+  },
+  rocksky: {
+    label: 'rocksky handle',
+    placeholder: 'e.g. you.bsky.social',
+    emptyMessage: 'enter your rocksky handle first.',
   },
   navidrome: {
     label: 'navidrome username',
@@ -270,7 +280,11 @@ function isNavidromeSelected() {
   return getSelectedService() === 'navidrome';
 }
 
-const SNAPSHOT_BADGE_SERVICES = new Set(['navidrome', 'maloja', 'custom']);
+const SNAPSHOT_BADGE_SERVICES = new Set(['navidrome', 'maloja', 'koito', 'rocksky', 'custom']);
+const SERVER_URL_SERVICES = {
+  maloja: { label: 'maloja url', placeholder: 'https://maloja.example.com' },
+  koito: { label: 'koito url', placeholder: 'https://koito.example.com' },
+};
 
 function isNavidromeHeaderMode() {
   return Boolean(clientConfig.navidromeHeaderAuth);
@@ -445,7 +459,8 @@ function setActiveBadgeChip(list, attr, value) {
 function handleServiceChange(nextValue) {
   const selectedService = nextValue || getSelectedService();
   const isNavidrome = selectedService === 'navidrome';
-  const needsUsername = !['navidrome', 'maloja', 'custom'].includes(selectedService);
+  const serverCopy = SERVER_URL_SERVICES[selectedService];
+  const needsUsername = !serverCopy && !['navidrome', 'custom'].includes(selectedService);
   const copy = getUsernameCopy(selectedService);
   if (usernameLabel) {
     usernameLabel.textContent = copy.label;
@@ -465,7 +480,12 @@ function handleServiceChange(nextValue) {
     navidromeFields.hidden = !isNavidrome;
   }
   if (malojaFields) {
-    malojaFields.hidden = selectedService !== 'maloja';
+    malojaFields.hidden = !serverCopy;
+  }
+  if (serverCopy && malojaServerInput) {
+    malojaServerInput.placeholder = serverCopy.placeholder;
+    const serverLabel = document.getElementById('maloja-server-label');
+    if (serverLabel) serverLabel.textContent = serverCopy.label;
   }
   if (customFields) {
     customFields.hidden = selectedService !== 'custom';
@@ -543,10 +563,10 @@ function updateNavidromeMethodHint() {
   }
 }
 
-function readMalojaServer() {
+function readMalojaServer(service = 'maloja') {
   const raw = malojaServerInput ? malojaServerInput.value.trim() : '';
   if (!raw) {
-    throw new FieldError('enter your maloja url.', malojaServerInput);
+    throw new FieldError(`enter your ${service} url.`, malojaServerInput);
   }
   return raw.replace(/\/+$/, '');
 }
@@ -1163,7 +1183,7 @@ function formatErrorWithGuidance(error, context = '') {
   const lowerMessage = baseMessage.toLowerCase();
   const issueLink = `<a href="${GITHUB_ISSUES_URL}" target="_blank" rel="noopener noreferrer">open an issue on github</a>`;
 
-  if (error.__emptyResult || lowerMessage.includes('navidrome') || lowerMessage.includes('maloja')) {
+  if (error.__emptyResult || lowerMessage.includes('navidrome') || lowerMessage.includes('maloja') || lowerMessage.includes('koito') || lowerMessage.includes('rocksky')) {
     return baseMessage;
   }
 
@@ -1795,10 +1815,10 @@ async function generateWrapped(event) {
       markInvalid(credentialError.field);
       return;
     }
-  } else if (selectedService === 'maloja' || selectedService === 'custom') {
+  } else if (SERVER_URL_SERVICES[selectedService] || selectedService === 'custom') {
     try {
-      if (selectedService === 'maloja') {
-        malojaServer = readMalojaServer();
+      if (SERVER_URL_SERVICES[selectedService]) {
+        malojaServer = readMalojaServer(selectedService);
         username = malojaServer.replace(/^https?:\/\//i, '').split('/')[0];
       } else {
         customData = readCustomData();
@@ -2175,8 +2195,13 @@ async function updateSections(username, sections) {
     refreshSectionDisplays();
     return;
   }
-  if (getSelectedService() === 'maloja') {
-    await updateMalojaSections(sections);
+  if (SERVER_URL_SERVICES[getSelectedService()]) {
+    await updateMalojaSections(sections, getSelectedService());
+    refreshSectionDisplays();
+    return;
+  }
+  if (getSelectedService() === 'rocksky') {
+    await updateRockskySections(username, sections);
     refreshSectionDisplays();
     return;
   }
@@ -2465,24 +2490,36 @@ async function loadNamedArtistArt(sections) {
   }
 }
 
-async function updateMalojaSections(sections) {
+async function updateMalojaSections(sections, service = 'maloja') {
   if (!state.malojaServer) {
-    throw new Error('enter your maloja url again.');
+    throw new Error(`enter your ${service} url again.`);
   }
   if (sections.some((section) => section !== 'image') || !Array.isArray(state.generatedData.artists)) {
-    setStatus('asking your maloja server for charts...');
+    setStatus(`asking your ${service} server for charts...`);
     const params = new URLSearchParams({ server: state.malojaServer });
-    const stats = await fetchJson(`/api/maloja/stats?${params.toString()}`);
-    state.generatedData.artists = sanitiseRankedArray(stats.artists).slice(0, 5);
-    state.generatedData.tracks = sanitiseRankedArray(stats.tracks).slice(0, 5);
-    state.generatedData.minutes = typeof stats.minutes === 'string' ? stats.minutes : '0';
-    state.generatedData.genre = normaliseGenreLabel(stats.genre || 'No genre');
-    if (stats.name) {
-      state.generatedData.username = String(stats.name);
-    }
-    if (stats.period) {
-      state.generatedData.period = stats.period;
-    }
+    applySnapshotStats(await fetchJson(buildRequestUrl(`/api/${service}/stats?${params.toString()}`)));
+  }
+  await loadNamedArtistArt(sections);
+}
+
+function applySnapshotStats(stats, useName = true) {
+  state.generatedData.artists = sanitiseRankedArray(stats.artists).slice(0, 5);
+  state.generatedData.tracks = sanitiseRankedArray(stats.tracks).slice(0, 5);
+  state.generatedData.minutes = typeof stats.minutes === 'string' ? stats.minutes : '0';
+  state.generatedData.genre = normaliseGenreLabel(stats.genre || 'No genre');
+  if (useName && stats.name) {
+    state.generatedData.username = String(stats.name);
+  }
+  if (stats.period) {
+    state.generatedData.period = stats.period;
+  }
+}
+
+async function updateRockskySections(username, sections) {
+  if (sections.some((section) => section !== 'image') || !Array.isArray(state.generatedData.artists)) {
+    setStatus('asking rocksky for your charts...');
+    const params = new URLSearchParams({ username });
+    applySnapshotStats(await fetchJson(buildRequestUrl(`/api/rocksky/stats?${params.toString()}`)), false);
   }
   await loadNamedArtistArt(sections);
 }

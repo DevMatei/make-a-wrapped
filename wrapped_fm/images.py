@@ -7,13 +7,15 @@ import logging
 import socket
 import threading
 from dataclasses import dataclass
-from functools import lru_cache
 from typing import Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
+from .cache import TTLCache
 from .config import (
     COVER_ART_API,
     COVER_ART_LOOKUP_LIMIT,
+    IMAGE_CACHE_MAX_BYTES,
+    IMAGE_CACHE_TTL,
     IMAGE_CONCURRENCY,
     IMAGE_QUEUE_LIMIT,
     IMAGE_QUEUE_TIMEOUT,
@@ -25,6 +27,7 @@ from .http import (
     request_with_handling,
 )
 from .listenbrainz import (
+    LB_COMPATIBLE_SERVICES,
     get_top_artists_payload,
     get_top_releases_payload,
     get_top_tracks_payload,
@@ -211,8 +214,26 @@ def _artist_image_candidates(artist_mbid: str) -> List[str]:
     return candidates
 
 
-@lru_cache(maxsize=256)
+def _art_size(value: Optional[Tuple[str, bytes]]) -> int:
+    return len(value[1]) if value else 0
+
+
+# one byte capped cache for downloaded art, shared by every source
+image_bytes_cache = TTLCache(
+    ttl=IMAGE_CACHE_TTL,
+    max_size=512,
+    max_bytes=IMAGE_CACHE_MAX_BYTES,
+    sizeof=_art_size,
+)
+
+
 def _download_artist_image(artist_mbid: str) -> Optional[Tuple[str, bytes]]:
+    return image_bytes_cache.get_or_compute(
+        ("mb", artist_mbid), lambda: _download_artist_image_uncached(artist_mbid)
+    )
+
+
+def _download_artist_image_uncached(artist_mbid: str) -> Optional[Tuple[str, bytes]]:
     for candidate in _artist_image_candidates(artist_mbid):
         art = _fetch_binary_image(candidate)
         if art:
@@ -299,7 +320,6 @@ def _lookup_lastfm_album_image(artist_name: str, artist_mbid: Optional[str], ser
     return None
 
 
-@lru_cache(maxsize=256)
 def _is_lastfm_family(service: str) -> bool:
     return service in ("lastfm", "librefm")
 
@@ -330,8 +350,14 @@ def _download_lastfm_user_top_album_image(
     return None
 
 
-@lru_cache(maxsize=256)
 def _download_lastfm_artist_image(artist_name: str, artist_mbid: Optional[str], service: str = "lastfm") -> Optional[Tuple[str, bytes]]:
+    return image_bytes_cache.get_or_compute(
+        ("lastfm", service, artist_name, artist_mbid),
+        lambda: _download_lastfm_artist_image_uncached(artist_name, artist_mbid, service),
+    )
+
+
+def _download_lastfm_artist_image_uncached(artist_name: str, artist_mbid: Optional[str], service: str) -> Optional[Tuple[str, bytes]]:
     provider = _resolve_provider(service)
     if not provider.api_key or not artist_name:
         return None
@@ -366,11 +392,11 @@ def _collect_artist_candidates(
         artists = get_lastfm_top_artists(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj, service=service)
         return [(name, None) for name in artists]
 
-    artists = get_top_artists_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj)
+    artists = get_top_artists_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj, service=service)
     if not artists and range_obj and range_obj.is_custom:
         from .date_range import resolve_preset
         fallback = resolve_preset("this_year")
-        artists = get_top_artists_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=fallback)
+        artists = get_top_artists_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=fallback, service=service)
     candidates: List[Tuple[str, Optional[str]]] = []
     for artist in artists:
         name = artist.get("artist_name") or artist.get("name")
@@ -386,7 +412,7 @@ def _collect_cover_candidates(
     service: str = "listenbrainz",
     range_obj: Optional[DateRange] = None,
 ) -> List[Tuple[str, Optional[str]]]:
-    if service != "listenbrainz":
+    if service not in LB_COMPATIBLE_SERVICES:
         return []
     weighted_candidates: Dict[Tuple[str, Optional[str]], int] = {}
 
@@ -403,17 +429,17 @@ def _collect_cover_candidates(
         if weight > current:
             weighted_candidates[key] = weight
 
-    releases = get_top_releases_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj)
+    releases = get_top_releases_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj, service=service)
     if not releases and range_obj and range_obj.is_custom:
         from .date_range import resolve_preset
         fallback = resolve_preset("this_year")
-        releases = get_top_releases_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=fallback)
+        releases = get_top_releases_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=fallback, service=service)
     for release in releases:
         listen_count = normalise_count(release.get("listen_count", 0))
         add_candidate(release.get("caa_release_mbid"), release.get("caa_release_mbid"), listen_count)
         add_candidate(release.get("release_mbid"), release.get("caa_release_mbid"), listen_count)
 
-    recordings = get_top_tracks_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj)
+    recordings = get_top_tracks_payload(username, COVER_ART_LOOKUP_LIMIT, range_obj=range_obj, service=service)
     for recording in recordings:
         listen_count = normalise_count(recording.get("listen_count", 0))
         add_candidate(recording.get("caa_release_mbid"), recording.get("caa_release_mbid"), listen_count)
@@ -431,8 +457,14 @@ def _collect_cover_candidates(
     return trimmed
 
 
-@lru_cache(maxsize=256)
 def _download_cover_art(release_mbid: str, caa_release_mbid: Optional[str]) -> Optional[Tuple[str, bytes]]:
+    return image_bytes_cache.get_or_compute(
+        ("caa", release_mbid, caa_release_mbid),
+        lambda: _download_cover_art_uncached(release_mbid, caa_release_mbid),
+    )
+
+
+def _download_cover_art_uncached(release_mbid: str, caa_release_mbid: Optional[str]) -> Optional[Tuple[str, bytes]]:
     if not release_mbid:
         return None
 
@@ -514,8 +546,8 @@ def fetch_top_artist_image(
         artist_candidates: List[Tuple[str, Optional[str]]] = []
 
         for source in preference_order:
-            if source == "release" and service == "listenbrainz":
-                for release_mbid, caa_release_mbid in _collect_cover_candidates(username, range_obj=range_obj):
+            if source == "release" and service in LB_COMPATIBLE_SERVICES:
+                for release_mbid, caa_release_mbid in _collect_cover_candidates(username, service=service, range_obj=range_obj):
                     art = _download_cover_art(release_mbid, caa_release_mbid)
                     if art:
                         content_type, content = art

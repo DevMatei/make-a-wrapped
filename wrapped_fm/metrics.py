@@ -39,7 +39,7 @@ WRAPPED = "wrapped"
 TEMPLATE_PREFIX = "template:"
 SERVICE_PREFIX = "wrapped:"
 GENERATION_PREFIX = "generation:"
-SERVICES = ("listenbrainz", "lastfm", "librefm", "navidrome", "maloja", "custom")
+SERVICES = ("listenbrainz", "sonosphere", "lastfm", "librefm", "navidrome", "maloja", "koito", "rocksky", "custom")
 
 _METRIC_RE = re.compile(r"^[a-z0-9][a-z0-9:_-]{0,79}$")
 _DAY_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})?$")
